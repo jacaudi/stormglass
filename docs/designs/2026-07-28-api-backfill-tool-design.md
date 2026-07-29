@@ -443,7 +443,18 @@ Repo idiom applies: `t.Context()`, `t.TempDir()`, stdlib table-driven, no testif
 
 **Tests that can only fail at compile time or by string match** (a struct-literal field-name assertion, a `strings.Contains` on a SQL constant) do **not** count toward the rows above. They assert the language spec or restate the file they live in; the behavior needs a test that can fail at runtime for the reason the row names.
 
-**The Postgres path ships unverified unless an integration test runs.** Its SQL differs materially from SQLite's — `EXTRACT(EPOCH FROM (ts - prev)) > $3` compares a `numeric` against a `float64` parameter, and `precip_type` is `INTEGER` while the bind is a `*float64` (pgx truncates silently). A skip-guarded integration test following `writer_integration_test.go`'s existing idiom must seed the same two-serial interleaved fixture the SQLite test uses, and it must be run at least once against a real database before the branch merges.
+### Postgres path — verified by execution 2026-07-29
+
+The Postgres SQL was executed against a real **PostgreSQL 16** container (pgx v5, `CGO_ENABLED=0`) before implementation, using the plan's own integration test. Results, so they are not re-derived:
+
+- `EXTRACT(EPOCH FROM (ts - prev)) > $3` with a Go `float64` bind **works**; the partitioned `LAG` finds the masked hole.
+- `ON CONFLICT (serial_number, timestamp) DO NOTHING` returns `RowsAffected` 1 on insert and **0** on conflict, so the inserted count is real on this store too.
+- `MIN/MAX(timestamptz)` scan into `time.Time` cleanly.
+- **`*float64` → `INTEGER` column: pgx truncates toward zero, silently, with no error.** Measured: `2.0→2`, `2.4→2`, `2.6→2`, `-1.5→-1`. This is benign for the four affected columns (`precip_type`, `wind_sample_interval`, `lightning_strike_count`, `report_interval`) because the Tempest API supplies integral values there — but it is a silent lossy conversion, so do **not** widen this pattern to a column where a fractional value is meaningful.
+
+The test was also **mutation-checked**: removing `PARTITION BY serial_number` makes it fail (`did not find the ST-ITEST-A hole ... got []`), as does corrupting the INTEGER round-trip assertion. It is not a test that passes by construction.
+
+It remains **skip-guarded on `POSTGRES_URL`**, so a CI run without a database proves nothing about this path. Re-run it against a real database after any change to the Postgres SQL.
 
 ## Documentation owned by this design
 

@@ -1789,9 +1789,23 @@ git commit -m "feat(sqlite): add partitioned gap detection and idempotent backfi
 
 **Signatures are pinned to `time.Time` on both stores** so one interface satisfies both without a shim. The epoch conversion stays inside the SQLite implementation, matching how that package already handles timestamps; Postgres passes `time.Time` straight through to `TIMESTAMPTZ`.
 
-**This task's SQL is the least-covered code in the change, and that is a stated risk, not an oversight.** Both reviews flagged it. The unit tests here cover only wet-bulb derivation; every query is exercised solely by `TestBackfillPostgresIntegration`, which **skips** unless `POSTGRES_URL` is set.
+**This task's SQL was pre-verified against a real database on 2026-07-29** — transcribed into a scratch tree and run against PostgreSQL 16 (pgx v5, `CGO_ENABLED=0`) before implementation began. Everything below passed, and the test was mutation-checked (removing `PARTITION BY serial_number` makes it fail; so does corrupting the INTEGER round-trip). See the design's "Postgres path — verified by execution".
 
-**Therefore: run it against a real database at least once before this branch merges, and paste the output.** A run in which it skipped is not evidence. If no database is available, say so explicitly when reporting this task complete — do not report the Postgres path as verified.
+Two findings from that run, already reflected in the code below:
+
+- **pgx truncates `*float64` → `INTEGER` toward zero, silently:** `2.6→2`, `-1.5→-1`, no error. Benign here (the API supplies integral values for the four affected columns) but do not widen the pattern.
+- The seeded fixture must bind `PrecipType`, `WindSampleInterval`, `LightningStrikeCount` and `ReportInterval`, or the test skips the very hazard it exists for.
+
+**Still: `TestBackfillPostgresIntegration` skips unless `POSTGRES_URL` is set, so a run where it skipped is not evidence.** Re-run it after any change to this file's SQL:
+
+```bash
+colima start                                   # if the container host is not already up
+docker run --rm -d --name twx-itest -e POSTGRES_PASSWORD=x -e POSTGRES_DB=weather -p 55432:5432 postgres:16
+until docker exec twx-itest pg_isready -U postgres; do sleep 1; done
+POSTGRES_URL='postgres://postgres:x@localhost:55432/weather?sslmode=disable' \
+  go test ./internal/postgres/ -run TestBackfillPostgresIntegration -v -count=1
+docker rm -f twx-itest
+```
 
 ```bash
 docker run --rm -d --name twx-itest -e POSTGRES_PASSWORD=x -e POSTGRES_DB=weather -p 55432:5432 postgres:16
