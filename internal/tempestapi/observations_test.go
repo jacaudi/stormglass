@@ -110,7 +110,14 @@ func TestObservationsHTTPErrorIsStatusError(t *testing.T) {
 
 func TestObservationsSkipsRowWithNullTimestamp(t *testing.T) {
 	// A row with no timestamp cannot be keyed by (serial, timestamp) and
-	// must be dropped rather than written at the epoch.
+	// must be dropped rather than written at the epoch. This exercises the
+	// same drop path as the logging tests below, so it needs the same
+	// buffer handler to keep the WARN out of real stderr.
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn})))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+
 	body := `{"status":{"status_code":0},"type":"obs_st","obs":[
 		[null,0.1,0.2,0.3,180,3,1013.0,20.5,55.0,1000,1.5,300,0.0,0,10.0,2,2.6,1],
 		[1700000000,0.1,0.2,0.3,180,3,1013.0,20.5,55.0,1000,1.5,300,0.0,0,10.0,2,2.6,1]
@@ -124,6 +131,12 @@ func TestObservationsSkipsRowWithNullTimestamp(t *testing.T) {
 	}
 	if len(obs) != 1 {
 		t.Fatalf("got %d observations, want 1 (the null-timestamp row must be dropped)", len(obs))
+	}
+	if !obs[0].Timestamp.Equal(time.Unix(1700000000, 0).UTC()) {
+		t.Errorf("Timestamp = %v, want %v (the surviving row, not the dropped one)", obs[0].Timestamp, time.Unix(1700000000, 0).UTC())
+	}
+	if logged := buf.String(); !strings.Contains(logged, "dropped=1") {
+		t.Errorf("the drop must be logged with a count; got:\n%s", logged)
 	}
 }
 
@@ -213,14 +226,18 @@ func TestObservationsEmptyWindowLogsNoDropWarning(t *testing.T) {
 }
 
 func TestObservationsRequestsCorrectWindow(t *testing.T) {
-	var gotQuery string
+	var gotPath, gotQuery string
 	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
 		gotQuery = r.URL.RawQuery
 		_, _ = w.Write([]byte(`{"status":{"status_code":0},"obs":[]}`))
 	})
 	_, err := c.Observations(t.Context(), Station{DeviceID: 77}, time.Unix(1700000000, 0), time.Unix(1700086400, 0))
 	if err != nil {
 		t.Fatalf("Observations: %v", err)
+	}
+	if want := "/observations/device/77"; gotPath != want {
+		t.Errorf("path = %q, want %q", gotPath, want)
 	}
 	if want := "time_start=1700000000&time_end=1700086400"; gotQuery != want {
 		t.Errorf("query = %q, want %q", gotQuery, want)

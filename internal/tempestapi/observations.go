@@ -67,6 +67,14 @@ const (
 // pressure and wind — a real divergence from the ingest path the design
 // forbids. Because every weather.Observation measurement is a *float64,
 // honoring the graduated rule is free: absent indices simply stay nil.
+//
+// The floor mirrors the UDP path exactly, but the tail does not: at() fills
+// obsLightningDistance (14) and obsLightningStrikeCount (15) independently,
+// where sqlite/writer.go's handleObservationReport gates that pair together
+// on len(ob) >= 16. A 15-element tuple therefore keeps a lightning distance
+// here that the UDP path would discard (it would keep neither). This is a
+// deliberate, accepted divergence — not a bug to fix by changing behavior —
+// because the graduated rule this file follows is "preserve what is present."
 const obsMinFields = 13
 
 // Observations fetches raw historical observations for one device over
@@ -172,7 +180,7 @@ func (c *Client) Observations(ctx context.Context, station Station, start, end t
 		// signal the reporting design rests on.
 		slog.Warn("tempestapi: dropped malformed observation tuples",
 			"serial", station.SerialNumber, "dropped", dropped, "total", len(set.Obs),
-			"start", start, "end", end)
+			"start", start.UTC(), "end", end.UTC())
 	}
 	return out, nil
 }
