@@ -53,12 +53,33 @@ func NewClient(token string, opts ...ClientOption) *Client {
 type Station struct {
 	Name         string
 	StationID    int
-	deviceID     int
-	serialNumber string
+	DeviceID     int
+	SerialNumber string
 	CreatedAt    time.Time
 }
 
-func (c *Client) ListStations(ctx context.Context) ([]Station, error) {
+// stationsResponse is the /stations payload. ListStations and ListDevices
+// both decode into it, so the JSON contract lives in exactly one place.
+type stationsResponse struct {
+	Stations []struct {
+		CreatedEpoch int64 `json:"created_epoch"`
+		Devices      []struct {
+			DeviceID     int    `json:"device_id"`
+			DeviceType   string `json:"device_type"`
+			SerialNumber string `json:"serial_number"`
+		} `json:"devices"`
+		Name      string `json:"name"`
+		StationID int    `json:"station_id"`
+	} `json:"stations"`
+	Status struct {
+		StatusCode    int    `json:"status_code"`
+		StatusMessage string `json:"status_message"`
+	} `json:"status"`
+}
+
+// fetchStations performs the GET /stations call and validates the status
+// envelope. Behavior is byte-identical to what ListStations did inline.
+func (c *Client) fetchStations(ctx context.Context) (*stationsResponse, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/stations", nil)
 	if err != nil {
 		return nil, err
@@ -72,7 +93,7 @@ func (c *Client) ListStations(ctx context.Context) ([]Station, error) {
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("weatherflow API status %d", resp.StatusCode)
+		return nil, &StatusError{HTTPStatus: resp.StatusCode}
 	}
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
@@ -80,27 +101,60 @@ func (c *Client) ListStations(ctx context.Context) ([]Station, error) {
 		return nil, err
 	}
 
-	var data struct {
-		Stations []struct {
-			CreatedEpoch int64 `json:"created_epoch"`
-			Devices      []struct {
-				DeviceID     int    `json:"device_id"`
-				DeviceType   string `json:"device_type"`
-				SerialNumber string `json:"serial_number"`
-			} `json:"devices"`
-			Name      string `json:"name"`
-			StationID int    `json:"station_id"`
-		} `json:"stations"`
-		Status struct {
-			StatusCode    int    `json:"status_code"`
-			StatusMessage string `json:"status_message"`
-		} `json:"status"`
-	}
+	var data stationsResponse
 	if err := json.Unmarshal(body, &data); err != nil {
 		return nil, err
 	}
 	if data.Status.StatusCode != 0 {
-		return nil, fmt.Errorf("weatherflow status_code %d: %s", data.Status.StatusCode, data.Status.StatusMessage)
+		return nil, &StatusError{
+			StatusCode: data.Status.StatusCode,
+			Message:    data.Status.StatusMessage,
+		}
+	}
+	return &data, nil
+}
+
+// ListDevices returns one Station per ST device across all stations.
+//
+// It exists because ListStations collapses each station to a SINGLE ST device
+// (its loop has no break, so the last one wins). With two Tempest units on one
+// station that silently loses a sensor — the UDP listener records both serials,
+// but a caller driven by ListStations would only ever learn one, and the other
+// unit's gaps would never close, unlogged.
+//
+// ListStations is deliberately left with its collapsing behavior: ModeAPIExport
+// depends on it, and changing it is an explicit non-goal.
+func (c *Client) ListDevices(ctx context.Context) ([]Station, error) {
+	data, err := c.fetchStations(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var out []Station
+	for _, station := range data.Stations {
+		for _, dev := range station.Devices {
+			if dev.DeviceType != "ST" {
+				continue
+			}
+			out = append(out, Station{
+				Name:         station.Name,
+				StationID:    station.StationID,
+				DeviceID:     dev.DeviceID,
+				SerialNumber: dev.SerialNumber,
+				CreatedAt:    time.Unix(station.CreatedEpoch, 0),
+			})
+		}
+	}
+	return out, nil
+}
+
+// ListStations returns one Station per station, collapsing each station's
+// devices to a SINGLE ST device — the last one seen, because the loop below
+// has no break. That behavior is load-bearing for ModeAPIExport and is
+// deliberately preserved; backfill uses ListDevices instead.
+func (c *Client) ListStations(ctx context.Context) ([]Station, error) {
+	data, err := c.fetchStations(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	var out []Station
@@ -117,8 +171,8 @@ func (c *Client) ListStations(ctx context.Context) ([]Station, error) {
 		if deviceId != 0 && instance != "" {
 			out = append(out, Station{
 				Name:         station.Name,
-				deviceID:     deviceId,
-				serialNumber: instance,
+				DeviceID:     deviceId,
+				SerialNumber: instance,
 				StationID:    station.StationID,
 				CreatedAt:    time.Unix(station.CreatedEpoch, 0),
 			})
@@ -128,7 +182,7 @@ func (c *Client) ListStations(ctx context.Context) ([]Station, error) {
 }
 
 func (c *Client) GetObservations(ctx context.Context, station Station, startAt time.Time, endAt time.Time) ([]prometheus.Metric, error) {
-	url := fmt.Sprintf("%s/observations/device/%d?time_start=%d&time_end=%d", c.baseURL, station.deviceID, startAt.Unix(), endAt.Unix())
+	url := fmt.Sprintf("%s/observations/device/%d?time_start=%d&time_end=%d", c.baseURL, station.DeviceID, startAt.Unix(), endAt.Unix())
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
@@ -157,7 +211,7 @@ func (c *Client) GetObservations(ctx context.Context, station Station, startAt t
 
 	switch r := report.(type) {
 	case *tempestudp.TempestObservationReport:
-		r.SerialNumber = station.serialNumber
+		r.SerialNumber = station.SerialNumber
 	default:
 		return nil, fmt.Errorf("unhandled report type %T", report)
 	}

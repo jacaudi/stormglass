@@ -91,11 +91,11 @@ func TestListStations_Success_SingleStation(t *testing.T) {
 	if station.StationID != 12345 {
 		t.Errorf("Expected station ID 12345, got %d", station.StationID)
 	}
-	if station.deviceID != 67890 {
-		t.Errorf("Expected device ID 67890, got %d", station.deviceID)
+	if station.DeviceID != 67890 {
+		t.Errorf("Expected device ID 67890, got %d", station.DeviceID)
 	}
-	if station.serialNumber != "ST-00012345" {
-		t.Errorf("Expected serial number 'ST-00012345', got %s", station.serialNumber)
+	if station.SerialNumber != "ST-00012345" {
+		t.Errorf("Expected serial number 'ST-00012345', got %s", station.SerialNumber)
 	}
 
 	expectedTime := time.Unix(1609459200, 0)
@@ -219,11 +219,11 @@ func TestListStations_Success_MultipleDevicesPerStation(t *testing.T) {
 
 	// Should pick the ST device, not HB or AR
 	station := stations[0]
-	if station.deviceID != 67890 {
-		t.Errorf("Expected device ID 67890 (ST device), got %d", station.deviceID)
+	if station.DeviceID != 67890 {
+		t.Errorf("Expected device ID 67890 (ST device), got %d", station.DeviceID)
 	}
-	if station.serialNumber != "ST-00012345" {
-		t.Errorf("Expected serial number 'ST-00012345', got %s", station.serialNumber)
+	if station.SerialNumber != "ST-00012345" {
+		t.Errorf("Expected serial number 'ST-00012345', got %s", station.SerialNumber)
 	}
 }
 
@@ -418,8 +418,8 @@ func TestGetObservations_Success(t *testing.T) {
 	station := Station{
 		Name:         "Test Station",
 		StationID:    12345,
-		deviceID:     67890,
-		serialNumber: "ST-00012345",
+		DeviceID:     67890,
+		SerialNumber: "ST-00012345",
 		CreatedAt:    time.Now(),
 	}
 
@@ -461,8 +461,8 @@ func TestGetObservations_MultipleObservations(t *testing.T) {
 	}
 
 	station := Station{
-		deviceID:     67890,
-		serialNumber: "ST-00012345",
+		DeviceID:     67890,
+		SerialNumber: "ST-00012345",
 	}
 
 	metrics, err := client.GetObservations(context.Background(), station, time.Now(), time.Now())
@@ -482,7 +482,7 @@ func TestGetObservations_HTTPError(t *testing.T) {
 		err: errors.New("network error"),
 	}
 
-	station := Station{deviceID: 67890, serialNumber: "ST-00012345"}
+	station := Station{DeviceID: 67890, SerialNumber: "ST-00012345"}
 
 	_, err := client.GetObservations(context.Background(), station, time.Now(), time.Now())
 
@@ -497,7 +497,7 @@ func TestGetObservations_InvalidJSON(t *testing.T) {
 		response: mockResponse(http.StatusOK, "not valid json"),
 	}
 
-	station := Station{deviceID: 67890, serialNumber: "ST-00012345"}
+	station := Station{DeviceID: 67890, SerialNumber: "ST-00012345"}
 
 	_, err := client.GetObservations(context.Background(), station, time.Now(), time.Now())
 
@@ -512,7 +512,7 @@ func TestGetObservations_ContextCancellation(t *testing.T) {
 		err: context.Canceled,
 	}
 
-	station := Station{deviceID: 67890, serialNumber: "ST-00012345"}
+	station := Station{DeviceID: 67890, SerialNumber: "ST-00012345"}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
@@ -539,7 +539,7 @@ func TestGetObservations_EmptyObservations(t *testing.T) {
 		response: mockResponse(http.StatusOK, mockBody),
 	}
 
-	station := Station{deviceID: 67890, serialNumber: "ST-00012345"}
+	station := Station{DeviceID: 67890, SerialNumber: "ST-00012345"}
 
 	metrics, err := client.GetObservations(context.Background(), station, time.Now(), time.Now())
 
@@ -657,8 +657,8 @@ func TestGetObservations_URLParameters(t *testing.T) {
 	})
 
 	station := Station{
-		deviceID:     98765,
-		serialNumber: "ST-00098765",
+		DeviceID:     98765,
+		SerialNumber: "ST-00098765",
 	}
 
 	startTime := time.Unix(1609459000, 0)
@@ -761,7 +761,7 @@ func TestClient_ReturnsErrorOn401(t *testing.T) {
 		t.Errorf("ListStations() error = %v, want it to mention status 401", err)
 	}
 
-	station := Station{deviceID: 1, serialNumber: "ST-1"}
+	station := Station{DeviceID: 1, SerialNumber: "ST-1"}
 	if _, err := client.GetObservations(context.Background(), station, time.Now(), time.Now()); err == nil {
 		t.Error("GetObservations() error = nil, want error mentioning status 401")
 	} else if !strings.Contains(err.Error(), "401") {
@@ -784,7 +784,7 @@ func TestClient_UnhandledReportType_ReturnsError(t *testing.T) {
 	defer server.Close()
 
 	client := newRedirectingClient("secret-token", server)
-	station := Station{deviceID: 1, serialNumber: "ST-1"}
+	station := Station{DeviceID: 1, SerialNumber: "ST-1"}
 
 	_, err := client.GetObservations(context.Background(), station, time.Now(), time.Now())
 	if err == nil {
@@ -806,5 +806,69 @@ func TestClient_ChecksStatusCode(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "2") {
 		t.Errorf("ListStations() error = %v, want it to mention status_code 2", err)
+	}
+}
+
+func TestListDevicesReturnsEverySTDevice(t *testing.T) {
+	// One station, TWO Tempest sensors, plus a hub that must be ignored.
+	body := `{"status":{"status_code":0,"status_message":"SUCCESS"},"stations":[{
+		"station_id": 1, "name": "Home", "created_epoch": 1600000000,
+		"devices": [
+			{"device_id": 11, "device_type": "HB", "serial_number": "HB-00000001"},
+			{"device_id": 22, "device_type": "ST", "serial_number": "ST-00000022"},
+			{"device_id": 33, "device_type": "ST", "serial_number": "ST-00000033"}
+		]
+	}]}`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(body))
+	}))
+	t.Cleanup(srv.Close)
+	c := NewClient("test-token", WithBaseURL(srv.URL))
+
+	devices, err := c.ListDevices(t.Context())
+	if err != nil {
+		t.Fatalf("ListDevices: %v", err)
+	}
+	if len(devices) != 2 {
+		t.Fatalf("got %d devices, want 2 (both ST sensors, hub excluded)", len(devices))
+	}
+	got := map[string]int{}
+	for _, d := range devices {
+		got[d.SerialNumber] = d.DeviceID
+		if !d.CreatedAt.Equal(time.Unix(1600000000, 0)) {
+			t.Errorf("%s CreatedAt = %v, want the owning station's created_epoch", d.SerialNumber, d.CreatedAt)
+		}
+	}
+	if got["ST-00000022"] != 22 || got["ST-00000033"] != 33 {
+		t.Errorf("device map = %v, want ST-00000022→22 and ST-00000033→33", got)
+	}
+}
+
+// ListStations must keep its existing one-per-station collapse — ModeAPIExport
+// depends on it. This pins the divergence so the shared decode refactor cannot
+// silently change it.
+func TestListStationsStillCollapsesToOneDevicePerStation(t *testing.T) {
+	body := `{"status":{"status_code":0,"status_message":"SUCCESS"},"stations":[{
+		"station_id": 1, "name": "Home", "created_epoch": 1600000000,
+		"devices": [
+			{"device_id": 22, "device_type": "ST", "serial_number": "ST-00000022"},
+			{"device_id": 33, "device_type": "ST", "serial_number": "ST-00000033"}
+		]
+	}]}`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(body))
+	}))
+	t.Cleanup(srv.Close)
+	c := NewClient("test-token", WithBaseURL(srv.URL))
+
+	stations, err := c.ListStations(t.Context())
+	if err != nil {
+		t.Fatalf("ListStations: %v", err)
+	}
+	if len(stations) != 1 {
+		t.Fatalf("got %d stations, want 1", len(stations))
+	}
+	if stations[0].SerialNumber != "ST-00000033" {
+		t.Errorf("SerialNumber = %q, want ST-00000033 (last ST wins — unchanged behavior)", stations[0].SerialNumber)
 	}
 }
