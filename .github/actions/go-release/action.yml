@@ -18,7 +18,12 @@ runs:
     - name: Install Go
       uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
       with:
-        go-version: "1.24"
+        # go.mod requires go >= 1.25.0; setup-go@v6 pins GOTOOLCHAIN=local, so
+        # the Go installed here must already satisfy that -- it cannot
+        # auto-upgrade. At "1.24" GoReleaser's build hook died with
+        # "go.mod requires go >= 1.25.0 (running go 1.24.13; GOTOOLCHAIN=local)".
+        # Matches go.mod's toolchain (go1.26.1) and the actionlint job.
+        go-version: "1.26"
 
     - name: Run GoReleaser
       uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
