@@ -86,11 +86,17 @@ func backfill(
 
   ```go
   type backfillStore interface {
+      SeriesBounds(ctx context.Context, from, to time.Time) ([]weather.Bounds, error)
       FindObservationGaps(ctx context.Context, from, to time.Time, minGap time.Duration) ([]weather.Gap, error)
       InsertObservations(ctx context.Context, obs []weather.Observation) (inserted int, err error)
-      DistinctSerials(ctx context.Context) ([]string, error)
   }
   ```
+
+  `SeriesBounds` returns the first and last stored timestamp per serial within a
+  window (`weather.Bounds`). It carries three jobs at once, which is why there is
+  no separate `DistinctSerials`: it supplies the head/tail boundaries `LAG`
+  cannot see, its key set *is* the set of serials present, and an empty result
+  is exactly the empty-store signal the pre-flight check needs.
 
   Defined in the **consumer** package (`internal/backfill`), Go-idiomatic. Thin adapters in that package bind a `*sql.DB` / `*pgxpool.Pool` to the package-level store functions.
 

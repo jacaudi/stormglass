@@ -1,0 +1,3336 @@
+# API Backfill Tool Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+> **For Claude:** REQUIRED EXECUTION WORKFLOW (follow in order):
+> 1. `superpowers:using-git-worktrees` — **already satisfied**; work in `~/Projects/github/tempestwx-exporter/.claude/worktrees/api-backfill` on branch `worktree-api-backfill`. Do NOT create a new worktree.
+> 2. `superpowers:subagent-driven-development` — Dispatch a fresh subagent per task
+> 3. `superpowers:test-driven-development` — All subagents use TDD
+> 4. `superpowers:verification-before-completion` — Verify all tests pass per task
+> 5. `superpowers:requesting-code-review` — Code review after each task (built in)
+> 6. After all tasks: comprehensive cold review on the full diff from branch point
+> 7. `superpowers:finishing-a-development-branch` — Complete the branch
+>
+> Skills carry their own model and effort settings. Do not override them.
+
+**Goal:** Add a `backfill` subcommand that finds holes in the local observation history and fills them from the Tempest REST API, idempotently and safely re-runnably.
+
+**Architecture:** A new leaf package `internal/weather` owns the store-neutral `Observation` and `Gap` types. The two store packages gain package-level functions (not writer methods — the writer's single-goroutine invariant forbids it) for gap detection and insertion. A new `internal/backfill` package holds a testable core with all dependencies injected, including the clock. `main.go` gains a thin shell and a real subcommand dispatch.
+
+**Tech Stack:** Go 1.25, `database/sql` + `modernc.org/sqlite` (CGO_ENABLED=0), `pgx/v5` + `pgxpool`, stdlib `flag`, `log/slog`, stdlib testing (no testify).
+
+**Design:** `docs/designs/2026-07-28-api-backfill-tool-design.md` — read it before starting. This plan implements it; where they disagree, the design wins and the plan is wrong.
+
+## Global Constraints
+
+- **Go 1.25 floor** (`go.mod` says `go 1.25.0`). **No Go 1.26-only APIs** — in particular use `errors.As`, **never** `errors.AsType`.
+- **`CGO_ENABLED=0` must stay buildable.** No new cgo dependencies.
+- **Zero new module dependencies.** Nothing gets added to `go.mod`.
+- **`log/slog` for all new code.** Do not add `log.Printf` call sites; do not convert existing ones.
+- **No goroutines** in any new package-level store function. The `sqlite.Writer.run` goroutine is documented as "the only goroutine that ever touches db" — new functions take a `*sql.DB` / `*pgxpool.Pool` directly and must not be methods on the writer types.
+- **`sqlite.Open` sets `db.SetMaxOpenConns(1)`** (`internal/sqlite/db.go:73`). Any query must fully materialize its results and close its `*sql.Rows` before another query or insert runs on the same handle. A streaming iterator would deadlock with no error and no timeout.
+- **Timestamps are UTC.** SQLite stores unix-epoch `INTEGER`; Postgres stores `TIMESTAMPTZ`. Conversion happens at the SQLite boundary only.
+- **Tests use repo idiom:** `t.Context()`, `t.TempDir()`, stdlib table-driven subtests, no testify.
+- **The full gate must pass before any task is reported complete:**
+  ```bash
+  CGO_ENABLED=0 go build ./... && go vet ./... && gofmt -l . && go test ./... -race
+  ```
+  `gofmt -l .` must print **nothing**. Paste real output; do not assert success without it.
+- **Work in the existing worktree.** Every task begins by confirming `pwd` ends in `.claude/worktrees/api-backfill` and that `docs/designs/2026-07-28-api-backfill-tool-design.md` exists. If not, STOP and report `NEEDS_CONTEXT`.
+
+---
+
+## File Structure
+
+| File | Responsibility |
+|---|---|
+| `internal/weather/observation.go` | **Create.** Store-neutral `Observation` + `Gap` + `Bounds`. Imports nothing from this repo. |
+| `internal/tempestapi/errors.go` | **Create.** `StatusError` — the typed error the retry layer classifies on. |
+| `internal/tempestapi/client.go` | **Modify.** Export `Station.SerialNumber`/`.DeviceID`. |
+| `internal/tempestapi/observations.go` | **Create.** `Client.Observations` — nullable decode, status handling, empty windows. |
+| `internal/postgres/pool.go` | **Create.** `OpenPool` — the single source of pool tuning. |
+| `internal/postgres/writer.go` | **Modify.** `NewPostgresWriter` calls `OpenPool`. |
+| `internal/sqlite/backfill.go` | **Create.** `SeriesBounds`, `FindObservationGaps`, `InsertObservations` over `*sql.DB`. |
+| `internal/postgres/backfill.go` | **Create.** Same three functions over `*pgxpool.Pool`. |
+| `internal/backfill/window.go` | **Create.** Pure chunking + retry classification. |
+| `internal/backfill/gaps.go` | **Create.** Detection-domain assembly (head/tail/interior/empty). |
+| `internal/backfill/backfill.go` | **Create.** `Run` — the testable core, plus `Config`, `Stats`, and the two consumer-side interfaces. |
+| `main.go` | **Modify.** `runBackfill` shell + subcommand dispatch. |
+| `CLAUDE.md` | **Modify.** Resolve the name collision, document the subcommand. |
+
+**Dependency order:** T1 → (T2, T4 parallel) → T3 → (T5, T6 parallel) → T7 → T8 → T9 → T10 → T11.
+
+---
+
+### Task 1: `internal/weather` — store-neutral types
+
+**Files:**
+- Create: `internal/weather/observation.go`
+- Test: `internal/weather/observation_test.go`
+
+**Interfaces:**
+- Consumes: nothing.
+- Produces: `weather.Observation`, `weather.Gap`, `weather.Bounds` — used by every subsequent task.
+
+**Why this package exists:** both store packages and the REST client must name these types. They cannot live in `tempestapi` (storage would depend on the REST client), cannot live in `tempestudp` (that package is the UDP wire protocol, and `tempestudp.Gap` would be a lie), and cannot live in `internal/backfill` (`FindObservationGaps` is a package-level function *in the store packages*, so they would have to import their own consumer). `internal/weather` imports nothing from this repo, so nothing can cycle.
+
+**Nullability:** every measurement field is `*float64`. The SQLite DDL declares every column except `id`, `serial_number`, and `timestamp` as nullable (`internal/sqlite/migrations/0001_init.sql:2-14`), and the API may return JSON `null` for any element. `InsertObservations` binds these pointers straight into the query — `database/sql` and `pgx` both map a nil `*float64` to SQL NULL — so this type never funnels through the stores' private `observationRow`, whose first thirteen fields are non-pointer `float64` and would silently coerce a null to `0.0`.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `internal/weather/observation_test.go`:
+
+```go
+package weather
+
+import (
+	"testing"
+	"time"
+)
+
+func TestGapDuration(t *testing.T) {
+	g := Gap{
+		SerialNumber: "ST-00000001",
+		From:         time.Unix(1000, 0).UTC(),
+		To:           time.Unix(4600, 0).UTC(),
+	}
+	if got, want := g.Duration(), time.Hour; got != want {
+		t.Errorf("Duration() = %v, want %v", got, want)
+	}
+}
+
+func TestObservationNullableFieldsDefaultNil(t *testing.T) {
+	var o Observation
+	if o.Pressure != nil {
+		t.Error("Pressure should default to nil (SQL NULL), not a zero value")
+	}
+	if o.TempWetbulb != nil {
+		t.Error("TempWetbulb should default to nil")
+	}
+}
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `go test ./internal/weather/ -run 'TestGap|TestObservation' -v`
+Expected: FAIL — the package does not exist (`no Go files in .../internal/weather`).
+
+- [ ] **Step 3: Write minimal implementation**
+
+Create `internal/weather/observation.go`:
+
+```go
+// Package weather holds the store-neutral representation of a weather
+// observation and of a hole in an observation series.
+//
+// It deliberately imports nothing else in this repository. Both store
+// packages (internal/sqlite, internal/postgres) and the REST client
+// (internal/tempestapi) name these types, so any home that imported one of
+// them would create a cycle. It is not the UDP wire protocol — that is
+// internal/tempestudp — and these types must not be added there.
+package weather
+
+import "time"
+
+// Observation is one tempest_observations row in store-neutral form.
+//
+// Every measurement is a *float64 because the SQLite and Postgres DDL declare
+// every column except id/serial_number/timestamp as nullable, and the Tempest
+// REST API may return JSON null for any element of an obs tuple. A nil here
+// means SQL NULL; database/sql and pgx both bind it that way directly.
+//
+// This is deliberately NOT the stores' private observationRow types, whose
+// leading fields are non-pointer float64: unmarshalling a JSON null into a
+// non-pointer numeric is a silent no-op that yields 0.0, which would write
+// "pressure = 0.0 mb" where the API said "unknown". See the design's
+// "Nullability — mandatory" section.
+type Observation struct {
+	// SerialNumber and Timestamp are the series key and are never NULL.
+	// An observation whose ob[0] is null cannot be keyed and is dropped
+	// at decode time rather than represented here.
+	SerialNumber string
+	Timestamp    time.Time
+
+	WindLull             *float64 // obs_st[1]
+	WindAvg              *float64 // obs_st[2]
+	WindGust             *float64 // obs_st[3]
+	WindDirection        *float64 // obs_st[4]
+	WindSampleInterval   *float64 // obs_st[5]
+	Pressure             *float64 // obs_st[6], raw mb (no conversion)
+	TempAir              *float64 // obs_st[7]
+	Humidity             *float64 // obs_st[8]
+	Illuminance          *float64 // obs_st[9]
+	UVIndex              *float64 // obs_st[10]
+	Irradiance           *float64 // obs_st[11]
+	RainRate             *float64 // obs_st[12]
+	PrecipType           *float64 // obs_st[13]
+	LightningDistance    *float64 // obs_st[14]
+	LightningStrikeCount *float64 // obs_st[15]
+	Battery              *float64 // obs_st[16]
+	ReportInterval       *float64 // obs_st[17]
+
+	// TempWetbulb is derived in Go, not returned by the API. It is computed
+	// at the store boundary with the same tempestudp.WetBulbTemperatureC +
+	// math.IsNaN guard the UDP ingest path uses, so backfilled and live rows
+	// are indistinguishable.
+	TempWetbulb *float64
+}
+
+// Gap is a half-open hole [From, To) in one station's observation series.
+// The series is keyed by (SerialNumber, Timestamp) — the same uniqueness
+// contract idempotent inserts rely on — so a Gap is meaningless without its
+// serial.
+type Gap struct {
+	SerialNumber string
+	From         time.Time
+	To           time.Time
+}
+
+// Duration is the width of the gap.
+func (g Gap) Duration() time.Duration { return g.To.Sub(g.From) }
+
+// Bounds is the first and last observation timestamp held for one serial
+// within a queried window. It is what lets the caller find head and tail
+// gaps, which a SQL LAG window function cannot see: LAG yields NULL for the
+// first row of each partition, so it finds interior gaps only.
+type Bounds struct {
+	SerialNumber string
+	First        time.Time
+	Last         time.Time
+}
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `go test ./internal/weather/ -v`
+Expected: PASS — both tests.
+
+- [ ] **Step 5: Run the full gate**
+
+```bash
+CGO_ENABLED=0 go build ./... && go vet ./... && gofmt -l . && go test ./... -race
+```
+Expected: build clean, vet clean, `gofmt -l .` prints nothing, all tests pass.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add internal/weather/
+git commit -m "feat(weather): add store-neutral Observation, Gap, and Bounds types"
+```
+
+---
+
+### Task 2: `tempestapi` — export Station fields, add `StatusError`
+
+**Files:**
+- Modify: `internal/tempestapi/client.go:53-58` (struct), `:110-121` (construction), `:131` (`GetObservations` URL), `:160` (serial assignment)
+- Create: `internal/tempestapi/errors.go`
+- Test: `internal/tempestapi/errors_test.go`
+
+**Interfaces:**
+- Consumes: nothing.
+- Produces:
+  - `tempestapi.Station{Name string; StationID int; DeviceID int; SerialNumber string; CreatedAt time.Time}`
+  - `tempestapi.StatusError{HTTPStatus, StatusCode int; Message string}` with `func (e *StatusError) Error() string`
+
+**Why:** `Station.serialNumber` and `.deviceID` are currently **unexported** (`client.go:55-56`), so the serial pre-flight check cannot read a serial from outside the package. Export the fields rather than adding getters: `Station` is a plain data struct with three already-exported fields and no invariants to protect, so two getters would be pure ceremony.
+
+Three behaviors branch on the *kind* of error (retry on 429/5xx/network; a non-zero `status_code` is a real failure; exit non-zero if any gap failed). Without a typed error the retry layer could only string-match.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `internal/tempestapi/errors_test.go`:
+
+```go
+package tempestapi
+
+import (
+	"errors"
+	"fmt"
+	"testing"
+)
+
+func TestStatusErrorMessage(t *testing.T) {
+	tests := []struct {
+		name string
+		err  *StatusError
+		want string
+	}{
+		{
+			name: "api level status code",
+			err:  &StatusError{StatusCode: 404, Message: "NOT FOUND"},
+			want: "weatherflow status_code 404: NOT FOUND",
+		},
+		{
+			name: "http level status",
+			err:  &StatusError{HTTPStatus: 503},
+			want: "weatherflow API status 503",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.err.Error(); got != tt.want {
+				t.Errorf("Error() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// The retry layer classifies with errors.As, so StatusError must survive
+// wrapping. NOTE: errors.As, never errors.AsType — that is Go 1.26 and
+// go.mod declares go 1.25.0.
+func TestStatusErrorUnwrapsThroughFmtErrorf(t *testing.T) {
+	wrapped := fmt.Errorf("fetch window: %w", &StatusError{HTTPStatus: 429})
+	var se *StatusError
+	if !errors.As(wrapped, &se) {
+		t.Fatal("errors.As failed to extract *StatusError from a wrapped error")
+	}
+	if se.HTTPStatus != 429 {
+		t.Errorf("HTTPStatus = %d, want 429", se.HTTPStatus)
+	}
+}
+
+func TestStationFieldsAreExported(t *testing.T) {
+	s := Station{SerialNumber: "ST-00000001", DeviceID: 42}
+	if s.SerialNumber != "ST-00000001" || s.DeviceID != 42 {
+		t.Error("Station.SerialNumber and Station.DeviceID must be settable from outside the package")
+	}
+}
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `go test ./internal/tempestapi/ -run 'TestStatusError|TestStationFields' -v`
+Expected: FAIL to compile — `undefined: StatusError`, and `unknown field SerialNumber in struct literal`.
+
+- [ ] **Step 3: Create the error type**
+
+Create `internal/tempestapi/errors.go`:
+
+```go
+package tempestapi
+
+import "fmt"
+
+// StatusError is a failed Tempest REST call, carrying enough structure for a
+// caller to decide whether retrying could help. It exists because three
+// behaviors branch on the KIND of failure — retry on 429/5xx/network, treat a
+// non-zero API status_code as a real failure, and exit non-zero if any gap
+// failed — and string-matching an opaque error is not a classification.
+//
+// Exactly one of the two codes is meaningful per instance:
+//
+//   - HTTPStatus != 0: the transport-level response was not 200. Transient
+//     for 429 and 5xx.
+//   - StatusCode != 0: the response was HTTP 200 but WeatherFlow reported an
+//     application-level failure in its status envelope. Never transient.
+//
+// Classify with errors.As, NOT errors.AsType (Go 1.26; go.mod declares 1.25.0).
+type StatusError struct {
+	HTTPStatus int    // HTTP response status, 0 when the failure is API-level
+	StatusCode int    // WeatherFlow status.status_code, 0 when purely HTTP
+	Message    string // WeatherFlow status.status_message, if any
+}
+
+func (e *StatusError) Error() string {
+	if e.StatusCode != 0 {
+		return fmt.Sprintf("weatherflow status_code %d: %s", e.StatusCode, e.Message)
+	}
+	return fmt.Sprintf("weatherflow API status %d", e.HTTPStatus)
+}
+```
+
+- [ ] **Step 4: Export the Station fields**
+
+In `internal/tempestapi/client.go`, change the struct (currently at `:53-58`):
+
+```go
+type Station struct {
+	Name         string
+	StationID    int
+	DeviceID     int
+	SerialNumber string
+	CreatedAt    time.Time
+}
+```
+
+Update the construction site in `ListStations` (currently `:116-121`):
+
+```go
+		if deviceId != 0 && instance != "" {
+			out = append(out, Station{
+				Name:         station.Name,
+				DeviceID:     deviceId,
+				SerialNumber: instance,
+				StationID:    station.StationID,
+				CreatedAt:    time.Unix(station.CreatedEpoch, 0),
+			})
+		}
+```
+
+Update the two read sites in `GetObservations`:
+- `:131` — `station.deviceID` becomes `station.DeviceID`
+- `:160` — `r.SerialNumber = station.serialNumber` becomes `r.SerialNumber = station.SerialNumber`
+
+Do **not** change any other behavior in this file. In particular, leave the missing `break` in the device loop alone — `ModeAPIExport` depends on current behavior and fixing it is an explicit non-goal.
+
+- [ ] **Step 5: Run tests to verify they pass**
+
+Run: `go test ./internal/tempestapi/ -v`
+Expected: PASS — the new tests plus the existing `client_test.go` suite unchanged.
+
+- [ ] **Step 6: Run the full gate**
+
+```bash
+CGO_ENABLED=0 go build ./... && go vet ./... && gofmt -l . && go test ./... -race
+```
+Expected: all clean. `go build ./...` catches any missed `station.deviceID` reference elsewhere in the repo.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add internal/tempestapi/
+git commit -m "feat(tempestapi): export Station identity fields and add typed StatusError"
+```
+
+---
+
+### Task 3: `tempestapi.Client.Observations` — nullable decode
+
+**Files:**
+- Create: `internal/tempestapi/observations.go`
+- Test: `internal/tempestapi/observations_test.go`
+
+**Interfaces:**
+- Consumes: `weather.Observation` (Task 1), `StatusError` + exported `Station` fields (Task 2).
+- Produces: `func (c *Client) Observations(ctx context.Context, station Station, start, end time.Time) ([]weather.Observation, error)`
+
+**Naming:** `Observations`, not `GetObservationRows`. Go getters take no `Get` prefix, and "Rows" is storage vocabulary that has no business in a REST client. It coexists with the existing `GetObservations` (which returns `[]prometheus.Metric` for `ModeAPIExport` and is untouched).
+
+**Empty-window contract** (resolved from the published OpenAPI spec, so no token is needed to implement this): `ObservationSet` declares **no `required` array**, so neither `type` nor `obs` is required. Therefore `status_code == 0` is success; an absent, null, or empty `obs` is **zero rows, not an error**; an absent `type` is **not** an error. This method must **not** route through `tempestudp.ParseReport`, which dispatches on the top-level `type` and errors `unhandled message type: ""` on a status-only envelope — turning a legitimate empty window into a hard failure.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `internal/tempestapi/observations_test.go`:
+
+```go
+package tempestapi
+
+import (
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+)
+
+// newTestClient points a Client at an httptest.Server via the existing
+// WithBaseURL seam (client.go:35-39).
+func newTestClient(t *testing.T, handler http.HandlerFunc) *Client {
+	t.Helper()
+	srv := httptest.NewServer(handler)
+	t.Cleanup(srv.Close)
+	return NewClient("test-token", WithBaseURL(srv.URL))
+}
+
+func TestObservationsMapsNullToNilNotZero(t *testing.T) {
+	// obs[6] (pressure) and obs[16] (battery) are null. They must decode to
+	// nil pointers, NOT 0.0 — a 0.0 mb pressure reads as real to
+	// SummarizeObservations' MIN(pressure) and to every chart.
+	body := `{"status":{"status_code":0,"status_message":"SUCCESS"},"type":"obs_st","obs":[
+		[1700000000,0.1,0.2,0.3,180,3,null,20.5,55.0,1000,1.5,300,0.0,0,10.0,2,null,1]
+	]}`
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(body))
+	})
+
+	obs, err := c.Observations(t.Context(), Station{DeviceID: 1, SerialNumber: "ST-1"}, time.Unix(0, 0), time.Unix(1, 0))
+	if err != nil {
+		t.Fatalf("Observations: %v", err)
+	}
+	if len(obs) != 1 {
+		t.Fatalf("got %d observations, want 1", len(obs))
+	}
+	if obs[0].Pressure != nil {
+		t.Errorf("Pressure = %v, want nil (JSON null must not become 0.0)", *obs[0].Pressure)
+	}
+	if obs[0].Battery != nil {
+		t.Errorf("Battery = %v, want nil", *obs[0].Battery)
+	}
+	if obs[0].TempAir == nil || *obs[0].TempAir != 20.5 {
+		t.Errorf("TempAir = %v, want 20.5", obs[0].TempAir)
+	}
+	if obs[0].SerialNumber != "ST-1" {
+		t.Errorf("SerialNumber = %q, want %q", obs[0].SerialNumber, "ST-1")
+	}
+	if !obs[0].Timestamp.Equal(time.Unix(1700000000, 0).UTC()) {
+		t.Errorf("Timestamp = %v, want %v", obs[0].Timestamp, time.Unix(1700000000, 0).UTC())
+	}
+}
+
+func TestObservationsEmptyWindowIsNotAnError(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{"obs empty", `{"status":{"status_code":0,"status_message":"SUCCESS"},"type":"obs_st","obs":[]}`},
+		{"obs null", `{"status":{"status_code":0,"status_message":"SUCCESS"},"type":"obs_st","obs":null}`},
+		{"status only, no type, no obs", `{"status":{"status_code":0,"status_message":"SUCCESS - Either no capabilities or no recent observations"}}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+				_, _ = w.Write([]byte(tt.body))
+			})
+			obs, err := c.Observations(t.Context(), Station{DeviceID: 1, SerialNumber: "ST-1"}, time.Unix(0, 0), time.Unix(1, 0))
+			if err != nil {
+				t.Fatalf("empty window must not be an error, got %v", err)
+			}
+			if len(obs) != 0 {
+				t.Errorf("got %d observations, want 0", len(obs))
+			}
+		})
+	}
+}
+
+func TestObservationsNonZeroStatusCodeIsStatusError(t *testing.T) {
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"status":{"status_code":404,"status_message":"NOT FOUND"}}`))
+	})
+	_, err := c.Observations(t.Context(), Station{DeviceID: 1}, time.Unix(0, 0), time.Unix(1, 0))
+	var se *StatusError
+	if !errors.As(err, &se) {
+		t.Fatalf("want *StatusError, got %T: %v", err, err)
+	}
+	if se.StatusCode != 404 || se.Message != "NOT FOUND" {
+		t.Errorf("got %+v, want StatusCode 404 / NOT FOUND", se)
+	}
+}
+
+func TestObservationsHTTPErrorIsStatusError(t *testing.T) {
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	})
+	_, err := c.Observations(t.Context(), Station{DeviceID: 1}, time.Unix(0, 0), time.Unix(1, 0))
+	var se *StatusError
+	if !errors.As(err, &se) {
+		t.Fatalf("want *StatusError, got %T: %v", err, err)
+	}
+	if se.HTTPStatus != http.StatusServiceUnavailable {
+		t.Errorf("HTTPStatus = %d, want 503", se.HTTPStatus)
+	}
+}
+
+func TestObservationsSkipsRowWithNullTimestamp(t *testing.T) {
+	// A row with no timestamp cannot be keyed by (serial, timestamp) and
+	// must be dropped rather than written at the epoch.
+	body := `{"status":{"status_code":0},"type":"obs_st","obs":[
+		[null,0.1,0.2,0.3,180,3,1013.0,20.5,55.0,1000,1.5,300,0.0,0,10.0,2,2.6,1],
+		[1700000000,0.1,0.2,0.3,180,3,1013.0,20.5,55.0,1000,1.5,300,0.0,0,10.0,2,2.6,1]
+	]}`
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(body))
+	})
+	obs, err := c.Observations(t.Context(), Station{DeviceID: 1, SerialNumber: "ST-1"}, time.Unix(0, 0), time.Unix(1, 0))
+	if err != nil {
+		t.Fatalf("Observations: %v", err)
+	}
+	if len(obs) != 1 {
+		t.Fatalf("got %d observations, want 1 (the null-timestamp row must be dropped)", len(obs))
+	}
+}
+
+func TestObservationsRequestsCorrectWindow(t *testing.T) {
+	var gotQuery string
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.RawQuery
+		_, _ = w.Write([]byte(`{"status":{"status_code":0},"obs":[]}`))
+	})
+	_, err := c.Observations(t.Context(), Station{DeviceID: 77}, time.Unix(1700000000, 0), time.Unix(1700086400, 0))
+	if err != nil {
+		t.Fatalf("Observations: %v", err)
+	}
+	if want := "time_start=1700000000&time_end=1700086400"; gotQuery != want {
+		t.Errorf("query = %q, want %q", gotQuery, want)
+	}
+}
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `go test ./internal/tempestapi/ -run TestObservations -v`
+Expected: FAIL to compile — `c.Observations undefined (type *Client has no field or method Observations)`.
+
+- [ ] **Step 3: Write the implementation**
+
+Create `internal/tempestapi/observations.go`:
+
+```go
+package tempestapi
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"time"
+
+	"tempestwx-utilities/internal/weather"
+)
+
+// observationSet mirrors the Tempest ObservationSet response schema.
+//
+// Obs is [][]*float64, not [][]float64: unmarshalling a JSON null into a
+// non-pointer numeric is a silent no-op that yields 0.0, which would write a
+// physically meaningful "pressure = 0.0 mb" where the API said "unknown".
+// Backfill operates precisely on marginal windows, where nulls are most
+// likely. Do not "simplify" this to [][]float64 and do not reuse
+// tempestudp.TempestObservationReport, whose Obs is [][]float64.
+//
+// Every field is optional. The published OpenAPI schema declares no `required`
+// array for ObservationSet, so a response may legitimately omit both `type`
+// and `obs` — that is an empty window, not an error.
+type observationSet struct {
+	Status struct {
+		StatusCode    int    `json:"status_code"`
+		StatusMessage string `json:"status_message"`
+	} `json:"status"`
+	Type string       `json:"type"`
+	Obs  [][]*float64 `json:"obs"`
+}
+
+// obs_st tuple indices. Indices 0-17 match the UDP layout exactly, so the
+// same field semantics apply. The REST array carries 22 elements; 18-21
+// (local-day rain accumulation, Nearcast accumulations, precip analysis type)
+// map to no column in tempest_observations and are ignored deliberately.
+const (
+	obsTimestamp = iota
+	obsWindLull
+	obsWindAvg
+	obsWindGust
+	obsWindDirection
+	obsWindSampleInterval
+	obsPressure
+	obsTempAir
+	obsHumidity
+	obsIlluminance
+	obsUVIndex
+	obsIrradiance
+	obsRainRate
+	obsPrecipType
+	obsLightningDistance
+	obsLightningStrikeCount
+	obsBattery
+	obsReportInterval
+	obsFieldCount // 18 — the number of indices this code reads
+)
+
+// Observations fetches raw historical observations for one device over
+// [start, end] and returns them in store-neutral form.
+//
+// It is deliberately separate from GetObservations, which returns
+// []prometheus.Metric for ModeAPIExport and routes through
+// tempestudp.ParseReport. ParseReport dispatches on the top-level `type` and
+// fails with `unhandled message type: ""` on a status-only envelope, which
+// would turn a legitimate empty window into a hard error.
+//
+// Derived columns are NOT computed here — this returns raw API fields only.
+// temp_wetbulb is derived at the store boundary so backfilled and live rows
+// stay indistinguishable.
+func (c *Client) Observations(ctx context.Context, station Station, start, end time.Time) ([]weather.Observation, error) {
+	url := fmt.Sprintf("%s/observations/device/%d?time_start=%d&time_end=%d",
+		c.baseURL, station.DeviceID, start.Unix(), end.Unix())
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+c.token)
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, &StatusError{HTTPStatus: resp.StatusCode}
+	}
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
+	if err != nil {
+		return nil, err
+	}
+
+	var set observationSet
+	if err := json.Unmarshal(body, &set); err != nil {
+		return nil, fmt.Errorf("decode observation set: %w", err)
+	}
+
+	// A non-zero status_code is a real, non-transient API failure. A zero
+	// status_code with an absent/null/empty obs is an empty window: zero
+	// rows, no error.
+	if set.Status.StatusCode != 0 {
+		return nil, &StatusError{
+			StatusCode: set.Status.StatusCode,
+			Message:    set.Status.StatusMessage,
+		}
+	}
+
+	out := make([]weather.Observation, 0, len(set.Obs))
+	for _, ob := range set.Obs {
+		if len(ob) < obsFieldCount || ob[obsTimestamp] == nil {
+			// Short tuple or no timestamp: the row cannot be keyed by
+			// (serial_number, timestamp), so writing it would create an
+			// un-dedupable row at some arbitrary instant. Drop it.
+			continue
+		}
+		out = append(out, weather.Observation{
+			SerialNumber:         station.SerialNumber,
+			Timestamp:            time.Unix(int64(*ob[obsTimestamp]), 0).UTC(),
+			WindLull:             ob[obsWindLull],
+			WindAvg:              ob[obsWindAvg],
+			WindGust:             ob[obsWindGust],
+			WindDirection:        ob[obsWindDirection],
+			WindSampleInterval:   ob[obsWindSampleInterval],
+			Pressure:             ob[obsPressure],
+			TempAir:              ob[obsTempAir],
+			Humidity:             ob[obsHumidity],
+			Illuminance:          ob[obsIlluminance],
+			UVIndex:              ob[obsUVIndex],
+			Irradiance:           ob[obsIrradiance],
+			RainRate:             ob[obsRainRate],
+			PrecipType:           ob[obsPrecipType],
+			LightningDistance:    ob[obsLightningDistance],
+			LightningStrikeCount: ob[obsLightningStrikeCount],
+			Battery:              ob[obsBattery],
+			ReportInterval:       ob[obsReportInterval],
+		})
+	}
+	return out, nil
+}
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `go test ./internal/tempestapi/ -run TestObservations -v`
+Expected: PASS — all six tests.
+
+- [ ] **Step 5: Run the full gate**
+
+```bash
+CGO_ENABLED=0 go build ./... && go vet ./... && gofmt -l . && go test ./... -race
+```
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add internal/tempestapi/observations.go internal/tempestapi/observations_test.go
+git commit -m "feat(tempestapi): add Observations with null-preserving decode"
+```
+
+---
+
+### Task 4: `postgres.OpenPool` — single-source the pool contract
+
+**Files:**
+- Create: `internal/postgres/pool.go`
+- Modify: `internal/postgres/writer.go:144-167`
+- Test: `internal/postgres/pool_test.go`
+
+**Interfaces:**
+- Consumes: nothing.
+- Produces: `func OpenPool(ctx context.Context, databaseURL string) (*pgxpool.Pool, error)`
+
+**Why:** there is currently **no way to obtain a `*pgxpool.Pool`**. `NewPostgresWriter` is the only constructor, and besides building the pool it pings, runs `CreateSchema`, and starts **four** background goroutines (`writer.go:190-199`) — all forbidden for a one-shot tool. Copying the five tuning lines out of `writer.go:151-155` would duplicate a genuine shared contract: change a pool setting and both callers must change together. So extract, and have `NewPostgresWriter` call it.
+
+`OpenPool` deliberately does **not** run `CreateSchema` — backfill calls it explicitly, so schema creation stays an observable step of the caller rather than a side effect of opening a pool.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `internal/postgres/pool_test.go`:
+
+```go
+package postgres
+
+import (
+	"strings"
+	"testing"
+	"time"
+)
+
+// OpenPool must reject a malformed URL before it attempts any connection, so
+// a bad POSTGRES_URL fails fast with a useful message rather than hanging.
+func TestOpenPoolRejectsBadURL(t *testing.T) {
+	pool, err := OpenPool(t.Context(), "://not-a-url")
+	if err == nil {
+		pool.Close()
+		t.Fatal("OpenPool accepted a malformed URL")
+	}
+	if !strings.Contains(err.Error(), "parse database url") {
+		t.Errorf("error = %q, want it to mention parse database url", err)
+	}
+}
+
+// The pool tuning is a shared contract between OpenPool and
+// NewPostgresWriter. This pins the values so a change has to be deliberate.
+func TestPoolConfigValues(t *testing.T) {
+	cfg, err := poolConfig("postgres://u:p@localhost:5432/db")
+	if err != nil {
+		t.Fatalf("poolConfig: %v", err)
+	}
+	if cfg.MaxConns != 10 {
+		t.Errorf("MaxConns = %d, want 10", cfg.MaxConns)
+	}
+	if cfg.MinConns != 2 {
+		t.Errorf("MinConns = %d, want 2", cfg.MinConns)
+	}
+	if cfg.MaxConnLifetime != time.Hour {
+		t.Errorf("MaxConnLifetime = %v, want 1h", cfg.MaxConnLifetime)
+	}
+	if cfg.MaxConnIdleTime != 10*time.Minute {
+		t.Errorf("MaxConnIdleTime = %v, want 10m", cfg.MaxConnIdleTime)
+	}
+	if cfg.HealthCheckPeriod != 30*time.Second {
+		t.Errorf("HealthCheckPeriod = %v, want 30s", cfg.HealthCheckPeriod)
+	}
+}
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `go test ./internal/postgres/ -run 'TestOpenPool|TestPoolConfig' -v`
+Expected: FAIL to compile — `undefined: OpenPool`, `undefined: poolConfig`.
+
+- [ ] **Step 3: Write the implementation**
+
+Create `internal/postgres/pool.go`:
+
+```go
+package postgres
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+// poolConfig is the single authoritative representation of this application's
+// pgx pool tuning. Both NewPostgresWriter (the long-running daemon writer) and
+// OpenPool (one-shot tools such as backfill) build from it, so a change to any
+// value applies to both — which is exactly the shared-knowledge test that
+// justifies extracting it rather than copying five lines.
+func poolConfig(databaseURL string) (*pgxpool.Config, error) {
+	config, err := pgxpool.ParseConfig(databaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("parse database url: %w", err)
+	}
+	config.MaxConns = 10
+	config.MinConns = 2
+	config.MaxConnLifetime = time.Hour
+	config.MaxConnIdleTime = 10 * time.Minute
+	config.HealthCheckPeriod = 30 * time.Second
+	return config, nil
+}
+
+// OpenPool opens and verifies a connection pool.
+//
+// It starts no goroutines and does NOT create the schema — unlike
+// NewPostgresWriter, which additionally runs CreateSchema and launches four
+// background batch workers. A one-shot tool needs the pool without any of
+// that, and calls CreateSchema explicitly so schema creation stays an
+// observable step of the caller rather than a side effect of opening a pool.
+//
+// The caller owns the returned pool and must Close it.
+func OpenPool(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
+	config, err := poolConfig(databaseURL)
+	if err != nil {
+		return nil, err
+	}
+	pool, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		return nil, fmt.Errorf("create connection pool: %w", err)
+	}
+	if err := pool.Ping(ctx); err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("ping database: %w", err)
+	}
+	return pool, nil
+}
+```
+
+- [ ] **Step 4: Refactor `NewPostgresWriter` to call it**
+
+In `internal/postgres/writer.go`, replace the block currently at `:145-167` (from `config, err := pgxpool.ParseConfig(databaseURL)` through the `Ping` error check) with:
+
+```go
+	pool, err := OpenPool(ctx, databaseURL)
+	if err != nil {
+		return nil, err
+	}
+```
+
+Leave everything from `// Auto-create schema` onward unchanged. Then remove any import of `pgxpool` or `time` from `writer.go` **only if** `go build` reports it unused — `time` is used elsewhere in that file, so expect only `pgxpool` to possibly become unused. Let the compiler tell you; do not guess.
+
+- [ ] **Step 5: Run tests to verify they pass**
+
+Run: `go test ./internal/postgres/ -run 'TestOpenPool|TestPoolConfig' -v`
+Expected: PASS — both tests.
+
+Run the package's existing suite: `go test ./internal/postgres/ -v`
+Expected: PASS, unchanged. (Integration tests requiring a live database skip when none is configured; that is pre-existing behavior.)
+
+- [ ] **Step 6: Run the full gate**
+
+```bash
+CGO_ENABLED=0 go build ./... && go vet ./... && gofmt -l . && go test ./... -race
+```
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add internal/postgres/pool.go internal/postgres/pool_test.go internal/postgres/writer.go
+git commit -m "refactor(postgres): extract OpenPool as the single source of pool tuning"
+```
+
+---
+
+### Task 5: `internal/sqlite` — gap detection and idempotent insert
+
+**Files:**
+- Create: `internal/sqlite/backfill.go`
+- Test: `internal/sqlite/backfill_test.go`
+
+**Interfaces:**
+- Consumes: `weather.Observation`, `weather.Gap`, `weather.Bounds` (Task 1).
+- Produces (all package-level, all taking `*sql.DB`, none starting goroutines):
+  - `func SeriesBounds(ctx context.Context, db *sql.DB, from, to time.Time) ([]weather.Bounds, error)`
+  - `func FindObservationGaps(ctx context.Context, db *sql.DB, from, to time.Time, minGap time.Duration) ([]weather.Gap, error)`
+  - `func InsertObservations(ctx context.Context, db *sql.DB, obs []weather.Observation) (int, error)`
+
+**Why package-level functions, not `Writer` methods:** `Writer.run` is documented as "the only goroutine that ever touches db" (`writer.go:161,236`). Adding an insert method to that type would breach the single-writer invariant and make it callable from the daemon. Also, `WriteReport`'s enqueue path is non-blocking and **drops on saturation** (`writer.go:346-357`, channel cap 1000 at `:23`) — a single 1-day window is ~1440 rows, so reusing it would silently lose data.
+
+**`PARTITION BY serial_number` is not optional.** Without it, two stations phase-offset by ~30s produce a merged sequence in which no interval ever exceeds `minGap`, so a multi-hour outage on one station is undetectable and the tool reports "no gaps" and exits 0.
+
+**Do not stream.** `sqlite.Open` sets `db.SetMaxOpenConns(1)` (`db.go:73`). Both queries must fully materialize their slice and close `rows` before returning; a caller inserting while iterating would deadlock on the single connection with no error and no timeout.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `internal/sqlite/backfill_test.go`:
+
+```go
+package sqlite
+
+import (
+	"context"
+	"database/sql"
+	"testing"
+	"time"
+
+	"tempestwx-utilities/internal/weather"
+
+	"github.com/google/uuid"
+)
+
+// seedObs inserts bare observation rows (serial + timestamp only; every other
+// column is nullable) so gap tests can express a series compactly.
+func seedObs(t *testing.T, db *sql.DB, serial string, epochs ...int64) {
+	t.Helper()
+	for _, e := range epochs {
+		_, err := db.ExecContext(context.Background(),
+			`INSERT INTO tempest_observations (id, serial_number, timestamp) VALUES (?, ?, ?)`,
+			uuid.Must(uuid.NewV7()).String(), serial, e)
+		if err != nil {
+			t.Fatalf("seed %s@%d: %v", serial, e, err)
+		}
+	}
+}
+
+func ts(epoch int64) time.Time { return time.Unix(epoch, 0).UTC() }
+
+// The regression test for the partitioning bug: two serials whose interleaved
+// timestamps mask each other. ST-A has a one-hour hole from 1000 to 4600.
+// ST-B reports throughout, offset by 30s. Merged and unpartitioned, no
+// consecutive interval exceeds minGap and the hole is invisible.
+func TestFindObservationGapsPartitionsBySerial(t *testing.T) {
+	db := newTestDB(t)
+	seedObs(t, db, "ST-A", 1000, 4600, 5200)
+	for e := int64(1030); e <= 5230; e += 600 {
+		seedObs(t, db, "ST-B", e)
+	}
+
+	gaps, err := FindObservationGaps(t.Context(), db, ts(0), ts(10000), 30*time.Minute)
+	if err != nil {
+		t.Fatalf("FindObservationGaps: %v", err)
+	}
+	if len(gaps) != 1 {
+		t.Fatalf("got %d gaps, want 1: %+v", len(gaps), gaps)
+	}
+	if gaps[0].SerialNumber != "ST-A" {
+		t.Errorf("SerialNumber = %q, want ST-A", gaps[0].SerialNumber)
+	}
+	if !gaps[0].From.Equal(ts(1000)) || !gaps[0].To.Equal(ts(4600)) {
+		t.Errorf("gap = [%v, %v], want [%v, %v]", gaps[0].From, gaps[0].To, ts(1000), ts(4600))
+	}
+}
+
+func TestFindObservationGapsIgnoresJitterBelowMinGap(t *testing.T) {
+	db := newTestDB(t)
+	seedObs(t, db, "ST-A", 1000, 1060, 1125, 1180) // ~1min apart
+	gaps, err := FindObservationGaps(t.Context(), db, ts(0), ts(10000), 30*time.Minute)
+	if err != nil {
+		t.Fatalf("FindObservationGaps: %v", err)
+	}
+	if len(gaps) != 0 {
+		t.Errorf("got %d gaps, want 0: %+v", len(gaps), gaps)
+	}
+}
+
+func TestSeriesBoundsPerSerial(t *testing.T) {
+	db := newTestDB(t)
+	seedObs(t, db, "ST-A", 1000, 2000, 3000)
+	seedObs(t, db, "ST-B", 5000, 6000)
+
+	bounds, err := SeriesBounds(t.Context(), db, ts(0), ts(10000))
+	if err != nil {
+		t.Fatalf("SeriesBounds: %v", err)
+	}
+	got := map[string]weather.Bounds{}
+	for _, b := range bounds {
+		got[b.SerialNumber] = b
+	}
+	if len(got) != 2 {
+		t.Fatalf("got %d serials, want 2: %+v", len(got), bounds)
+	}
+	if !got["ST-A"].First.Equal(ts(1000)) || !got["ST-A"].Last.Equal(ts(3000)) {
+		t.Errorf("ST-A bounds = [%v, %v], want [1000, 3000]", got["ST-A"].First, got["ST-A"].Last)
+	}
+	if !got["ST-B"].First.Equal(ts(5000)) || !got["ST-B"].Last.Equal(ts(6000)) {
+		t.Errorf("ST-B bounds = [%v, %v], want [5000, 6000]", got["ST-B"].First, got["ST-B"].Last)
+	}
+}
+
+func TestSeriesBoundsEmptyTable(t *testing.T) {
+	db := newTestDB(t)
+	bounds, err := SeriesBounds(t.Context(), db, ts(0), ts(10000))
+	if err != nil {
+		t.Fatalf("SeriesBounds on empty table must not error: %v", err)
+	}
+	if len(bounds) != 0 {
+		t.Errorf("got %d bounds, want 0", len(bounds))
+	}
+}
+
+func f(v float64) *float64 { return &v }
+
+func TestInsertObservationsIsIdempotent(t *testing.T) {
+	db := newTestDB(t)
+	obs := []weather.Observation{
+		{SerialNumber: "ST-A", Timestamp: ts(1000), TempAir: f(20.5), Humidity: f(55), Pressure: f(1013)},
+		{SerialNumber: "ST-A", Timestamp: ts(1060), TempAir: f(20.6), Humidity: f(56), Pressure: f(1013)},
+	}
+
+	n, err := InsertObservations(t.Context(), db, obs)
+	if err != nil {
+		t.Fatalf("first insert: %v", err)
+	}
+	if n != 2 {
+		t.Errorf("first insert = %d, want 2", n)
+	}
+
+	n, err = InsertObservations(t.Context(), db, obs)
+	if err != nil {
+		t.Fatalf("second insert: %v", err)
+	}
+	if n != 0 {
+		t.Errorf("second insert = %d, want 0 (ON CONFLICT DO NOTHING)", n)
+	}
+
+	var count int
+	if err := db.QueryRowContext(t.Context(), `SELECT COUNT(*) FROM tempest_observations`).Scan(&count); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if count != 2 {
+		t.Errorf("row count = %d, want 2", count)
+	}
+}
+
+func TestInsertObservationsPreservesNull(t *testing.T) {
+	db := newTestDB(t)
+	// Pressure is nil — it must land as SQL NULL, not 0.0.
+	obs := []weather.Observation{
+		{SerialNumber: "ST-A", Timestamp: ts(1000), TempAir: f(20.5), Humidity: f(55)},
+	}
+	if _, err := InsertObservations(t.Context(), db, obs); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+	var pressure sql.NullFloat64
+	if err := db.QueryRowContext(t.Context(), `SELECT pressure FROM tempest_observations`).Scan(&pressure); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if pressure.Valid {
+		t.Errorf("pressure = %v, want NULL", pressure.Float64)
+	}
+}
+
+func TestInsertObservationsDerivesWetBulb(t *testing.T) {
+	db := newTestDB(t)
+	obs := []weather.Observation{
+		{SerialNumber: "ST-A", Timestamp: ts(1000), TempAir: f(20.5), Humidity: f(55), Pressure: f(1013)},
+	}
+	if _, err := InsertObservations(t.Context(), db, obs); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+	var wb sql.NullFloat64
+	if err := db.QueryRowContext(t.Context(), `SELECT temp_wetbulb FROM tempest_observations`).Scan(&wb); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if !wb.Valid {
+		t.Fatal("temp_wetbulb is NULL; it must be derived at the store boundary")
+	}
+	if wb.Float64 <= 0 || wb.Float64 >= 20.5 {
+		t.Errorf("temp_wetbulb = %v, want a plausible value below dry-bulb 20.5", wb.Float64)
+	}
+}
+
+func TestInsertObservationsWetBulbNullWhenInputsMissing(t *testing.T) {
+	db := newTestDB(t)
+	// No humidity: wet bulb is not derivable and must stay NULL rather than
+	// being computed from a zero value.
+	obs := []weather.Observation{
+		{SerialNumber: "ST-A", Timestamp: ts(1000), TempAir: f(20.5), Pressure: f(1013)},
+	}
+	if _, err := InsertObservations(t.Context(), db, obs); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+	var wb sql.NullFloat64
+	if err := db.QueryRowContext(t.Context(), `SELECT temp_wetbulb FROM tempest_observations`).Scan(&wb); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if wb.Valid {
+		t.Errorf("temp_wetbulb = %v, want NULL when humidity is absent", wb.Float64)
+	}
+}
+
+func TestInsertObservationsEmptyIsNoop(t *testing.T) {
+	db := newTestDB(t)
+	n, err := InsertObservations(t.Context(), db, nil)
+	if err != nil {
+		t.Fatalf("empty insert: %v", err)
+	}
+	if n != 0 {
+		t.Errorf("n = %d, want 0", n)
+	}
+}
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `go test ./internal/sqlite/ -run 'TestFindObservationGaps|TestSeriesBounds|TestInsertObservations' -v`
+Expected: FAIL to compile — `undefined: FindObservationGaps`, `undefined: SeriesBounds`, `undefined: InsertObservations`.
+
+- [ ] **Step 3: Write the implementation**
+
+Create `internal/sqlite/backfill.go`:
+
+```go
+package sqlite
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"math"
+	"time"
+
+	"tempestwx-utilities/internal/tempestudp"
+	"tempestwx-utilities/internal/weather"
+
+	"github.com/google/uuid"
+)
+
+// This file holds the backfill tool's read/write path. Everything here is a
+// package-level function taking *sql.DB, never a method on Writer:
+// Writer.run is documented as "the only goroutine that ever touches db"
+// (writer.go:161,236), so an insert method on that type would breach the
+// single-writer invariant and be callable from the daemon. Nothing here
+// starts a goroutine.
+//
+// IMPORTANT: sqlite.Open sets db.SetMaxOpenConns(1) (db.go:73). Every query
+// below fully materializes its result slice and closes its *sql.Rows before
+// returning. A streaming iterator that yielded rows while the caller inserted
+// would deadlock on the single connection with no error and no timeout. Do
+// not refactor these into iterators.
+
+// findObservationGapsSQL locates interior holes in each station's series.
+//
+// PARTITION BY serial_number is NOT optional. The series is identified by
+// (serial_number, timestamp) — the same uniqueness contract idempotency
+// relies on. Without partitioning, two stations phase-offset by ~30s produce
+// a merged sequence in which no consecutive interval ever exceeds minGap, so
+// a multi-hour outage on one station becomes undetectable and the tool
+// reports "no gaps" and exits 0. The same failure hides a hardware swap
+// (a new serial) behind an apparently continuous sequence.
+const findObservationGapsSQL = `
+	SELECT serial_number, prev, timestamp FROM (
+	  SELECT serial_number,
+	         LAG(timestamp) OVER (PARTITION BY serial_number ORDER BY timestamp) AS prev,
+	         timestamp
+	  FROM tempest_observations
+	  WHERE timestamp BETWEEN ? AND ?
+	) WHERE prev IS NOT NULL AND timestamp - prev > ?
+	ORDER BY serial_number, prev
+`
+
+// FindObservationGaps returns the interior gaps in [from, to] wider than
+// minGap, one per (serial, hole).
+//
+// LAG yields NULL for the first row of each partition, so this finds interior
+// gaps ONLY. Head and tail gaps — and the empty-table case — are assembled by
+// the caller from SeriesBounds; see internal/backfill.
+func FindObservationGaps(ctx context.Context, db *sql.DB, from, to time.Time, minGap time.Duration) ([]weather.Gap, error) {
+	rows, err := db.QueryContext(ctx, findObservationGapsSQL, from.Unix(), to.Unix(), int64(minGap.Seconds()))
+	if err != nil {
+		return nil, fmt.Errorf("query observation gaps: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var gaps []weather.Gap
+	for rows.Next() {
+		var serial string
+		var prev, next int64
+		if err := rows.Scan(&serial, &prev, &next); err != nil {
+			return nil, fmt.Errorf("scan observation gap: %w", err)
+		}
+		gaps = append(gaps, weather.Gap{
+			SerialNumber: serial,
+			From:         time.Unix(prev, 0).UTC(),
+			To:           time.Unix(next, 0).UTC(),
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate observation gaps: %w", err)
+	}
+	return gaps, nil
+}
+
+const seriesBoundsSQL = `
+	SELECT serial_number, MIN(timestamp), MAX(timestamp)
+	FROM tempest_observations
+	WHERE timestamp BETWEEN ? AND ?
+	GROUP BY serial_number
+	ORDER BY serial_number
+`
+
+// SeriesBounds returns the first and last observation timestamp held for each
+// serial within [from, to]. An empty result means the store holds nothing in
+// that window — the first-run case, where the whole range is one gap.
+func SeriesBounds(ctx context.Context, db *sql.DB, from, to time.Time) ([]weather.Bounds, error) {
+	rows, err := db.QueryContext(ctx, seriesBoundsSQL, from.Unix(), to.Unix())
+	if err != nil {
+		return nil, fmt.Errorf("query series bounds: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var out []weather.Bounds
+	for rows.Next() {
+		var serial string
+		var first, last int64
+		if err := rows.Scan(&serial, &first, &last); err != nil {
+			return nil, fmt.Errorf("scan series bounds: %w", err)
+		}
+		out = append(out, weather.Bounds{
+			SerialNumber: serial,
+			First:        time.Unix(first, 0).UTC(),
+			Last:         time.Unix(last, 0).UTC(),
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate series bounds: %w", err)
+	}
+	return out, nil
+}
+
+// InsertObservations writes obs idempotently and reports how many rows were
+// actually new.
+//
+// The count is what makes the permanent-hole tradeoff visible: if the station
+// was genuinely offline, the API has no data either, and inserted stays 0
+// across runs. ON CONFLICT (serial_number, timestamp) DO NOTHING is backed by
+// a real UNIQUE constraint (migrations/0001_init.sql:13), and per-row
+// RowsAffected returns 0 for a skipped conflict and 1 for an insert.
+//
+// The count is returned only after a successful Commit — execBatch rolls the
+// whole transaction back on any row error.
+//
+// The caller bounds len(obs) to keep the transaction short; see the design's
+// "Concurrency with a running daemon".
+//
+// Binding is direct from weather.Observation rather than through the private
+// observationRow used by the UDP path: that type's leading fields are
+// non-pointer float64, so routing through it would coerce a JSON null to 0.0.
+func InsertObservations(ctx context.Context, db *sql.DB, obs []weather.Observation) (int, error) {
+	if len(obs) == 0 {
+		return 0, nil
+	}
+
+	inserted := 0
+	err := execBatch(ctx, db, insertObservationSQL, obs, func(stmt *sql.Stmt, o weather.Observation) error {
+		res, err := stmt.ExecContext(ctx,
+			uuid.Must(uuid.NewV7()).String(), o.SerialNumber, o.Timestamp.Unix(),
+			o.WindLull, o.WindAvg, o.WindGust, o.WindDirection, o.WindSampleInterval,
+			o.Pressure, o.TempAir, wetBulb(o), o.Humidity,
+			o.Illuminance, o.UVIndex, o.Irradiance, o.RainRate, o.PrecipType,
+			o.LightningDistance, o.LightningStrikeCount,
+			o.Battery, o.ReportInterval)
+		if err != nil {
+			return err
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			return err
+		}
+		inserted += int(n)
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	return inserted, nil
+}
+
+// wetBulb derives temp_wetbulb, which the REST API does not return.
+//
+// It uses the same tempestudp.WetBulbTemperatureC + math.IsNaN guard the UDP
+// ingest path uses (writer.go:410,432-434), single-sourced, so backfilled and
+// live rows are indistinguishable. Change the formula and both paths change
+// together: shared knowledge, not shared shape.
+//
+// Any missing input yields NULL rather than a value computed from a zero —
+// the same reason the decode preserves nulls in the first place.
+func wetBulb(o weather.Observation) *float64 {
+	if o.TempAir == nil || o.Humidity == nil || o.Pressure == nil {
+		return nil
+	}
+	v := tempestudp.WetBulbTemperatureC(*o.TempAir, *o.Humidity, *o.Pressure)
+	if math.IsNaN(v) {
+		return nil
+	}
+	return &v
+}
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `go test ./internal/sqlite/ -run 'TestFindObservationGaps|TestSeriesBounds|TestInsertObservations' -v`
+Expected: PASS — all nine tests. In particular `TestFindObservationGapsPartitionsBySerial` must find exactly one gap on `ST-A`.
+
+- [ ] **Step 5: Sanity-check the partitioning claim by deleting it**
+
+Temporarily remove `PARTITION BY serial_number` from `findObservationGapsSQL` and re-run only that test.
+Run: `go test ./internal/sqlite/ -run TestFindObservationGapsPartitionsBySerial -v`
+Expected: **FAIL** with "got 0 gaps, want 1" — proving the test actually guards the invariant. **Restore the `PARTITION BY` immediately** and re-run to confirm PASS.
+
+- [ ] **Step 6: Run the full gate**
+
+```bash
+CGO_ENABLED=0 go build ./... && go vet ./... && gofmt -l . && go test ./... -race
+```
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add internal/sqlite/backfill.go internal/sqlite/backfill_test.go
+git commit -m "feat(sqlite): add partitioned gap detection and idempotent backfill insert"
+```
+
+---
+
+### Task 6: `internal/postgres` — gap detection and idempotent insert
+
+**Files:**
+- Create: `internal/postgres/backfill.go`
+- Modify: `internal/postgres/writer_integration_test.go` — no change needed unless the build breaks; verify only.
+- Test: `internal/postgres/backfill_test.go`
+
+**Interfaces:**
+- Consumes: `weather.*` (Task 1), `OpenPool` (Task 4).
+- Produces (mirroring Task 5's signatures exactly, with `*pgxpool.Pool` in place of `*sql.DB`):
+  - `func SeriesBounds(ctx context.Context, pool *pgxpool.Pool, from, to time.Time) ([]weather.Bounds, error)`
+  - `func FindObservationGaps(ctx context.Context, pool *pgxpool.Pool, from, to time.Time, minGap time.Duration) ([]weather.Gap, error)`
+  - `func InsertObservations(ctx context.Context, pool *pgxpool.Pool, obs []weather.Observation) (int, error)`
+
+**Signatures are pinned to `time.Time` on both stores** so one interface satisfies both without a shim. The epoch conversion stays inside the SQLite implementation, matching how that package already handles timestamps; Postgres passes `time.Time` straight through to `TIMESTAMPTZ`.
+
+**Note on tests:** this package's database tests require a live Postgres and skip without one — that is pre-existing behavior. The unit-testable part here is wet-bulb derivation, which is shared logic; the SQL is verified by the integration suite when a database is available. Follow the existing skip idiom in `internal/postgres/writer_integration_test.go` for anything requiring a connection.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `internal/postgres/backfill_test.go`:
+
+```go
+package postgres
+
+import (
+	"strings"
+	"testing"
+
+	"tempestwx-utilities/internal/weather"
+)
+
+func f(v float64) *float64 { return &v }
+
+func TestBackfillWetBulbDerivation(t *testing.T) {
+	tests := []struct {
+		name    string
+		obs     weather.Observation
+		wantNil bool
+	}{
+		{
+			name: "all inputs present",
+			obs:  weather.Observation{TempAir: f(20.5), Humidity: f(55), Pressure: f(1013)},
+		},
+		{
+			name:    "humidity missing",
+			obs:     weather.Observation{TempAir: f(20.5), Pressure: f(1013)},
+			wantNil: true,
+		},
+		{
+			name:    "temp missing",
+			obs:     weather.Observation{Humidity: f(55), Pressure: f(1013)},
+			wantNil: true,
+		},
+		{
+			name:    "pressure missing",
+			obs:     weather.Observation{TempAir: f(20.5), Humidity: f(55)},
+			wantNil: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := wetBulb(tt.obs)
+			if tt.wantNil && got != nil {
+				t.Errorf("wetBulb = %v, want nil", *got)
+			}
+			if !tt.wantNil {
+				if got == nil {
+					t.Fatal("wetBulb = nil, want a value")
+				}
+				if *got <= 0 || *got >= 20.5 {
+					t.Errorf("wetBulb = %v, want a plausible value below dry-bulb 20.5", *got)
+				}
+			}
+		})
+	}
+}
+
+// The gap SQL must partition by serial. This pins the text so the invariant
+// cannot be dropped silently; the behavioral proof lives in the SQLite suite,
+// where the query runs against a real database without external setup.
+func TestFindObservationGapsSQLPartitionsBySerial(t *testing.T) {
+	if !strings.Contains(findObservationGapsSQL, "PARTITION BY serial_number") {
+		t.Error("findObservationGapsSQL must PARTITION BY serial_number; " +
+			"without it, two phase-offset stations mask each other's outages")
+	}
+}
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `go test ./internal/postgres/ -run 'TestBackfillWetBulb|TestFindObservationGapsSQL' -v`
+Expected: FAIL to compile — `undefined: wetBulb`, `undefined: findObservationGapsSQL`.
+
+- [ ] **Step 3: Write the implementation**
+
+Create `internal/postgres/backfill.go`:
+
+```go
+package postgres
+
+import (
+	"context"
+	"fmt"
+	"math"
+	"time"
+
+	"tempestwx-utilities/internal/tempestudp"
+	"tempestwx-utilities/internal/weather"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+// This file mirrors internal/sqlite/backfill.go function-for-function. The
+// two are deliberately NOT unified: SQLite stores timestamps as epoch INTEGER
+// and Postgres as TIMESTAMPTZ, and the two drivers bind parameters
+// differently. An abstraction over that difference would be the wrong
+// abstraction. The signatures are identical so one consumer-side interface
+// satisfies both.
+
+// insertBatchSize bounds how many rows go into one SendBatch. The daemon's
+// 5s timeout at insertObservations was sized for the 1-row live path; a
+// backfill batch needs its own budget.
+const backfillBatchTimeout = 30 * time.Second
+
+// findObservationGapsSQL locates interior holes in each station's series.
+//
+// PARTITION BY serial_number is NOT optional — see the identical comment in
+// internal/sqlite/backfill.go. Without it a multi-hour outage on one of two
+// phase-offset stations is undetectable.
+const findObservationGapsSQL = `
+	SELECT serial_number, prev, ts FROM (
+	  SELECT serial_number,
+	         LAG(timestamp) OVER (PARTITION BY serial_number ORDER BY timestamp) AS prev,
+	         timestamp AS ts
+	  FROM tempest_observations
+	  WHERE timestamp BETWEEN $1 AND $2
+	) q WHERE prev IS NOT NULL AND EXTRACT(EPOCH FROM (ts - prev)) > $3
+	ORDER BY serial_number, prev
+`
+
+// FindObservationGaps returns the interior gaps in [from, to] wider than
+// minGap. LAG yields NULL for the first row of each partition, so this finds
+// interior gaps ONLY; head/tail/empty are assembled by the caller from
+// SeriesBounds.
+func FindObservationGaps(ctx context.Context, pool *pgxpool.Pool, from, to time.Time, minGap time.Duration) ([]weather.Gap, error) {
+	rows, err := pool.Query(ctx, findObservationGapsSQL, from, to, minGap.Seconds())
+	if err != nil {
+		return nil, fmt.Errorf("query observation gaps: %w", err)
+	}
+	defer rows.Close()
+
+	var gaps []weather.Gap
+	for rows.Next() {
+		var serial string
+		var prev, next time.Time
+		if err := rows.Scan(&serial, &prev, &next); err != nil {
+			return nil, fmt.Errorf("scan observation gap: %w", err)
+		}
+		gaps = append(gaps, weather.Gap{
+			SerialNumber: serial,
+			From:         prev.UTC(),
+			To:           next.UTC(),
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate observation gaps: %w", err)
+	}
+	return gaps, nil
+}
+
+const seriesBoundsSQL = `
+	SELECT serial_number, MIN(timestamp), MAX(timestamp)
+	FROM tempest_observations
+	WHERE timestamp BETWEEN $1 AND $2
+	GROUP BY serial_number
+	ORDER BY serial_number
+`
+
+// SeriesBounds returns the first and last observation timestamp held for each
+// serial within [from, to]. An empty result means the store holds nothing in
+// that window — the first-run case.
+func SeriesBounds(ctx context.Context, pool *pgxpool.Pool, from, to time.Time) ([]weather.Bounds, error) {
+	rows, err := pool.Query(ctx, seriesBoundsSQL, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("query series bounds: %w", err)
+	}
+	defer rows.Close()
+
+	var out []weather.Bounds
+	for rows.Next() {
+		var serial string
+		var first, last time.Time
+		if err := rows.Scan(&serial, &first, &last); err != nil {
+			return nil, fmt.Errorf("scan series bounds: %w", err)
+		}
+		out = append(out, weather.Bounds{
+			SerialNumber: serial,
+			First:        first.UTC(),
+			Last:         last.UTC(),
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate series bounds: %w", err)
+	}
+	return out, nil
+}
+
+const backfillInsertSQL = `
+	INSERT INTO tempest_observations (
+		id, serial_number, timestamp,
+		wind_lull, wind_avg, wind_gust, wind_direction, wind_sample_interval,
+		pressure, temp_air, temp_wetbulb, humidity,
+		illuminance, uv_index, irradiance, rain_rate, precip_type,
+		lightning_distance, lightning_strike_count,
+		battery, report_interval
+	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+	ON CONFLICT (serial_number, timestamp) DO NOTHING
+`
+
+// InsertObservations writes obs idempotently and reports how many rows were
+// actually new. CommandTag.RowsAffected() is 0 for a skipped conflict and 1
+// for an insert — the same semantics as SQLite's per-row RowsAffected, and
+// the value the daemon path currently discards (writer.go:268).
+//
+// pgx SendBatch is all-or-nothing per batch, so the count is only meaningful
+// once every Exec has succeeded. The caller bounds len(obs).
+func InsertObservations(ctx context.Context, pool *pgxpool.Pool, obs []weather.Observation) (int, error) {
+	if len(obs) == 0 {
+		return 0, nil
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, backfillBatchTimeout)
+	defer cancel()
+
+	b := &pgx.Batch{}
+	for _, o := range obs {
+		b.Queue(backfillInsertSQL,
+			uuid.Must(uuid.NewV7()), o.SerialNumber, o.Timestamp,
+			o.WindLull, o.WindAvg, o.WindGust, o.WindDirection, o.WindSampleInterval,
+			o.Pressure, o.TempAir, wetBulb(o), o.Humidity,
+			o.Illuminance, o.UVIndex, o.Irradiance, o.RainRate, o.PrecipType,
+			o.LightningDistance, o.LightningStrikeCount,
+			o.Battery, o.ReportInterval)
+	}
+
+	br := pool.SendBatch(ctx, b)
+	defer closeBatchResults(br)
+
+	inserted := 0
+	for i := range obs {
+		tag, err := br.Exec()
+		if err != nil {
+			return 0, fmt.Errorf("insert observation %d: %w", i, err)
+		}
+		inserted += int(tag.RowsAffected())
+	}
+	return inserted, nil
+}
+
+// wetBulb derives temp_wetbulb, which the REST API does not return. It uses
+// the same tempestudp.WetBulbTemperatureC + math.IsNaN guard the UDP ingest
+// path uses, single-sourced, so backfilled and live rows are
+// indistinguishable. Any missing input yields NULL rather than a value
+// computed from a zero.
+func wetBulb(o weather.Observation) *float64 {
+	if o.TempAir == nil || o.Humidity == nil || o.Pressure == nil {
+		return nil
+	}
+	v := tempestudp.WetBulbTemperatureC(*o.TempAir, *o.Humidity, *o.Pressure)
+	if math.IsNaN(v) {
+		return nil
+	}
+	return &v
+}
+```
+
+> **Implementer note:** `wetBulb` appears in both `internal/sqlite/backfill.go` and `internal/postgres/backfill.go`. This is deliberate and must NOT be extracted into a shared helper — the two store packages do not import each other, and the only neutral home (`internal/weather`) would then have to import `internal/tempestudp`, which pulls the UDP wire protocol into the leaf type package and creates exactly the coupling Task 1 exists to prevent. The *shared knowledge* — the wet-bulb formula — already lives in exactly one place: `tempestudp.WetBulbTemperatureC`. What is duplicated here is a four-line nil guard, which is shared shape, not shared knowledge. If `closeBatchResults` is unexported and already defined in `writer.go`, reuse it; do not redefine it.
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `go test ./internal/postgres/ -run 'TestBackfillWetBulb|TestFindObservationGapsSQL' -v`
+Expected: PASS.
+
+Run the package suite: `go test ./internal/postgres/ -v`
+Expected: PASS; integration tests skip without a database, as before.
+
+- [ ] **Step 5: Run the full gate**
+
+```bash
+CGO_ENABLED=0 go build ./... && go vet ./... && gofmt -l . && go test ./... -race
+```
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add internal/postgres/backfill.go internal/postgres/backfill_test.go
+git commit -m "feat(postgres): add partitioned gap detection and idempotent backfill insert"
+```
+
+---
+
+### Task 7: `internal/backfill` — chunking and retry classification
+
+**Files:**
+- Create: `internal/backfill/window.go`
+- Test: `internal/backfill/window_test.go`
+
+**Interfaces:**
+- Consumes: `tempestapi.StatusError` (Task 2).
+- Produces:
+  - `type window struct{ from, to time.Time }` (unexported)
+  - `func chunkWindow(from, to time.Time, size time.Duration) []window`
+  - `func isRetryable(err error) bool`
+
+**Chunking constraint:** the API documents that *observation data at one-minute resolution is available only for ranges of five days or less*. Chunk size is **1 day**, comfortably inside it. Exceeding the cap silently returns coarser data that would be written as if it were 1-minute observations — a data-corruption failure with no error.
+
+**Retry classification:** context cancellation is the operator's decision and is never retried. Per-attempt timeouts surface as `net.Error` from the client's own 30s `http.Client.Timeout` (`client.go:42`) and are retried through that branch, so `context.DeadlineExceeded` on the *parent* context correctly aborts rather than spinning.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `internal/backfill/window_test.go`:
+
+```go
+package backfill
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net"
+	"net/http"
+	"testing"
+	"time"
+
+	"tempestwx-utilities/internal/tempestapi"
+)
+
+func TestChunkWindowSplitsMultiDayRange(t *testing.T) {
+	from := time.Unix(0, 0).UTC()
+	to := from.Add(72 * time.Hour)
+
+	got := chunkWindow(from, to, 24*time.Hour)
+	if len(got) != 3 {
+		t.Fatalf("got %d windows, want 3: %+v", len(got), got)
+	}
+	for i, w := range got {
+		wantFrom := from.Add(time.Duration(i) * 24 * time.Hour)
+		if !w.from.Equal(wantFrom) {
+			t.Errorf("window %d from = %v, want %v", i, w.from, wantFrom)
+		}
+	}
+	if !got[len(got)-1].to.Equal(to) {
+		t.Errorf("last window to = %v, want %v", got[len(got)-1].to, to)
+	}
+}
+
+func TestChunkWindowPartialTail(t *testing.T) {
+	from := time.Unix(0, 0).UTC()
+	to := from.Add(30 * time.Hour)
+
+	got := chunkWindow(from, to, 24*time.Hour)
+	if len(got) != 2 {
+		t.Fatalf("got %d windows, want 2: %+v", len(got), got)
+	}
+	if !got[1].to.Equal(to) {
+		t.Errorf("tail window to = %v, want %v (must not overshoot)", got[1].to, to)
+	}
+	if got[1].to.Sub(got[1].from) != 6*time.Hour {
+		t.Errorf("tail window width = %v, want 6h", got[1].to.Sub(got[1].from))
+	}
+}
+
+func TestChunkWindowSingleShortRange(t *testing.T) {
+	from := time.Unix(0, 0).UTC()
+	to := from.Add(time.Hour)
+	got := chunkWindow(from, to, 24*time.Hour)
+	if len(got) != 1 {
+		t.Fatalf("got %d windows, want 1", len(got))
+	}
+	if !got[0].from.Equal(from) || !got[0].to.Equal(to) {
+		t.Errorf("window = [%v, %v], want [%v, %v]", got[0].from, got[0].to, from, to)
+	}
+}
+
+func TestChunkWindowEmptyOrInvertedRange(t *testing.T) {
+	from := time.Unix(1000, 0).UTC()
+	if got := chunkWindow(from, from, 24*time.Hour); len(got) != 0 {
+		t.Errorf("zero-width range produced %d windows, want 0", len(got))
+	}
+	if got := chunkWindow(from, from.Add(-time.Hour), 24*time.Hour); len(got) != 0 {
+		t.Errorf("inverted range produced %d windows, want 0", len(got))
+	}
+}
+
+type fakeNetErr struct{}
+
+func (fakeNetErr) Error() string   { return "dial tcp: connection refused" }
+func (fakeNetErr) Timeout() bool   { return false }
+func (fakeNetErr) Temporary() bool { return true }
+
+var _ net.Error = fakeNetErr{}
+
+func TestIsRetryable(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"nil", nil, false},
+		{"429", &tempestapi.StatusError{HTTPStatus: http.StatusTooManyRequests}, true},
+		{"500", &tempestapi.StatusError{HTTPStatus: http.StatusInternalServerError}, true},
+		{"503", &tempestapi.StatusError{HTTPStatus: http.StatusServiceUnavailable}, true},
+		{"404", &tempestapi.StatusError{HTTPStatus: http.StatusNotFound}, false},
+		{"401", &tempestapi.StatusError{HTTPStatus: http.StatusUnauthorized}, false},
+		{"api level status_code is never transient", &tempestapi.StatusError{StatusCode: 404, Message: "NOT FOUND"}, false},
+		{"wrapped 503 still classifies", fmt.Errorf("gap 1: %w", &tempestapi.StatusError{HTTPStatus: 503}), true},
+		{"network error", fakeNetErr{}, true},
+		{"context canceled is the operator's decision", context.Canceled, false},
+		{"parent deadline exceeded aborts", context.DeadlineExceeded, false},
+		{"unknown error", errors.New("boom"), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isRetryable(tt.err); got != tt.want {
+				t.Errorf("isRetryable(%v) = %v, want %v", tt.err, got, tt.want)
+			}
+		})
+	}
+}
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `go test ./internal/backfill/ -v`
+Expected: FAIL — the package does not exist.
+
+- [ ] **Step 3: Write the implementation**
+
+Create `internal/backfill/window.go`:
+
+```go
+// Package backfill finds holes in the local observation history and fills
+// them from the Tempest REST API.
+package backfill
+
+import (
+	"context"
+	"errors"
+	"net"
+	"net/http"
+	"time"
+
+	"tempestwx-utilities/internal/tempestapi"
+)
+
+// chunkSize bounds one API request's window.
+//
+// The Tempest API documents that observation data at one-minute resolution is
+// available only for ranges of FIVE DAYS OR LESS. Exceeding that cap does not
+// error — it silently returns coarser data, which would then be written as if
+// it were 1-minute observations. One day sits comfortably inside the cap.
+// Every fetch goes through the chunker, including an explicit --from/--to.
+const chunkSize = 24 * time.Hour
+
+// window is one API request's time range.
+type window struct {
+	from time.Time
+	to   time.Time
+}
+
+// chunkWindow splits [from, to] into consecutive windows of at most size. The
+// final window is truncated to `to` rather than overshooting it. A zero-width
+// or inverted range yields no windows.
+func chunkWindow(from, to time.Time, size time.Duration) []window {
+	if !to.After(from) {
+		return nil
+	}
+	var out []window
+	for start := from; start.Before(to); start = start.Add(size) {
+		end := start.Add(size)
+		if end.After(to) {
+			end = to
+		}
+		out = append(out, window{from: start, to: end})
+	}
+	return out
+}
+
+// isRetryable reports whether retrying err could plausibly succeed.
+//
+// Classification uses errors.As, NOT errors.AsType — that is Go 1.26 and
+// go.mod declares go 1.25.0.
+//
+// Context cancellation is never retried: it is the operator's decision, and a
+// blown parent deadline would only fail again immediately. Per-attempt
+// timeouts do not arrive here as context errors — the client sets its own 30s
+// http.Client.Timeout (tempestapi/client.go:42), which surfaces as a
+// net.Error and is retried through that branch.
+func isRetryable(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+
+	var se *tempestapi.StatusError
+	if errors.As(err, &se) {
+		// A non-zero API-level status_code is a real failure, not congestion.
+		if se.StatusCode != 0 {
+			return false
+		}
+		return se.HTTPStatus == http.StatusTooManyRequests || se.HTTPStatus >= 500
+	}
+
+	var ne net.Error
+	return errors.As(err, &ne)
+}
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `go test ./internal/backfill/ -v`
+Expected: PASS — all chunking and classification cases.
+
+- [ ] **Step 5: Run the full gate**
+
+```bash
+CGO_ENABLED=0 go build ./... && go vet ./... && gofmt -l . && go test ./... -race
+```
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add internal/backfill/
+git commit -m "feat(backfill): add API window chunking and retry classification"
+```
+
+---
+
+### Task 8: `internal/backfill` — detection domain assembly
+
+**Files:**
+- Create: `internal/backfill/gaps.go`
+- Test: `internal/backfill/gaps_test.go`
+
+**Interfaces:**
+- Consumes: `weather.Gap`, `weather.Bounds` (Task 1).
+- Produces: `func assembleGaps(interior []weather.Gap, bounds []weather.Bounds, serials []string, detectFrom, detectTo time.Time, minGap time.Duration) []weather.Gap`
+
+**Why this exists:** SQL `LAG` yields NULL for the first row of each partition, so gap detection finds **interior gaps only**. Left there, a fresh/empty store reports "no gaps" and writes nothing, and the natural "the box was down, repair it" case — whose outage is entirely in the tail — is invisible. The detection domain is the union of `[detectFrom, first_row]`, the interior gaps, and `[last_row, detectTo]`, with the **empty table** treated as one gap covering the whole range. That last case is first-class, not an edge case.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `internal/backfill/gaps_test.go`:
+
+```go
+package backfill
+
+import (
+	"testing"
+	"time"
+
+	"tempestwx-utilities/internal/weather"
+)
+
+func ts(epoch int64) time.Time { return time.Unix(epoch, 0).UTC() }
+
+func gapSet(gaps []weather.Gap) map[string][][2]int64 {
+	out := map[string][][2]int64{}
+	for _, g := range gaps {
+		out[g.SerialNumber] = append(out[g.SerialNumber], [2]int64{g.From.Unix(), g.To.Unix()})
+	}
+	return out
+}
+
+func TestAssembleGapsEmptyStoreIsOneWholeRangeGap(t *testing.T) {
+	got := assembleGaps(nil, nil, []string{"ST-A"}, ts(1000), ts(90000), 30*time.Minute)
+	if len(got) != 1 {
+		t.Fatalf("got %d gaps, want 1: %+v", len(got), got)
+	}
+	if got[0].SerialNumber != "ST-A" || !got[0].From.Equal(ts(1000)) || !got[0].To.Equal(ts(90000)) {
+		t.Errorf("gap = %+v, want ST-A [1000, 90000]", got[0])
+	}
+}
+
+func TestAssembleGapsHeadAndTail(t *testing.T) {
+	bounds := []weather.Bounds{{SerialNumber: "ST-A", First: ts(50000), Last: ts(60000)}}
+	got := assembleGaps(nil, bounds, []string{"ST-A"}, ts(1000), ts(90000), 30*time.Minute)
+
+	set := gapSet(got)["ST-A"]
+	if len(set) != 2 {
+		t.Fatalf("got %d gaps, want 2 (head + tail): %+v", len(set), got)
+	}
+	if set[0] != [2]int64{1000, 50000} {
+		t.Errorf("head gap = %v, want [1000, 50000]", set[0])
+	}
+	if set[1] != [2]int64{60000, 90000} {
+		t.Errorf("tail gap = %v, want [60000, 90000]", set[1])
+	}
+}
+
+func TestAssembleGapsSkipsHeadAndTailBelowMinGap(t *testing.T) {
+	// First row is 60s after detectFrom and last row is 60s before detectTo:
+	// both edges are narrower than minGap and must not be reported.
+	bounds := []weather.Bounds{{SerialNumber: "ST-A", First: ts(1060), Last: ts(89940)}}
+	got := assembleGaps(nil, bounds, []string{"ST-A"}, ts(1000), ts(90000), 30*time.Minute)
+	if len(got) != 0 {
+		t.Errorf("got %d gaps, want 0: %+v", len(got), got)
+	}
+}
+
+func TestAssembleGapsPreservesInterior(t *testing.T) {
+	interior := []weather.Gap{{SerialNumber: "ST-A", From: ts(20000), To: ts(30000)}}
+	bounds := []weather.Bounds{{SerialNumber: "ST-A", First: ts(1000), Last: ts(90000)}}
+	got := assembleGaps(interior, bounds, []string{"ST-A"}, ts(1000), ts(90000), 30*time.Minute)
+
+	if len(got) != 1 {
+		t.Fatalf("got %d gaps, want 1 (interior only, no head/tail): %+v", len(got), got)
+	}
+	if !got[0].From.Equal(ts(20000)) || !got[0].To.Equal(ts(30000)) {
+		t.Errorf("gap = %+v, want [20000, 30000]", got[0])
+	}
+}
+
+func TestAssembleGapsPerSerialIndependence(t *testing.T) {
+	// ST-A has data; ST-B is a brand-new serial with nothing stored. ST-B's
+	// whole range must be a gap even though ST-A looks healthy.
+	bounds := []weather.Bounds{{SerialNumber: "ST-A", First: ts(1000), Last: ts(90000)}}
+	got := assembleGaps(nil, bounds, []string{"ST-A", "ST-B"}, ts(1000), ts(90000), 30*time.Minute)
+
+	set := gapSet(got)
+	if len(set["ST-A"]) != 0 {
+		t.Errorf("ST-A got %v, want no gaps", set["ST-A"])
+	}
+	if len(set["ST-B"]) != 1 || set["ST-B"][0] != [2]int64{1000, 90000} {
+		t.Errorf("ST-B got %v, want one whole-range gap", set["ST-B"])
+	}
+}
+
+func TestAssembleGapsIgnoresBoundsForUnknownSerial(t *testing.T) {
+	// A serial present in the store but not returned by the API (a retired
+	// station) must not produce work — there is nothing to fetch for it.
+	bounds := []weather.Bounds{{SerialNumber: "ST-OLD", First: ts(1000), Last: ts(2000)}}
+	got := assembleGaps(nil, bounds, []string{"ST-A"}, ts(1000), ts(90000), 30*time.Minute)
+
+	for _, g := range got {
+		if g.SerialNumber == "ST-OLD" {
+			t.Errorf("produced a gap for a serial the API does not know: %+v", g)
+		}
+	}
+}
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `go test ./internal/backfill/ -run TestAssembleGaps -v`
+Expected: FAIL to compile — `undefined: assembleGaps`.
+
+- [ ] **Step 3: Write the implementation**
+
+Create `internal/backfill/gaps.go`:
+
+```go
+package backfill
+
+import (
+	"sort"
+	"time"
+
+	"tempestwx-utilities/internal/weather"
+)
+
+// assembleGaps builds the full detection domain from what SQL can and cannot
+// see.
+//
+// FindObservationGaps uses a LAG window function, which yields NULL for the
+// first row of each partition — so it finds INTERIOR gaps only. Left at that,
+// a fresh store reports "no gaps" and writes nothing, and the natural "the
+// box was down, repair it" case — whose outage is entirely in the tail — is
+// invisible. The domain is therefore the union of:
+//
+//   - the head gap [detectFrom, first stored row]
+//   - the interior gaps SQL found
+//   - the tail gap [last stored row, detectTo]
+//
+// with the EMPTY-store case (no bounds for a serial) treated as one gap
+// covering the whole range. That is a first-class case, not an edge case: it
+// is what every first run looks like.
+//
+// serials is the set the API knows about. A serial present in the store but
+// absent from the API (a retired station) produces no work — there is nothing
+// to fetch for it. Edges narrower than minGap are ordinary reporting jitter
+// and are dropped, matching the interior threshold.
+func assembleGaps(
+	interior []weather.Gap,
+	bounds []weather.Bounds,
+	serials []string,
+	detectFrom, detectTo time.Time,
+	minGap time.Duration,
+) []weather.Gap {
+	byserial := make(map[string]weather.Bounds, len(bounds))
+	for _, b := range bounds {
+		byserial[b.SerialNumber] = b
+	}
+
+	var out []weather.Gap
+	for _, serial := range serials {
+		b, ok := byserial[serial]
+		if !ok {
+			// Nothing stored for this serial in the detection window: the
+			// whole range is one gap.
+			if detectTo.Sub(detectFrom) > minGap {
+				out = append(out, weather.Gap{SerialNumber: serial, From: detectFrom, To: detectTo})
+			}
+			continue
+		}
+		if b.First.Sub(detectFrom) > minGap {
+			out = append(out, weather.Gap{SerialNumber: serial, From: detectFrom, To: b.First})
+		}
+		for _, g := range interior {
+			if g.SerialNumber == serial {
+				out = append(out, g)
+			}
+		}
+		if detectTo.Sub(b.Last) > minGap {
+			out = append(out, weather.Gap{SerialNumber: serial, From: b.Last, To: detectTo})
+		}
+	}
+
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].SerialNumber != out[j].SerialNumber {
+			return out[i].SerialNumber < out[j].SerialNumber
+		}
+		return out[i].From.Before(out[j].From)
+	})
+	return out
+}
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `go test ./internal/backfill/ -run TestAssembleGaps -v`
+Expected: PASS — all six tests.
+
+- [ ] **Step 5: Run the full gate**
+
+```bash
+CGO_ENABLED=0 go build ./... && go vet ./... && gofmt -l . && go test ./... -race
+```
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add internal/backfill/gaps.go internal/backfill/gaps_test.go
+git commit -m "feat(backfill): assemble head, tail, and empty-store gaps around LAG's interior gaps"
+```
+
+---
+
+### Task 9: `internal/backfill` — the `Run` core
+
+**Files:**
+- Create: `internal/backfill/backfill.go`
+- Test: `internal/backfill/backfill_test.go`
+
+**Interfaces:**
+- Consumes: everything from Tasks 1, 2, 7, 8.
+- Produces:
+  ```go
+  type Config struct {
+      From, To time.Time     // zero => auto-detect
+      MinGap   time.Duration
+      DryRun   bool
+  }
+  type Stats struct{ Gaps, Requested, Inserted, Failed int }
+  type ObservationSource interface {
+      Observations(ctx context.Context, station tempestapi.Station, start, end time.Time) ([]weather.Observation, error)
+  }
+  type Store interface {
+      SeriesBounds(ctx context.Context, from, to time.Time) ([]weather.Bounds, error)
+      FindObservationGaps(ctx context.Context, from, to time.Time, minGap time.Duration) ([]weather.Gap, error)
+      InsertObservations(ctx context.Context, obs []weather.Observation) (int, error)
+  }
+  func Run(ctx context.Context, cfg Config, src ObservationSource, store Store, stations []tempestapi.Station, now time.Time) (Stats, error)
+  ```
+
+**Why `now` is a parameter:** nothing below the shell calls `time.Now()`. `detectTo` defaults to `now - minGap`, which is only testable if the clock is injected.
+
+**Why `Store` is an interface:** two concrete implementors exist on day one (SQLite and Postgres), so it is not speculative. It is defined in the consumer, Go-idiomatic; thin adapters live in the shell.
+
+**Serial pre-flight is a hard stop.** If an API serial is absent from a **non-empty** store, backfill would write a parallel series under a second serial: `UNIQUE` never fires, rows double, and the gap never closes — silently and cumulatively. Warning-then-writing-anyway is incoherent; it names an outcome as corrupting and then produces it. An **empty** store is not a mismatch — it is the first-run case.
+
+**Insert batches are bounded to 200 rows.** A long transaction contends with live ingest, whose error path only *logs* (`sqlite/writer.go:646`), so an unbounded backfill transaction could cause **live observations to be silently lost while repairing historical ones**.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `internal/backfill/backfill_test.go`:
+
+```go
+package backfill
+
+import (
+	"context"
+	"errors"
+	"net/http"
+	"testing"
+	"time"
+
+	"tempestwx-utilities/internal/tempestapi"
+	"tempestwx-utilities/internal/weather"
+)
+
+// --- fakes ---
+
+type fakeSource struct {
+	calls   []window
+	obs     []weather.Observation
+	errs    []error // consumed one per call; nil entries succeed
+	callNum int
+}
+
+func (f *fakeSource) Observations(_ context.Context, _ tempestapi.Station, start, end time.Time) ([]weather.Observation, error) {
+	f.calls = append(f.calls, window{from: start, to: end})
+	i := f.callNum
+	f.callNum++
+	if i < len(f.errs) && f.errs[i] != nil {
+		return nil, f.errs[i]
+	}
+	return f.obs, nil
+}
+
+type fakeStore struct {
+	bounds    []weather.Bounds
+	gaps      []weather.Gap
+	inserted  [][]weather.Observation
+	insertErr error
+}
+
+func (f *fakeStore) SeriesBounds(context.Context, time.Time, time.Time) ([]weather.Bounds, error) {
+	return f.bounds, nil
+}
+
+func (f *fakeStore) FindObservationGaps(context.Context, time.Time, time.Time, time.Duration) ([]weather.Gap, error) {
+	return f.gaps, nil
+}
+
+func (f *fakeStore) InsertObservations(_ context.Context, obs []weather.Observation) (int, error) {
+	if f.insertErr != nil {
+		return 0, f.insertErr
+	}
+	f.inserted = append(f.inserted, obs)
+	return len(obs), nil
+}
+
+func station(serial string) tempestapi.Station {
+	return tempestapi.Station{
+		SerialNumber: serial,
+		DeviceID:     1,
+		CreatedAt:    time.Unix(1000, 0).UTC(),
+	}
+}
+
+func obsAt(serial string, epoch int64) weather.Observation {
+	return weather.Observation{SerialNumber: serial, Timestamp: time.Unix(epoch, 0).UTC()}
+}
+
+func at(epoch int64) time.Time { return time.Unix(epoch, 0).UTC() }
+
+// --- tests ---
+
+func TestRunDryRunMakesNoAPICallsAndNoWrites(t *testing.T) {
+	src := &fakeSource{obs: []weather.Observation{obsAt("ST-A", 5000)}}
+	store := &fakeStore{bounds: []weather.Bounds{{SerialNumber: "ST-A", First: at(1000), Last: at(2000)}}}
+
+	stats, err := Run(t.Context(),
+		Config{MinGap: 30 * time.Minute, DryRun: true},
+		src, store, []tempestapi.Station{station("ST-A")}, at(200000))
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if len(src.calls) != 0 {
+		t.Errorf("dry run made %d API calls, want 0", len(src.calls))
+	}
+	if len(store.inserted) != 0 {
+		t.Errorf("dry run made %d inserts, want 0", len(store.inserted))
+	}
+	if stats.Gaps == 0 {
+		t.Error("dry run should still report the gaps it detected")
+	}
+	if stats.Inserted != 0 {
+		t.Errorf("Inserted = %d, want 0", stats.Inserted)
+	}
+}
+
+func TestRunSerialMismatchIsHardStopWithNoWrites(t *testing.T) {
+	src := &fakeSource{obs: []weather.Observation{obsAt("ST-A", 5000)}}
+	// The store holds a DIFFERENT serial than the API reports. Writing would
+	// create a parallel series that never dedupes.
+	store := &fakeStore{bounds: []weather.Bounds{{SerialNumber: "ST-OTHER", First: at(1000), Last: at(2000)}}}
+
+	_, err := Run(t.Context(),
+		Config{MinGap: 30 * time.Minute},
+		src, store, []tempestapi.Station{station("ST-A")}, at(200000))
+	if err == nil {
+		t.Fatal("serial mismatch must be a hard stop, got nil error")
+	}
+	if !errors.Is(err, ErrSerialMismatch) {
+		t.Errorf("err = %v, want ErrSerialMismatch", err)
+	}
+	if len(store.inserted) != 0 {
+		t.Errorf("wrote %d batches despite a serial mismatch, want 0", len(store.inserted))
+	}
+	if len(src.calls) != 0 {
+		t.Errorf("made %d API calls despite a serial mismatch, want 0", len(src.calls))
+	}
+}
+
+func TestRunEmptyStoreIsNotASerialMismatch(t *testing.T) {
+	src := &fakeSource{obs: []weather.Observation{obsAt("ST-A", 5000)}}
+	store := &fakeStore{} // empty: first run
+
+	stats, err := Run(t.Context(),
+		Config{MinGap: 30 * time.Minute},
+		src, store, []tempestapi.Station{station("ST-A")}, at(200000))
+	if err != nil {
+		t.Fatalf("empty store must not be a mismatch: %v", err)
+	}
+	if stats.Gaps == 0 {
+		t.Error("empty store should yield the whole range as one gap")
+	}
+}
+
+func TestRunChunksExplicitRangeIntoDays(t *testing.T) {
+	src := &fakeSource{}
+	store := &fakeStore{bounds: []weather.Bounds{{SerialNumber: "ST-A", First: at(0), Last: at(1)}}}
+
+	from := at(0)
+	to := from.Add(72 * time.Hour)
+	_, err := Run(t.Context(),
+		Config{From: from, To: to, MinGap: 30 * time.Minute},
+		src, store, []tempestapi.Station{station("ST-A")}, to)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if len(src.calls) != 3 {
+		t.Fatalf("made %d API calls, want 3 single-day requests: %+v", len(src.calls), src.calls)
+	}
+	for i, c := range src.calls {
+		if w := c.to.Sub(c.from); w > 24*time.Hour {
+			t.Errorf("call %d spans %v, want <= 24h (the API caps 1-minute resolution at 5 days)", i, w)
+		}
+	}
+}
+
+func TestRunRetriesTransientThenSucceeds(t *testing.T) {
+	src := &fakeSource{
+		obs:  []weather.Observation{obsAt("ST-A", 5000)},
+		errs: []error{&tempestapi.StatusError{HTTPStatus: http.StatusServiceUnavailable}},
+	}
+	store := &fakeStore{bounds: []weather.Bounds{{SerialNumber: "ST-A", First: at(0), Last: at(1)}}}
+
+	from := at(0)
+	stats, err := Run(t.Context(),
+		Config{From: from, To: from.Add(time.Hour), MinGap: 30 * time.Minute},
+		src, store, []tempestapi.Station{station("ST-A")}, from.Add(time.Hour))
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if len(src.calls) != 2 {
+		t.Errorf("made %d calls, want 2 (one failure + one retry)", len(src.calls))
+	}
+	if stats.Failed != 0 {
+		t.Errorf("Failed = %d, want 0 after a successful retry", stats.Failed)
+	}
+	if stats.Inserted != 1 {
+		t.Errorf("Inserted = %d, want 1", stats.Inserted)
+	}
+}
+
+func TestRunDoesNotRetryNonTransient(t *testing.T) {
+	src := &fakeSource{errs: []error{&tempestapi.StatusError{StatusCode: 404, Message: "NOT FOUND"}}}
+	store := &fakeStore{bounds: []weather.Bounds{{SerialNumber: "ST-A", First: at(0), Last: at(1)}}}
+
+	from := at(0)
+	stats, err := Run(t.Context(),
+		Config{From: from, To: from.Add(time.Hour), MinGap: 30 * time.Minute},
+		src, store, []tempestapi.Station{station("ST-A")}, from.Add(time.Hour))
+	if err == nil {
+		t.Fatal("a failed gap must surface as an error")
+	}
+	if len(src.calls) != 1 {
+		t.Errorf("made %d calls, want 1 (an API-level status_code is never transient)", len(src.calls))
+	}
+	if stats.Failed != 1 {
+		t.Errorf("Failed = %d, want 1", stats.Failed)
+	}
+}
+
+func TestRunContinuesAfterAFailedGapAndReportsBoth(t *testing.T) {
+	// Two gaps; the first window fails permanently, the second succeeds.
+	src := &fakeSource{
+		obs:  []weather.Observation{obsAt("ST-A", 5000)},
+		errs: []error{&tempestapi.StatusError{StatusCode: 404}},
+	}
+	store := &fakeStore{
+		bounds: []weather.Bounds{{SerialNumber: "ST-A", First: at(10000), Last: at(20000)}},
+		gaps:   nil,
+	}
+
+	stats, err := Run(t.Context(),
+		Config{MinGap: 30 * time.Minute},
+		src, store, []tempestapi.Station{station("ST-A")}, at(200000))
+	if err == nil {
+		t.Fatal("want a non-nil error when any gap failed")
+	}
+	if stats.Failed == 0 {
+		t.Error("Failed should count the failed gap")
+	}
+	if stats.Inserted == 0 {
+		t.Error("the surviving gap should still have inserted rows — partial progress must be preserved")
+	}
+}
+
+func TestRunBoundsInsertBatchSize(t *testing.T) {
+	// 500 observations must arrive as batches of at most 200: an unbounded
+	// transaction contends with live ingest, whose error path only logs.
+	var many []weather.Observation
+	for i := range 500 {
+		many = append(many, obsAt("ST-A", int64(5000+i*60)))
+	}
+	src := &fakeSource{obs: many}
+	store := &fakeStore{bounds: []weather.Bounds{{SerialNumber: "ST-A", First: at(0), Last: at(1)}}}
+
+	from := at(0)
+	_, err := Run(t.Context(),
+		Config{From: from, To: from.Add(time.Hour), MinGap: 30 * time.Minute},
+		src, store, []tempestapi.Station{station("ST-A")}, from.Add(time.Hour))
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if len(store.inserted) < 3 {
+		t.Fatalf("got %d batches, want at least 3 for 500 rows at max 200/batch", len(store.inserted))
+	}
+	for i, b := range store.inserted {
+		if len(b) > 200 {
+			t.Errorf("batch %d has %d rows, want <= 200", i, len(b))
+		}
+	}
+}
+
+func TestRunHonorsContextCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	src := &fakeSource{obs: []weather.Observation{obsAt("ST-A", 5000)}}
+	store := &fakeStore{bounds: []weather.Bounds{{SerialNumber: "ST-A", First: at(0), Last: at(1)}}}
+
+	from := at(0)
+	_, err := Run(ctx,
+		Config{From: from, To: from.Add(72 * time.Hour), MinGap: 30 * time.Minute},
+		src, store, []tempestapi.Station{station("ST-A")}, from.Add(72*time.Hour))
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("err = %v, want context.Canceled", err)
+	}
+}
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `go test ./internal/backfill/ -run TestRun -v`
+Expected: FAIL to compile — `undefined: Run`, `undefined: Config`, `undefined: ErrSerialMismatch`.
+
+- [ ] **Step 3: Write the implementation**
+
+Create `internal/backfill/backfill.go`:
+
+```go
+package backfill
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"time"
+
+	"tempestwx-utilities/internal/tempestapi"
+	"tempestwx-utilities/internal/weather"
+)
+
+const (
+	// insertBatchSize bounds one insert transaction.
+	//
+	// The realistic invocation is `docker exec <running container>
+	// tempestwx-utilities backfill` against a LIVE database. A long backfill
+	// transaction contends with ingest writes; busy_timeout defaults to 5s
+	// and ingest's error path only LOGS (sqlite/writer.go:646), so an
+	// unbounded transaction could cause live observations to be silently lost
+	// while repairing historical ones. Short transactions are the mitigation.
+	insertBatchSize = 200
+
+	// maxAttempts bounds retries per window, including the first try.
+	maxAttempts = 4
+	// baseBackoff is doubled per attempt: 1s, 2s, 4s.
+	baseBackoff = time.Second
+)
+
+// ErrSerialMismatch is returned when the API reports a serial the non-empty
+// store has never seen. See preflight.
+var ErrSerialMismatch = errors.New("station serial not present in store")
+
+// Config is the backfill run's parameters. It holds no I/O handles and no
+// clock — both are passed to Run explicitly so the core is testable.
+type Config struct {
+	// From and To bound the work explicitly. Both zero means auto-detect.
+	//
+	// The override exists to BOUND API WORK, not to avoid a table scan
+	// (idx_obs_serial_time already covers detection): because permanent holes
+	// are accepted and never recorded, auto-detect re-requests every
+	// known-empty window on every run. An operator repairing a known outage
+	// can name it and skip that cost.
+	From time.Time
+	To   time.Time
+
+	// MinGap is the smallest interval that counts as a hole, keeping ordinary
+	// reporting jitter from registering.
+	MinGap time.Duration
+
+	// DryRun detects and plans only: zero API calls, zero writes. It
+	// consequently cannot validate the token or reachability.
+	DryRun bool
+}
+
+// Stats is what the run did, in aggregate.
+type Stats struct {
+	Gaps      int // holes detected
+	Requested int // observations returned by the API
+	Inserted  int // rows actually new (0 across runs => a permanent hole)
+	Failed    int // gaps that failed after retries
+}
+
+// ObservationSource is the REST client, narrowed to what backfill needs.
+// *tempestapi.Client satisfies it.
+type ObservationSource interface {
+	Observations(ctx context.Context, station tempestapi.Station, start, end time.Time) ([]weather.Observation, error)
+}
+
+// Store is the persistence side, narrowed to what backfill needs. Two
+// concrete implementors exist on day one — SQLite and Postgres — so this is
+// an earned interface, not a speculative one. It is declared here, in the
+// consumer, per Go convention; the adapters that bind a *sql.DB or
+// *pgxpool.Pool to it live in the command shell.
+type Store interface {
+	SeriesBounds(ctx context.Context, from, to time.Time) ([]weather.Bounds, error)
+	FindObservationGaps(ctx context.Context, from, to time.Time, minGap time.Duration) ([]weather.Gap, error)
+	InsertObservations(ctx context.Context, obs []weather.Observation) (int, error)
+}
+
+// Run detects gaps and fills them.
+//
+// now is injected: nothing below the command shell calls time.Now(), so
+// detectTo (now - MinGap) is deterministic under test.
+//
+// A failed gap logs and continues — partial progress must be preserved — and
+// the per-gap errors are joined into the returned error, which the shell
+// turns into a non-zero exit. Run never calls log.Fatal.
+func Run(
+	ctx context.Context,
+	cfg Config,
+	src ObservationSource,
+	store Store,
+	stations []tempestapi.Station,
+	now time.Time,
+) (Stats, error) {
+	var stats Stats
+
+	detectFrom, detectTo := detectionRange(cfg, stations, now)
+
+	bounds, err := store.SeriesBounds(ctx, detectFrom, detectTo)
+	if err != nil {
+		return stats, fmt.Errorf("series bounds: %w", err)
+	}
+
+	if err := preflight(stations, bounds); err != nil {
+		return stats, err
+	}
+
+	gaps, err := plannedGaps(ctx, cfg, store, stations, bounds, detectFrom, detectTo)
+	if err != nil {
+		return stats, err
+	}
+	stats.Gaps = len(gaps)
+
+	if cfg.DryRun {
+		for _, g := range gaps {
+			slog.Info("backfill: planned gap (dry run)",
+				"serial", g.SerialNumber, "from", g.From, "to", g.To, "duration", g.Duration())
+		}
+		return stats, nil
+	}
+
+	byserial := make(map[string]tempestapi.Station, len(stations))
+	for _, s := range stations {
+		byserial[s.SerialNumber] = s
+	}
+
+	var failures []error
+	for _, g := range gaps {
+		requested, inserted, err := fillGap(ctx, src, store, byserial[g.SerialNumber], g)
+		stats.Requested += requested
+		stats.Inserted += inserted
+
+		if err != nil {
+			if ctx.Err() != nil {
+				// Cancellation is not a gap failure. Inserted rows stay
+				// intact; idempotency makes re-running safe.
+				return stats, ctx.Err()
+			}
+			stats.Failed++
+			failures = append(failures, fmt.Errorf("gap %s [%s, %s]: %w",
+				g.SerialNumber, g.From.Format(time.RFC3339), g.To.Format(time.RFC3339), err))
+			slog.Error("backfill: gap failed",
+				"serial", g.SerialNumber, "from", g.From, "to", g.To, "error", err)
+			continue
+		}
+
+		// requested vs inserted is what makes the permanent-hole tradeoff
+		// visible: if the station was genuinely offline, the API has no data
+		// either and inserted stays 0 across runs. Structured attrs are the
+		// machine-readable surface — no bespoke summary format.
+		slog.Info("backfill: gap filled",
+			"serial", g.SerialNumber, "from", g.From, "to", g.To,
+			"requested", requested, "inserted", inserted)
+	}
+
+	if len(failures) > 0 {
+		return stats, errors.Join(failures...)
+	}
+	return stats, nil
+}
+
+// detectionRange resolves the window to work over. An explicit --from/--to
+// wins; otherwise detection runs from the earliest station creation time to
+// now-MinGap (trailing MinGap so the most recent, still-arriving interval is
+// not mistaken for a hole).
+func detectionRange(cfg Config, stations []tempestapi.Station, now time.Time) (time.Time, time.Time) {
+	if !cfg.From.IsZero() && !cfg.To.IsZero() {
+		return cfg.From, cfg.To
+	}
+	detectTo := now.Add(-cfg.MinGap)
+	detectFrom := detectTo
+	for _, s := range stations {
+		if s.CreatedAt.Before(detectFrom) {
+			detectFrom = s.CreatedAt
+		}
+	}
+	return detectFrom, detectTo
+}
+
+// plannedGaps is the whole detection domain: SQL's interior gaps plus the
+// head, tail, and empty-store cases LAG cannot see. An explicit --from/--to
+// still goes through the chunker, so it is expressed as one gap per station
+// rather than bypassing the pipeline.
+func plannedGaps(
+	ctx context.Context,
+	cfg Config,
+	store Store,
+	stations []tempestapi.Station,
+	bounds []weather.Bounds,
+	detectFrom, detectTo time.Time,
+) ([]weather.Gap, error) {
+	serials := make([]string, 0, len(stations))
+	for _, s := range stations {
+		serials = append(serials, s.SerialNumber)
+	}
+
+	if !cfg.From.IsZero() && !cfg.To.IsZero() {
+		gaps := make([]weather.Gap, 0, len(serials))
+		for _, serial := range serials {
+			gaps = append(gaps, weather.Gap{SerialNumber: serial, From: cfg.From, To: cfg.To})
+		}
+		return gaps, nil
+	}
+
+	interior, err := store.FindObservationGaps(ctx, detectFrom, detectTo, cfg.MinGap)
+	if err != nil {
+		return nil, fmt.Errorf("find observation gaps: %w", err)
+	}
+	return assembleGaps(interior, bounds, serials, detectFrom, detectTo, cfg.MinGap), nil
+}
+
+// preflight refuses to run when the API reports a serial the store has never
+// seen.
+//
+// Dedupe, gap closure, and convergence all require that the serial backfill
+// writes exactly matches the serial UDP ingest writes. If they diverge,
+// backfill writes a PARALLEL SERIES under a second serial: UNIQUE never
+// fires, rows double, and the gap never closes — silently and cumulatively.
+// So this is a hard stop, not a warning: warning-then-writing-anyway names an
+// outcome as corrupting and then produces it.
+//
+// An EMPTY store is not a mismatch. It is the first-run case, where every gap
+// is legitimately new.
+func preflight(stations []tempestapi.Station, bounds []weather.Bounds) error {
+	if len(bounds) == 0 {
+		return nil
+	}
+	stored := make(map[string]struct{}, len(bounds))
+	for _, b := range bounds {
+		stored[b.SerialNumber] = struct{}{}
+	}
+	var missing []error
+	for _, s := range stations {
+		if _, ok := stored[s.SerialNumber]; !ok {
+			missing = append(missing, fmt.Errorf("%w: API reports %q, store has none of it",
+				ErrSerialMismatch, s.SerialNumber))
+		}
+	}
+	return errors.Join(missing...)
+}
+
+// fillGap fetches and inserts one gap, chunked and retried.
+func fillGap(
+	ctx context.Context,
+	src ObservationSource,
+	store Store,
+	station tempestapi.Station,
+	g weather.Gap,
+) (requested, inserted int, err error) {
+	for _, w := range chunkWindow(g.From, g.To, chunkSize) {
+		if err := ctx.Err(); err != nil {
+			return requested, inserted, err
+		}
+
+		obs, err := fetchWithRetry(ctx, src, station, w)
+		if err != nil {
+			return requested, inserted, err
+		}
+		requested += len(obs)
+
+		for chunk := range batches(obs, insertBatchSize) {
+			n, err := store.InsertObservations(ctx, chunk)
+			if err != nil {
+				return requested, inserted, fmt.Errorf("insert: %w", err)
+			}
+			inserted += n
+		}
+	}
+	return requested, inserted, nil
+}
+
+// fetchWithRetry applies bounded exponential backoff to transient failures.
+// Context cancellation is checked between attempts as well as between
+// windows.
+func fetchWithRetry(
+	ctx context.Context,
+	src ObservationSource,
+	station tempestapi.Station,
+	w window,
+) ([]weather.Observation, error) {
+	var lastErr error
+	for attempt := range maxAttempts {
+		if attempt > 0 {
+			delay := baseBackoff << (attempt - 1)
+			slog.Warn("backfill: retrying window",
+				"serial", station.SerialNumber, "from", w.from, "to", w.to,
+				"attempt", attempt+1, "delay", delay, "error", lastErr)
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(delay):
+			}
+		}
+
+		obs, err := src.Observations(ctx, station, w.from, w.to)
+		if err == nil {
+			return obs, nil
+		}
+		lastErr = err
+		if !isRetryable(err) {
+			return nil, err
+		}
+	}
+	return nil, fmt.Errorf("after %d attempts: %w", maxAttempts, lastErr)
+}
+
+// batches yields obs in slices of at most size.
+func batches(obs []weather.Observation, size int) func(func([]weather.Observation) bool) {
+	return func(yield func([]weather.Observation) bool) {
+		for start := 0; start < len(obs); start += size {
+			end := min(start+size, len(obs))
+			if !yield(obs[start:end]) {
+				return
+			}
+		}
+	}
+}
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `go test ./internal/backfill/ -run TestRun -v`
+Expected: PASS — all nine tests.
+
+- [ ] **Step 5: Run the full gate**
+
+```bash
+CGO_ENABLED=0 go build ./... && go vet ./... && gofmt -l . && go test ./... -race
+```
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add internal/backfill/backfill.go internal/backfill/backfill_test.go
+git commit -m "feat(backfill): add the Run core with injected clock, store, and API source"
+```
+
+---
+
+### Task 10: `main.go` — the shell and real subcommand dispatch
+
+**Files:**
+- Create: `backfill_cmd.go` (package `main`, repo root — matches the existing flat layout)
+- Modify: `main.go:188-191` (the dispatch in `main`)
+- Test: `backfill_cmd_test.go`
+
+**Interfaces:**
+- Consumes: everything above.
+- Produces: `func runBackfill(ctx context.Context, args []string) int`, plus the two store adapters.
+
+**Dispatch fix:** `main()` currently matches only `healthcheck` and **falls through to daemon mode** for anything else — so `tempestwx-utilities backfil` (typo) silently starts a UDP listener. Unknown non-flag first arguments must print usage and exit **2**.
+
+**Each subcommand owns its own `flag.FlagSet` parsed from `os.Args[2:]`.** That — not an abstraction — is the seam #80's `migrate` slots into: a new subcommand is a new file plus one dispatch line, with no sibling touched.
+
+**Standards divergence, recorded deliberately:** `go-standards` §6 says "all CLIs use Cobra". This project uses a hand-rolled `os.Args[1]` dispatch. We keep the established pattern — Cobra for two subcommands would be a dependency and a framework where a `switch` suffices, and the standard defers to established project patterns. Do not add Cobra.
+
+**Cleanup:** `runBackfill` performs **all** cleanup via internal defers and returns an exit code. Copying the healthcheck shape (`os.Exit` at the dispatch site) would skip `db.Close()` and the pgx pool drain.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `backfill_cmd_test.go`:
+
+```go
+package main
+
+import (
+	"strings"
+	"testing"
+	"time"
+)
+
+func TestParseBackfillFlagsDefaults(t *testing.T) {
+	cfg, err := parseBackfillFlags(nil)
+	if err != nil {
+		t.Fatalf("parseBackfillFlags: %v", err)
+	}
+	if cfg.MinGap != 30*time.Minute {
+		t.Errorf("MinGap = %v, want 30m", cfg.MinGap)
+	}
+	if cfg.DryRun {
+		t.Error("DryRun should default to false")
+	}
+	if !cfg.From.IsZero() || !cfg.To.IsZero() {
+		t.Error("From/To should default to zero (auto-detect)")
+	}
+}
+
+func TestParseBackfillFlagsRFC3339IsUTC(t *testing.T) {
+	cfg, err := parseBackfillFlags([]string{"--from", "2026-01-02T03:04:05Z", "--to", "2026-01-03T03:04:05Z"})
+	if err != nil {
+		t.Fatalf("parseBackfillFlags: %v", err)
+	}
+	if cfg.From.Location() != time.UTC {
+		t.Errorf("From location = %v, want UTC", cfg.From.Location())
+	}
+	if cfg.From.Format(time.RFC3339) != "2026-01-02T03:04:05Z" {
+		t.Errorf("From = %v, want 2026-01-02T03:04:05Z", cfg.From.Format(time.RFC3339))
+	}
+}
+
+func TestParseBackfillFlagsRejectsNonRFC3339(t *testing.T) {
+	_, err := parseBackfillFlags([]string{"--from", "2026-01-02"})
+	if err == nil {
+		t.Fatal("a non-RFC3339 --from must be rejected; an ambiguous local-time parse is a quiet wrong-window bug")
+	}
+	if !strings.Contains(err.Error(), "from") {
+		t.Errorf("error = %q, want it to name the offending flag", err)
+	}
+}
+
+func TestParseBackfillFlagsRequiresBothOrNeither(t *testing.T) {
+	if _, err := parseBackfillFlags([]string{"--from", "2026-01-02T00:00:00Z"}); err == nil {
+		t.Error("--from without --to must be rejected")
+	}
+	if _, err := parseBackfillFlags([]string{"--to", "2026-01-02T00:00:00Z"}); err == nil {
+		t.Error("--to without --from must be rejected")
+	}
+}
+
+func TestParseBackfillFlagsRejectsInvertedRange(t *testing.T) {
+	_, err := parseBackfillFlags([]string{"--from", "2026-01-03T00:00:00Z", "--to", "2026-01-02T00:00:00Z"})
+	if err == nil {
+		t.Fatal("--to before --from must be rejected")
+	}
+}
+
+func TestParseBackfillFlagsDryRun(t *testing.T) {
+	cfg, err := parseBackfillFlags([]string{"--dry-run", "--min-gap", "2h"})
+	if err != nil {
+		t.Fatalf("parseBackfillFlags: %v", err)
+	}
+	if !cfg.DryRun {
+		t.Error("--dry-run not applied")
+	}
+	if cfg.MinGap != 2*time.Hour {
+		t.Errorf("MinGap = %v, want 2h", cfg.MinGap)
+	}
+}
+
+func TestRunBackfillWithoutTokenFailsFast(t *testing.T) {
+	// TOKEN is validated before any store handle is opened, so the failure
+	// costs no I/O and leaves nothing to close. SQLITE_PATH points at a
+	// location that would fail to open, proving no store was touched.
+	t.Setenv("TOKEN", "")
+	t.Setenv("SQLITE_PATH", "/nonexistent-dir-should-never-be-opened/tempest.db")
+
+	if got := runBackfill(t.Context(), nil); got != 1 {
+		t.Errorf("exit code = %d, want 1 for a missing TOKEN", got)
+	}
+}
+
+func TestRunBackfillUsageErrorExitsTwo(t *testing.T) {
+	t.Setenv("TOKEN", "x")
+	if got := runBackfill(t.Context(), []string{"--from", "not-a-time", "--to", "also-not"}); got != 2 {
+		t.Errorf("exit code = %d, want 2 for a usage error", got)
+	}
+}
+
+func TestKnownSubcommands(t *testing.T) {
+	for _, name := range []string{"healthcheck", "backfill"} {
+		if !isKnownSubcommand(name) {
+			t.Errorf("%q should be a known subcommand", name)
+		}
+	}
+	// The regression this guards: "backfil" previously fell through to daemon
+	// mode and silently started a UDP listener.
+	for _, name := range []string{"backfil", "helthcheck", "migrate", ""} {
+		if isKnownSubcommand(name) {
+			t.Errorf("%q should NOT be a known subcommand", name)
+		}
+	}
+}
+```
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `go test . -run 'TestParseBackfill|TestRunBackfill|TestKnownSubcommands' -v`
+Expected: FAIL to compile — `undefined: parseBackfillFlags`, `undefined: runBackfill`, `undefined: isKnownSubcommand`.
+
+- [ ] **Step 3: Write the shell**
+
+Create `backfill_cmd.go`:
+
+```go
+package main
+
+import (
+	"context"
+	"errors"
+	"flag"
+	"fmt"
+	"log/slog"
+	"os"
+	"os/signal"
+	"time"
+
+	"tempestwx-utilities/internal/backfill"
+	"tempestwx-utilities/internal/config"
+	"tempestwx-utilities/internal/postgres"
+	"tempestwx-utilities/internal/sqlite"
+	"tempestwx-utilities/internal/tempestapi"
+	"tempestwx-utilities/internal/weather"
+
+	"database/sql"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+// parseBackfillFlags reads the backfill subcommand's own FlagSet.
+//
+// Each subcommand owning its FlagSet (parsed from os.Args[2:]) is the seam a
+// future subcommand slots into: a new subcommand is a new file plus one
+// dispatch line, with no sibling touched.
+//
+// --from/--to are RFC3339 interpreted as UTC. The store is UTC epoch and the
+// API takes epoch seconds; an ambiguous local-time parse would be a quiet
+// wrong-window bug, so a non-RFC3339 value is rejected rather than guessed at.
+func parseBackfillFlags(args []string) (backfill.Config, error) {
+	fs := flag.NewFlagSet("backfill", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+
+	fromStr := fs.String("from", "", "start of the window to repair, RFC3339 UTC (default: auto-detect)")
+	toStr := fs.String("to", "", "end of the window to repair, RFC3339 UTC (default: auto-detect)")
+	minGap := fs.Duration("min-gap", 30*time.Minute, "smallest interval that counts as a gap")
+	dryRun := fs.Bool("dry-run", false, "detect and plan only: zero API calls, zero writes")
+
+	if err := fs.Parse(args); err != nil {
+		return backfill.Config{}, err
+	}
+
+	cfg := backfill.Config{MinGap: *minGap, DryRun: *dryRun}
+
+	if (*fromStr == "") != (*toStr == "") {
+		return cfg, errors.New("--from and --to must be given together, or neither")
+	}
+	if *fromStr != "" {
+		from, err := time.Parse(time.RFC3339, *fromStr)
+		if err != nil {
+			return cfg, fmt.Errorf("--from must be RFC3339 (e.g. 2026-01-02T03:04:05Z): %w", err)
+		}
+		to, err := time.Parse(time.RFC3339, *toStr)
+		if err != nil {
+			return cfg, fmt.Errorf("--to must be RFC3339 (e.g. 2026-01-02T03:04:05Z): %w", err)
+		}
+		cfg.From, cfg.To = from.UTC(), to.UTC()
+		if !cfg.To.After(cfg.From) {
+			return cfg, errors.New("--to must be after --from")
+		}
+	}
+	return cfg, nil
+}
+
+// sqliteStore adapts the package-level SQLite functions to backfill.Store.
+type sqliteStore struct{ db *sql.DB }
+
+func (s sqliteStore) SeriesBounds(ctx context.Context, from, to time.Time) ([]weather.Bounds, error) {
+	return sqlite.SeriesBounds(ctx, s.db, from, to)
+}
+
+func (s sqliteStore) FindObservationGaps(ctx context.Context, from, to time.Time, minGap time.Duration) ([]weather.Gap, error) {
+	return sqlite.FindObservationGaps(ctx, s.db, from, to, minGap)
+}
+
+func (s sqliteStore) InsertObservations(ctx context.Context, obs []weather.Observation) (int, error) {
+	return sqlite.InsertObservations(ctx, s.db, obs)
+}
+
+// postgresStore adapts the package-level Postgres functions to backfill.Store.
+type postgresStore struct{ pool *pgxpool.Pool }
+
+func (s postgresStore) SeriesBounds(ctx context.Context, from, to time.Time) ([]weather.Bounds, error) {
+	return postgres.SeriesBounds(ctx, s.pool, from, to)
+}
+
+func (s postgresStore) FindObservationGaps(ctx context.Context, from, to time.Time, minGap time.Duration) ([]weather.Gap, error) {
+	return postgres.FindObservationGaps(ctx, s.pool, from, to, minGap)
+}
+
+func (s postgresStore) InsertObservations(ctx context.Context, obs []weather.Observation) (int, error) {
+	return postgres.InsertObservations(ctx, s.pool, obs)
+}
+
+// runBackfill is the backfill subcommand's shell: parse, read env, open
+// handles, wire dependencies, return an exit code.
+//
+// It performs ALL cleanup via internal defers. Copying the healthcheck shape
+// (os.Exit at the dispatch site, main.go:189-191) would skip db.Close() and
+// the pgx pool drain.
+//
+// Exit codes: 0 success (including permanent holes), 1 a gap failed or a
+// runtime error, 2 a usage error.
+func runBackfill(ctx context.Context, args []string) int {
+	cfg, err := parseBackfillFlags(args)
+	if err != nil {
+		// flag.ContinueOnError already printed the message for parse errors.
+		if !errors.Is(err, flag.ErrHelp) {
+			fmt.Fprintln(os.Stderr, err)
+		}
+		return 2
+	}
+
+	// TOKEN is validated BEFORE any store handle is opened, so the failure
+	// costs no I/O and leaves nothing to close.
+	token := os.Getenv("TOKEN")
+	if token == "" {
+		slog.Error("backfill: TOKEN is required to reach the Tempest REST API")
+		return 1
+	}
+
+	// Signal wiring lives in the subcommand — the healthcheck path has none
+	// to inherit.
+	ctx, stop := signalContext(ctx, signal.NotifyContext)
+	defer stop()
+
+	enablePostgres, err := config.ParseBoolEnv("ENABLE_POSTGRES")
+	if err != nil {
+		slog.Error("backfill: bad ENABLE_POSTGRES", "error", err)
+		return 1
+	}
+	choice := selectStore(enablePostgres, os.Getenv("SQLITE_PATH"))
+
+	var store backfill.Store
+	switch {
+	case choice.postgres:
+		dbConfig, err := config.GetDatabaseConfig()
+		if err != nil {
+			slog.Error("backfill: database configuration", "error", err)
+			return 1
+		}
+		if dbConfig == "" {
+			slog.Error("backfill: POSTGRES_URL or POSTGRES_HOST is required when ENABLE_POSTGRES is true")
+			return 1
+		}
+		// Backfill opens the WRITE path: it must create the schema and
+		// insert. OpenPool starts no goroutines, unlike NewPostgresWriter.
+		pool, err := postgres.OpenPool(ctx, dbConfig)
+		if err != nil {
+			slog.Error("backfill: open postgres", "error", err)
+			return 1
+		}
+		defer pool.Close()
+		if err := postgres.CreateSchema(ctx, pool); err != nil {
+			slog.Error("backfill: create postgres schema", "error", err)
+			return 1
+		}
+		store = postgresStore{pool: pool}
+	case choice.sqlite:
+		// The write handle, not OpenReadOnly: read-only fails when the file
+		// does not exist and cannot migrate, and its ingest-contention
+		// rationale does not apply to a separate one-shot process.
+		db, err := sqlite.Open(ctx, choice.sqlitePath, sqlite.LoadConfig(os.Getenv))
+		if err != nil {
+			slog.Error("backfill: open sqlite", "path", choice.sqlitePath, "error", err)
+			return 1
+		}
+		defer func() {
+			if err := db.Close(); err != nil {
+				slog.Error("backfill: close sqlite", "error", err)
+			}
+		}()
+		store = sqliteStore{db: db}
+	default:
+		slog.Error("backfill: no store configured")
+		return 1
+	}
+
+	client := tempestapi.NewClient(token)
+	stations, err := client.ListStations(ctx)
+	if err != nil {
+		slog.Error("backfill: list stations", "error", err)
+		return 1
+	}
+	if len(stations) == 0 {
+		slog.Error("backfill: the API reported no ST devices for this token")
+		return 1
+	}
+
+	stats, err := backfill.Run(ctx, cfg, client, store, stations, time.Now().UTC())
+	slog.Info("backfill: complete",
+		"gaps", stats.Gaps, "requested", stats.Requested,
+		"inserted", stats.Inserted, "failed", stats.Failed, "dry_run", cfg.DryRun)
+	if err != nil {
+		slog.Error("backfill: finished with failures", "error", err)
+		return 1
+	}
+	return 0
+}
+```
+
+> **Verified helper names** (do not substitute others): `sqlite.LoadConfig(getenv func(string) string) Config` is at `internal/sqlite/db.go:33`, and `config.GetDatabaseConfig() (string, error)` is at `internal/config/database.go:18` — the latter already resolves `POSTGRES_URL` or the individual `POSTGRES_*` components, so nothing needs extracting from `main()`.
+
+- [ ] **Step 4: Fix the dispatch in `main()`**
+
+In `main.go`, replace the current dispatch (`:189-191`):
+
+```go
+func main() {
+	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
+		os.Exit(runHealthcheck())
+	}
+```
+
+with:
+
+```go
+// isKnownSubcommand reports whether name is a subcommand this binary
+// dispatches. It exists so an unrecognized argument becomes a usage error
+// instead of silently falling through to daemon mode — a typo such as
+// `tempestwx-utilities backfil` previously started a UDP listener.
+func isKnownSubcommand(name string) bool {
+	switch name {
+	case "healthcheck", "backfill":
+		return true
+	default:
+		return false
+	}
+}
+
+const usageText = `tempestwx-utilities — Tempest weather station data utilities
+
+usage:
+  tempestwx-utilities                 run the UDP listener / API export daemon (configured by env)
+  tempestwx-utilities backfill [...]  fill gaps in the observation history from the Tempest REST API
+  tempestwx-utilities healthcheck     probe the running server's /healthz endpoint
+
+run "tempestwx-utilities backfill --help" for the backfill flags
+`
+
+func main() {
+	// A non-flag first argument is a subcommand. An unknown one is a usage
+	// error, never a silent fallthrough to daemon mode.
+	if len(os.Args) > 1 && !strings.HasPrefix(os.Args[1], "-") {
+		if !isKnownSubcommand(os.Args[1]) {
+			fmt.Fprintf(os.Stderr, "unknown subcommand %q\n\n%s", os.Args[1], usageText)
+			os.Exit(2)
+		}
+		switch os.Args[1] {
+		case "healthcheck":
+			os.Exit(runHealthcheck())
+		case "backfill":
+			// runBackfill owns all of its cleanup via internal defers and
+			// wires its own signal context.
+			os.Exit(runBackfill(context.Background(), os.Args[2:]))
+		}
+	}
+```
+
+Add `"strings"` to `main.go`'s import block. `context` and `fmt` are already imported.
+
+- [ ] **Step 5: Run tests to verify they pass**
+
+Run: `go test . -run 'TestParseBackfill|TestRunBackfill|TestKnownSubcommands' -v`
+Expected: PASS — all nine tests.
+
+- [ ] **Step 6: Verify the dispatch by hand**
+
+```bash
+CGO_ENABLED=0 go build -o /tmp/twx . && /tmp/twx backfil; echo "exit=$?"
+```
+Expected: prints `unknown subcommand "backfil"` plus usage, `exit=2`, and **does not** start a UDP listener or block.
+
+```bash
+/tmp/twx backfill --help; echo "exit=$?"
+```
+Expected: prints the four backfill flags with their defaults.
+
+- [ ] **Step 7: Run the full gate**
+
+```bash
+CGO_ENABLED=0 go build ./... && go vet ./... && gofmt -l . && go test ./... -race
+```
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add backfill_cmd.go backfill_cmd_test.go main.go
+git commit -m "feat: add the backfill subcommand and reject unknown subcommands"
+```
+
+---
+
+### Task 11: Documentation
+
+**Files:**
+- Modify: `CLAUDE.md:239` (name collision), `:78` (package list), the operational-modes table
+
+**Interfaces:**
+- Consumes: the shipped behavior of Tasks 1–10.
+- Produces: nothing consumed by code.
+
+**Why this is a task and not a footnote:** `CLAUDE.md` already has a section titled "**API Export with Backfill**" (`:239`) describing the *existing* `TOKEN`-triggered `ModeAPIExport`. Shipping a `backfill` subcommand alongside a differently-meaning section of nearly the same name would leave the repo's own guidance ambiguous about which "backfill" is which.
+
+- [ ] **Step 1: Resolve the name collision**
+
+Rename the existing `### API Export with Backfill` heading (`CLAUDE.md:239`) to `### API Export Mode (TOKEN)`, and adjust its body so it clearly describes the env-var-triggered historical export — not the new subcommand.
+
+- [ ] **Step 2: Add the subcommand section**
+
+Immediately after it, add:
+
+```markdown
+### Backfill Subcommand
+
+Fills holes in the local observation history from the Tempest REST API. Unlike
+API Export Mode (which is selected by setting `TOKEN` and runs the whole export
+path), this is an explicit subcommand and can be run against a live database:
+
+```bash
+TOKEN=your_api_token tempestwx-utilities backfill
+TOKEN=... tempestwx-utilities backfill --dry-run
+TOKEN=... tempestwx-utilities backfill --from 2026-07-01T00:00:00Z --to 2026-07-05T00:00:00Z
+```
+
+It writes to whichever store is configured (SQLite by default, Postgres when
+`ENABLE_POSTGRES=true`) and is idempotent — re-running inserts nothing new.
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--from`, `--to` | unset (auto-detect) | Explicit window, RFC3339 **UTC**. Must be given together. |
+| `--min-gap` | `30m` | Smallest interval that counts as a gap. Raise it for stations with a long `report_interval`. |
+| `--dry-run` | `false` | Detect and plan only: zero API calls, zero writes. Cannot validate the token. |
+
+**Exit codes:** `0` success (including permanent holes — windows the station was
+genuinely offline for, which the API cannot fill either), `1` one or more gaps
+failed or a runtime error, `2` usage error.
+
+**Scope:** `tempest_observations` only. There is no historical REST endpoint for
+rapid wind, hub status, or discrete events. Lightning is partially recovered in
+aggregate through the observation columns, but not as `tempest_events` rows.
+
+**Safety:** if the API reports a station serial the (non-empty) store has never
+seen, backfill stops and writes nothing — a mismatched serial would create a
+parallel series that never dedupes.
+```
+
+- [ ] **Step 3: Update the package list**
+
+At `CLAUDE.md:76-79`, add to the internal-package list:
+
+```markdown
+- **`internal/weather/`**: Store-neutral `Observation`, `Gap`, and `Bounds` types shared by the REST client and both stores
+- **`internal/backfill/`**: Gap detection and API backfill orchestration for the `backfill` subcommand
+```
+
+Leave the `internal/tempestudp/` line as it is — it correctly describes UDP parsing, and the backfill types deliberately live elsewhere.
+
+- [ ] **Step 4: Note that subcommands bypass mode selection**
+
+Under the "Operational Modes" table, add:
+
+```markdown
+> **Subcommands bypass mode selection.** `backfill` and `healthcheck` are chosen
+> by the first CLI argument, not by environment variables, and neither starts the
+> UDP listener or the HTTP server. Any other non-flag first argument is a usage
+> error (exit 2) rather than a silent fallthrough to daemon mode.
+```
+
+- [ ] **Step 5: Verify the docs match reality**
+
+Run each command in the new section against the built binary and confirm the flags and exit codes are exactly as documented:
+
+```bash
+CGO_ENABLED=0 go build -o /tmp/twx . && /tmp/twx backfill --help
+```
+Expected: the four flags with the documented defaults. Fix the doc if it disagrees — the binary is the source of truth.
+
+- [ ] **Step 6: Run the full gate**
+
+```bash
+CGO_ENABLED=0 go build ./... && go vet ./... && gofmt -l . && go test ./... -race
+```
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add CLAUDE.md
+git commit -m "docs: document the backfill subcommand and resolve the API-export name collision"
+```
+
+---
+
+## After all tasks
+
+Dispatch a **fresh, non-context-sharing** review subagent per `rules/subagent-development-workflow.md` step 4. Brief it with:
+- branch `worktree-api-backfill`, diff scope `git diff 8990b88..HEAD`
+- the design document path, as the spec
+- the acceptance criteria: every row of the design's Testing table has a corresponding passing test
+
+Do **not** summarize what was built — let the reviewer reach its own conclusions from the code. Then run `superpowers:finishing-a-development-branch`.
+
+## Known scope exclusions
+
+Stated so a reviewer does not read them as omissions:
+
+- **`tempest_rapid_wind`, `tempest_hub_status`, `tempest_events` are not backfilled.** No historical REST endpoint exists for any of them.
+- **The missing `break` in `ListStations`' device loop is not fixed.** `ModeAPIExport` depends on current behavior; backfill iterates all `ST` devices itself.
+- **`ModeAPIExport` and `sqlite.WriteMetrics` are unchanged.**
+- **No `--json` output.** The bespoke summary line was cut as speculative; `slog` attrs are the machine-readable surface. Add `--json` if a caller ever needs it.
+- **`Retry-After` parsing and a fixed inter-request delay were cut.** WeatherFlow publishes no rate limits; bounded backoff already handles 429.
+- **`CLAUDE.md` staleness elsewhere** (no SQLite-default/OTel/httpserver/radar coverage; still says "Go 1.23.0+") is out of scope — flagged for a separate docs pass.
