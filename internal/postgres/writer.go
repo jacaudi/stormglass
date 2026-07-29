@@ -142,27 +142,9 @@ type PostgresWriter struct {
 
 // NewPostgresWriter creates a new PostgreSQL writer with connection pooling.
 func NewPostgresWriter(ctx context.Context, databaseURL string) (*PostgresWriter, error) {
-	config, err := pgxpool.ParseConfig(databaseURL)
+	pool, err := OpenPool(ctx, databaseURL)
 	if err != nil {
-		return nil, fmt.Errorf("parse database url: %w", err)
-	}
-
-	// Connection pool configuration
-	config.MaxConns = 10
-	config.MinConns = 2
-	config.MaxConnLifetime = time.Hour
-	config.MaxConnIdleTime = 10 * time.Minute
-	config.HealthCheckPeriod = 30 * time.Second
-
-	pool, err := pgxpool.NewWithConfig(ctx, config)
-	if err != nil {
-		return nil, fmt.Errorf("create connection pool: %w", err)
-	}
-
-	// Verify connection
-	if err := pool.Ping(ctx); err != nil {
-		pool.Close()
-		return nil, fmt.Errorf("ping database: %w", err)
+		return nil, err
 	}
 
 	// Auto-create schema
