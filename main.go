@@ -545,11 +545,11 @@ func exportWithSink(ctx context.Context, token string, metricsSink *sink.Metrics
 				stationMetrics, err := client.GetObservations(ctx, station, cur, next)
 				if err != nil {
 					// station and err are derived from the WeatherFlow API response and
-					// are logged as typed slog attributes (not interpolated into the
+					// are passed as slog attribute values (not interpolated into the
 					// format string) so the handler's quoting/escaping neutralizes any
 					// embedded control characters. Exit behavior matches log.Fatalf
 					// (log, then os.Exit(1); neither runs deferred functions).
-					slog.Error("error fetching observations", "station", station, "start_unix", cur.Unix(), "end_unix", next.Unix(), "err", err)
+					slog.ErrorContext(ctx, "error fetching observations", "station", station, "start_unix", cur.Unix(), "end_unix", next.Unix(), "err", err)
 					os.Exit(1)
 				}
 				metrics = append(metrics, stationMetrics...)
@@ -563,7 +563,7 @@ func exportWithSink(ctx context.Context, token string, metricsSink *sink.Metrics
 		// Send to sink (Postgres), wrapped in an export.batch span so
 		// each batch send shows up in the trace backend the same way
 		// UDP ingest's sink.write does.
-		slog.Info("sending metrics to sink", "count", len(metrics))
+		slog.InfoContext(ctx, "sending metrics to sink", "count", len(metrics))
 		if err := otel.TraceExportBatch(ctx, func(ctx context.Context) error {
 			return metricsSink.SendMetrics(ctx, metrics)
 		}); err != nil {
