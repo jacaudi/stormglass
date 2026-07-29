@@ -74,3 +74,6 @@ Temporary Items
 .classpath
 .settings/
 *.iml
+
+# Session handoff prompts (scaffolding, not project artifacts)
+docs/prompts/
