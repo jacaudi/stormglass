@@ -3032,6 +3032,12 @@ func TestRunNewSerialAlongsideKnownSerialIsNotAMismatch(t *testing.T) {
 // bounds={ST-OLD} does NOT overlap it, so feeding preflight the windowed key
 // set would report a false mismatch. A fixture where both inputs contain an
 // overlapping serial cannot tell the two apart and would pass either way.
+//
+// It must ALSO run on the auto-detect path (no --from/--to). Run skips the
+// SeriesBounds query entirely on the explicit-range path, so under that
+// config a mutated preflight would receive an empty slice, read it as
+// "empty store, not a mismatch", and return nil — passing for the wrong
+// reason. Do not add From/To to this test.
 func TestRunQuietSerialInRequestedWindowIsNotAMismatch(t *testing.T) {
 	src := &fakeSource{obs: []weather.Observation{obsAt("ST-A", 5000)}}
 	store := &fakeStore{
@@ -3042,12 +3048,12 @@ func TestRunQuietSerialInRequestedWindowIsNotAMismatch(t *testing.T) {
 		bounds: []weather.Bounds{{SerialNumber: "ST-OLD", First: at(1000), Last: at(2000)}},
 	}
 
-	from := at(0)
+	// Auto-detect (no From/To) so SeriesBounds is genuinely consulted.
 	_, err := Run(t.Context(),
-		Config{From: from, To: from.Add(time.Hour), MinGap: 30 * time.Minute},
-		src, store, []tempestapi.Station{station("ST-A")}, from.Add(time.Hour))
+		Config{MinGap: 30 * time.Minute},
+		src, store, []tempestapi.Station{station("ST-A")}, at(200000))
 	if err != nil {
-		t.Fatalf("a serial with no rows in the requested window must not be a mismatch: %v", err)
+		t.Fatalf("a serial with no rows in the detection window must not be a mismatch: %v", err)
 	}
 }
 
