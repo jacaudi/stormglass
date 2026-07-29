@@ -62,6 +62,20 @@ holding the pool contract (`MaxConns=10`, `MinConns=2`, `MaxConnLifetime=time.Ho
 
 `OpenPool` does **not** run `CreateSchema` — backfill calls `CreateSchema` explicitly, so schema creation stays an observable step of the caller rather than a side effect of opening a pool.
 
+### 3. Device-level lookup — `internal/tempestapi`
+
+`ListStations` collapses each station to a single `ST` device (see "Serial-number invariant"), so there is no way to enumerate every sensor on the account.
+
+**Decision:** add
+
+```go
+func (c *Client) ListDevices(ctx context.Context) ([]Station, error)
+```
+
+returning **one `Station` per `ST` device** across all stations — same struct, but `DeviceID`/`SerialNumber` are per device rather than per station, and a station with two Tempests yields two entries. `CreatedAt` carries the owning station's `created_epoch`, which is what `detectFrom` needs.
+
+`ListStations` is **not** modified: `ModeAPIExport` depends on its current one-per-station shape. The two share the response-decoding struct so the JSON contract lives in one place.
+
 ## Entry point and testability
 
 The subcommand is split into a **shell** and a **testable core**. A single `runBackfill(ctx) int` that reads flags, `TOKEN`, store config, and `time.Now()` internally cannot be driven from a test, which would make the mandated dry-run, head/tail/empty-domain, and serial pre-flight tests unwritable — a direct conflict with TDD.
@@ -86,17 +100,29 @@ func backfill(
 
   ```go
   type backfillStore interface {
+      DistinctSerials(ctx context.Context) ([]string, error)
       SeriesBounds(ctx context.Context, from, to time.Time) ([]weather.Bounds, error)
       FindObservationGaps(ctx context.Context, from, to time.Time, minGap time.Duration) ([]weather.Gap, error)
       InsertObservations(ctx context.Context, obs []weather.Observation) (inserted int, err error)
   }
   ```
 
-  `SeriesBounds` returns the first and last stored timestamp per serial within a
-  window (`weather.Bounds`). It carries three jobs at once, which is why there is
-  no separate `DistinctSerials`: it supplies the head/tail boundaries `LAG`
-  cannot see, its key set *is* the set of serials present, and an empty result
-  is exactly the empty-store signal the pre-flight check needs.
+  `SeriesBounds` returns the first and last stored timestamp per serial **within a
+  window**, supplying the head/tail boundaries `LAG` cannot see.
+
+  `DistinctSerials` is **unwindowed** — `SELECT DISTINCT serial_number FROM
+  tempest_observations`, whole table — and exists solely for the pre-flight
+  check.
+
+  **These must not be merged.** An earlier revision of this design collapsed
+  `DistinctSerials` into `SeriesBounds` on the reasoning that "its key set *is*
+  the set of serials present." That reasoning silently assumed an unwindowed
+  query. `SeriesBounds` is windowed, so a station with no rows *inside the
+  queried window* looks absent from the store entirely — and the pre-flight
+  check then hard-stops on a station that is merely quiet, writing nothing,
+  including for the healthy stations. That is precisely what `--from/--to`
+  exists to do, so the merge broke the tool's main repair path. Keep them
+  separate.
 
   Defined in the **consumer** package (`internal/backfill`), Go-idiomatic. Thin adapters in that package bind a `*sql.DB` / `*pgxpool.Pool` to the package-level store functions.
 
@@ -130,6 +156,8 @@ Both stores must name these types, so they cannot live in `tempestapi` (storage 
 
 `Gap` carries `SerialNumber`, `From`, `To`, using `time.Time` as the canonical representation.
 
+**The interval is CLOSED `[From, To]`, not half-open.** Every producer emits endpoints that are rows which already exist — `prev`/`next` from `LAG`, `First`/`Last` from `SeriesBounds` — so both ends are re-fetched and re-offered to the store. `ON CONFLICT DO NOTHING` absorbs the duplicates, so this is harmless to correctness, but it must be documented as closed: labelling it `[From, To)` would be a lie, and it explains why `Requested` slightly exceeds the number of genuinely missing observations. Adjacent chunk windows likewise share an endpoint, for the same reason and with the same absorption.
+
 #### Accepted duplication (DRY, explicit)
 
 This adds a **fourth** in-tree representation of an observation row (`tempestudp.TempestObservationReport`, `sqlite`'s private `observationRow`, `postgres`'s private `observationRow`, now `weather.Observation`). That is accepted, and the reason is recorded so it is not "cleaned up" later:
@@ -153,6 +181,10 @@ The API method returns **raw API fields only**. Wet bulb is derived at the store
 ### Field alignment
 
 REST `obs_st` indices 0–17 match the UDP layout exactly, so the existing `len(ob) >= N` guards apply unmodified. The REST array has 22 elements; indices 18–21 (local-day rain accumulation, Nearcast accumulations, precip analysis type) map to no existing column and are ignored deliberately.
+
+**"Unmodified" means graduated, not all-or-nothing.** The UDP path accepts a tuple at `len(ob) >= 13` and fills the tail conditionally (`>= 6`, `>= 14`, `>= 16`, `>= 17`, `>= 18` — `sqlite/writer.go:406-457`). A single hard `len(ob) < 18 → drop` is **not** the same rule: it discards a short tuple's core measurements entirely. Because every `weather.Observation` measurement is a `*float64`, honoring the graduated guards is free — absent indices simply stay nil.
+
+**Dropped tuples must be counted and logged.** A tuple that *is* rejected (below the floor, or a null `ob[0]` that cannot be keyed) must increment a counter surfaced in the run summary. Otherwise a window whose tuples were all malformed reports `requested=0, inserted=0` — byte-identical to the permanent-hole signal, which is the one machine-readable diagnostic the whole reporting design rests on.
 
 ## Gap detection
 
@@ -259,8 +291,27 @@ func (e *StatusError) Error() string
 ```
 
 - Classification uses **`errors.As`** — **not `errors.AsType`**, which is Go 1.26 and `go.mod` declares `go 1.25.0`.
-- Retryable: `HTTPStatus == 429`, `HTTPStatus >= 500`, or a network error (`net.Error`, `context.DeadlineExceeded` on a single attempt). A non-zero `StatusCode` is **not** retryable — it is a real API-level failure.
+- Retryable: `HTTPStatus == 429`, `HTTPStatus >= 500`, or a network error (`net.Error`). A non-zero `StatusCode` is **not** retryable — it is a real API-level failure.
 - Per-gap failures accumulate with **`errors.Join`**; the joined error drives the non-zero exit.
+
+#### The per-attempt-timeout trap — mandatory
+
+`http.Client.Timeout` is **implemented as a context deadline**. The client sets a 30s timeout (`client.go:42`), and the `*url.Error` it produces satisfies **both** `errors.Is(err, context.DeadlineExceeded)` **and** `errors.As(err, &netErr)`:
+
+```
+Get "...": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+errors.Is(err, context.DeadlineExceeded) = true
+errors.As(err, &net.Error)              = true
+```
+
+So a classifier that opens with a blanket `if errors.Is(err, context.DeadlineExceeded) { return false }` guard marks **every per-attempt HTTP timeout as non-retryable**, and the `net.Error` branch is never reached. One slow WeatherFlow response then fails an entire gap on the first try with zero retries — the single most likely transient failure in a tool issuing thousands of sequential requests.
+
+**Therefore:**
+
+- Only **`context.Canceled`** is a blanket non-retryable signal.
+- A deadline error is fatal only when the **parent** context is actually done — check `ctx.Err() != nil` at the call site, not the error's identity.
+- A per-attempt timeout falls through to the `net.Error` branch and **is** retried.
+- The regression test must be built from a **real** `*url.Error` (an `httptest.Server` that stalls, plus a short-timeout client), not a synthetic `net.Error` fake. A fake cannot reproduce the dual-predicate error that causes the bug, so a test using one will pass against the broken classifier.
 
 ### Retry
 
@@ -305,9 +356,24 @@ Dedupe, gap closure, and convergence all require that the serial written by back
 
 **Pre-flight check — hard stop, not a warning.** Compare `ListStations` serials against `SELECT DISTINCT serial_number FROM tempest_observations`. On mismatch, log the offending serials and **exit non-zero having written nothing.** Warning-then-writing-anyway was the earlier spec and is incoherent: it names an outcome as corrupting and then produces it. The check only earns its place if it prevents the damage.
 
-Mismatch means "some API serial is absent from a **non-empty** store." An **empty** store is not a mismatch — it is the first-run case, and every gap is legitimately new.
+**Mismatch means the two serial sets are DISJOINT on a non-empty store** — no API serial appears in the store at all. That is the actual signature of format divergence, and it is the only condition that stops the run. The comparison uses `DistinctSerials` (whole table, unwindowed), never `SeriesBounds`.
 
-**Multiple `ST` devices:** `client.go:110-115` has no `break`, so the last device silently wins. Backfill must not inherit that. It iterates **all** `ST` devices returned by `ListStations` and backfills each independently, keyed by its own serial. (Fixing the loop in `ListStations` itself is out of scope — `ModeAPIExport` depends on current behavior.)
+The tempting-but-wrong rule is "*some* API serial is absent from a non-empty store." Two ordinary, non-corrupt situations satisfy it, and both would brick the tool:
+
+- **A second station the UDP listener never hears** (different VLAN or subnet). Its serial will *never* enter the store, so backfill would refuse to run — including for the healthy station.
+- **A newly added station.** Its first backfill would exit non-zero having written nothing, permanently, until the daemon happened to ingest a row from it.
+
+Neither is serial-format divergence. Under the disjoint rule both proceed normally, and a serial the API knows but the store has not yet seen simply yields a whole-range gap — which is exactly what the head/tail/empty detection domain is for.
+
+An **empty** store is likewise not a mismatch: it is the first-run case, and every gap is legitimately new.
+
+**Multiple `ST` devices — resolved by a new device-level lookup.** `client.go:110-115` has no `break`, so within one station the last `ST` device silently wins, and `ListStations` returns one already-collapsed `Station` per station. Backfill therefore **cannot** "iterate all `ST` devices returned by `ListStations`" — an earlier revision of this design said exactly that, and it is unimplementable: there is nothing to iterate.
+
+The consequence of inheriting the behavior is silent data loss. With two Tempest units on one station the UDP listener records both serials, but backfill only ever learns the last one; the other unit's gaps never close, and nothing is logged. It also evades the pre-flight check, which tests API⊄store, whereas this is the store⊄API direction.
+
+**Decision:** add `tempestapi.ListDevices`, returning **one entry per `ST` device** across all stations, and have backfill enumerate that. `ListStations` is left untouched — `ModeAPIExport` depends on its current behavior, and fixing its missing `break` remains a non-goal.
+
+> **Scope note (No-Wall, explicitly authorized).** The maintainer runs a single Tempest, so by the seam test this serves no present consumer and would normally be deferred. The seam test was **explicitly overridden for this feature only**, on the grounds that the tool is published and a multi-sensor user is a plausible request. Recorded so the exception stays visible and does not become precedent.
 
 ## The permanent-hole problem
 
@@ -331,7 +397,10 @@ Parsed from a `backfill`-owned `flag.FlagSet` over `os.Args[2:]`.
 |---|---|---|
 | `--from`, `--to` | unset (auto-detect) | **RFC3339, interpreted UTC.** The store is UTC epoch and the API takes epoch seconds; an ambiguous local-time parse is a quiet wrong-window bug. |
 | `--min-gap` | `30m` | |
-| `--dry-run` | false | Gap detection + plan only: **zero** API calls, **zero** writes. Consequently it cannot validate the token or reachability. |
+| `--dry-run` | false | Gap detection + plan only: **zero observation fetches**, **zero** writes. It still calls the device lookup (one API call), so it *does* validate the token and reachability. |
+| `--store` | unset | `sqlite` or `postgres`. **Required** when the environment selects more than one store; optional (and validated against the selection) otherwise. |
+
+**Why `--store` exists.** `selectStore` (`main.go:147-154`) returns *both* stores when `ENABLE_POSTGRES=true` **and** `SQLITE_PATH` is set — a documented fan-out the daemon honors by writing every observation to both. Backfill repairs one store per run, so with both configured it cannot infer the target. It must **never** guess: silently repairing Postgres while leaving the SQLite database (the one Litestream replicates to S3) still holed, and then reporting success, is the worst available outcome. Absent `--store` in that configuration, backfill exits `2` naming both candidates.
 
 **Why `--from/--to` exists** (restated — the earlier "avoids a full scan" rationale does not hold; `idx_obs_serial_time` already covers the detection query): it **bounds the API work**. Because permanent holes are accepted and never recorded, auto-detect re-requests every known-empty window on every run. An operator repairing a known outage can name it directly and skip that cost.
 
@@ -339,7 +408,9 @@ Parsed from a `backfill`-owned `flag.FlagSet` over `os.Args[2:]`.
 
 A failed gap logs and continues; per-gap errors accumulate via `errors.Join` and the process exits **non-zero** if any gap failed. Context cancellation is honored between windows and retries, leaving inserted rows intact — idempotency makes re-running safe. Backfill must **never** `log.Fatalf` mid-run: partial progress must be preserved and reported.
 
-Exit codes: `0` success (including permanent holes), `1` one or more gaps failed, `2` usage error.
+**A failed *window* must not abandon its gap.** "Continue on failure" applies at the window level too, not only between gaps. Returning from a gap on its first bad window discards every remaining window in that gap, and for a *deterministic* per-window failure the loss is **permanent across runs**, not transient: once the earlier windows land, the head gap collapses and the hole reappears as an interior gap starting at the same bad window, which fails again — so the windows behind it are never requested on any run. A tool whose entire premise is convergence would silently stop converging, and the `inserted=0` signal never fires because those windows are never even requested. Accumulate window errors with `errors.Join`, keep going, and fail the gap at the end.
+
+Exit codes: `0` success (including permanent holes, and `--help`), `1` one or more gaps failed or a runtime error, `2` usage error. **`flag.ErrHelp` is not a usage error** — `backfill --help` must exit `0`, or every CI smoke test that runs `cmd --help` fails.
 
 ## Testing
 
@@ -353,12 +424,22 @@ Every row below is written **test-first**; the entry-point split above is what m
 | Chunking | Multi-day range → N single-day requests. |
 | Empty window | One table-driven test, three cases, all → zero rows + no error: `obs` empty, `obs` null/absent, status-only envelope with no `type`. |
 | Error taxonomy | 429/503/network → retried; non-zero `status_code` → not retried, surfaces as `*StatusError` via `errors.As`. |
+| **Per-attempt timeout** | A **real** `*url.Error` from a stalled `httptest.Server` + short-timeout client → **retried**. A synthetic `net.Error` fake does not reproduce the dual-predicate error and would pass against the broken classifier. |
+| **Window failure isolation** | Three windows in one gap, the middle one permanently failing → windows 1 and 3 both inserted, gap still reported failed. |
 | Idempotency | Insert twice; second inserts 0, changes nothing. |
-| Dry-run | Zero writes, zero API calls. |
-| Serial pre-flight | Mismatched serials → non-zero exit, **zero rows written**. Empty store → not a mismatch. |
-| Dispatch | Unknown subcommand → usage, exit 2, **daemon not started**. |
+| Dry-run | Zero writes, zero **observation fetches**. |
+| Serial pre-flight | **Disjoint** sets on a non-empty store → non-zero exit, **zero rows written**. Empty store → not a mismatch. A *new* serial alongside a known one → **not** a mismatch; it yields a whole-range gap. A known serial with no rows *in the requested window* → **not** a mismatch. |
+| **Short tuples** | `len(ob) == 13` → row inserted with the tail columns NULL, not dropped. Rejected tuples increment the reported drop counter. |
+| **Store selection** | Both stores configured without `--store` → exit 2, nothing written. `--store` naming an unconfigured store → exit 2. |
+| Dispatch | Unknown subcommand → usage, exit 2, **daemon not started**. Asserted by re-exec, not by testing the predicate in isolation. |
+| **`--help`** | Exits **0**, not 2. |
+| Multi-device | A station reporting two `ST` devices → `ListDevices` returns two entries; both are backfilled. |
 
 Repo idiom applies: `t.Context()`, `t.TempDir()`, stdlib table-driven, no testify.
+
+**Tests that can only fail at compile time or by string match** (a struct-literal field-name assertion, a `strings.Contains` on a SQL constant) do **not** count toward the rows above. They assert the language spec or restate the file they live in; the behavior needs a test that can fail at runtime for the reason the row names.
+
+**The Postgres path ships unverified unless an integration test runs.** Its SQL differs materially from SQLite's — `EXTRACT(EPOCH FROM (ts - prev)) > $3` compares a `numeric` against a `float64` parameter, and `precip_type` is `INTEGER` while the bind is a `*float64` (pgx truncates silently). A skip-guarded integration test following `writer_integration_test.go`'s existing idiom must seed the same two-serial interleaved fixture the SQLite test uses, and it must be run at least once against a real database before the branch merges.
 
 ## Documentation owned by this design
 
@@ -367,7 +448,8 @@ Repo idiom applies: `t.Context()`, `t.TempDir()`, stdlib table-driven, no testif
 - **Name collision:** `CLAUDE.md:239` already has a section "**API Export with Backfill**" describing the *existing* `TOKEN`-triggered `ModeAPIExport`. Rename it (e.g. "API Export Mode") and add a distinct section for the `backfill` subcommand, so the two are not conflated.
 - `CLAUDE.md:78` describes `internal/tempestudp` as UDP parsing — accurate, and now protected by moving `Observation`/`Gap` to `internal/weather`. Add `internal/weather` to the package list.
 - The **operational-modes table** assumes mode is chosen by env vars; a subcommand bypasses that. Add a line stating that `backfill` and `healthcheck` short-circuit mode selection entirely.
-- Document the new flags and exit codes.
+- Document the new flags and exit codes — including `--store` (when it is required and why backfill refuses to guess), and the accurate `--dry-run` semantics (zero *observation fetches*, but one device-lookup call, so it *does* validate the token).
+- State the multi-sensor behavior: `backfill` enumerates every `ST` device via `ListDevices`, unlike `TOKEN`-mode export, which sees one device per station.
 
 Out of scope but noted: `CLAUDE.md` is broadly stale elsewhere (no SQLite-default/OTel/httpserver/radar coverage; still says "Go 1.23.0+" against a 1.25 floor). Not this design's job to fix — flagged for a separate docs pass.
 
