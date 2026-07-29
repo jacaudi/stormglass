@@ -4,11 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"math"
+	"net"
 	"os"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"tempestwx-utilities/internal/tempestudp"
@@ -881,6 +884,9 @@ func isRetryable(err error) bool {
 		// Retryable: deadlock (Class 40)
 		case "40001", "40P01":
 			return true
+		// Retryable: transient resource/availability conditions
+		case "53300", "53400", "57P01":
+			return true
 		// Not retryable: constraint violations (Class 23)
 		case "23505", "23503", "23502":
 			return false
@@ -888,19 +894,23 @@ func isRetryable(err error) bool {
 		case "42P01", "42703":
 			return false
 		default:
-			return true
+			// Unrecognized SQLSTATE: fail closed rather than burning the
+			// retry budget on an error we can't classify.
+			return false
 		}
 	}
 
-	// Network errors
-	errStr := strings.ToLower(err.Error())
-	if strings.Contains(errStr, "connection refused") ||
-		strings.Contains(errStr, "no such host") ||
-		strings.Contains(errStr, "network is unreachable") {
+	// Network errors: timeouts and connection-establishment failures are
+	// transient; anything else is unknown and should fail closed.
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
 		return true
 	}
-
-	return true
+	if errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return true
+	}
+	var opErr *net.OpError
+	return errors.As(err, &opErr)
 }
 
 // Close implements MetricsWriter interface. Idempotent — safe to call more

@@ -2,11 +2,16 @@ package postgres
 
 import (
 	"context"
+	"errors"
+	"net"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
 	"tempestwx-utilities/internal/tempestudp"
+
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 func TestNewPostgresWriter_InvalidURL(t *testing.T) {
@@ -407,4 +412,34 @@ func TestPostgresWriteDuringClose_NoPanic(t *testing.T) {
 
 	close(stop)
 	producers.Wait()
+}
+
+func TestIsRetryable(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"nil", nil, false},
+		{"context canceled", context.Canceled, false},
+		{"context deadline exceeded", context.DeadlineExceeded, false},
+		{"connection failure SQLSTATE 08006", &pgconn.PgError{Code: "08006"}, true},
+		{"serialization failure SQLSTATE 40001", &pgconn.PgError{Code: "40001"}, true},
+		{"constraint violation SQLSTATE 23505", &pgconn.PgError{Code: "23505"}, false},
+		{"unrecognized SQLSTATE XX000", &pgconn.PgError{Code: "XX000"}, false},
+		{"plain unknown error", errors.New("some totally unknown failure"), false},
+		{
+			"transient network error (connection refused)",
+			&net.OpError{Op: "dial", Net: "tcp", Err: syscall.ECONNREFUSED},
+			true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isRetryable(tt.err); got != tt.want {
+				t.Errorf("isRetryable(%v) = %v, want %v", tt.err, got, tt.want)
+			}
+		})
+	}
 }
