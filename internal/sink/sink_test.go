@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"tempestwx-utilities/internal/tempestudp"
 
@@ -59,6 +60,20 @@ func (m *mockWriter) Close(ctx context.Context) error {
 		panic(m.closePanicMsg)
 	}
 	return nil
+}
+
+// blockingWriter simulates a writer whose enqueue path is stalled behind a
+// full channel (e.g. Postgres's batch channel while the database is down).
+// WriteReport blocks until the passed ctx is done and then returns ctx.Err(),
+// mirroring the writers' real select-on-ctx.Done() enqueue paths. Embedding
+// mockWriter supplies WriteMetrics/Flush/Close for free.
+type blockingWriter struct {
+	mockWriter
+}
+
+func (b *blockingWriter) WriteReport(ctx context.Context, report tempestudp.Report) error {
+	<-ctx.Done()
+	return ctx.Err()
 }
 
 func TestMetricsSink_AddWriter(t *testing.T) {
@@ -284,6 +299,57 @@ func TestSink_ClosePanicRecovered(t *testing.T) {
 	}
 	if !healthy.closeCalled {
 		t.Error("healthy.Close should still have been called despite the sibling panic")
+	}
+}
+
+// TestSink_SendReportBoundsBlockingWriter verifies that a single stalled
+// writer cannot block SendReport forever (#47). The UDP read loop calls
+// SendReport synchronously with the top-level application ctx, which is
+// never canceled during normal operation — so an unbounded per-writer send
+// (e.g. a full Postgres batch channel) would stall ingest for every sink.
+//
+// The test passes a context.Background()-derived ctx that this test never
+// cancels, so the only thing that can unblock the blocking writer is the
+// sink bounding it internally. SendReport itself runs in a goroutine and is
+// raced against a guard timeout so a regression (infinite block) fails via
+// t.Fatal rather than hanging the suite.
+func TestSink_SendReportBoundsBlockingWriter(t *testing.T) {
+	// Shrink the package's per-writer timeout for this test only, so the
+	// assertions below don't have to wait out the real production 5s bound.
+	orig := writeTimeout
+	writeTimeout = 50 * time.Millisecond
+	t.Cleanup(func() { writeTimeout = orig })
+
+	s := NewMetricsSink()
+
+	blocking := &blockingWriter{}
+	fast := &mockWriter{}
+	s.AddWriter(blocking)
+	s.AddWriter(fast)
+
+	report := &tempestudp.TempestObservationReport{SerialNumber: "TEST-001"}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- s.SendReport(context.Background(), report)
+	}()
+
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("expected a non-nil error naming the timed-out blocking writer")
+		}
+		if !strings.Contains(err.Error(), "blockingWriter") {
+			t.Errorf("expected error to name the blocking writer, got: %v", err)
+		}
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Errorf("expected error to wrap context.DeadlineExceeded, got: %v", err)
+		}
+		if fast.reportCalls != 1 {
+			t.Errorf("fast writer: expected 1 call, got %d", fast.reportCalls)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("SendReport did not return within 2s — regression: a stalled writer blocked the shared fan-out (#47)")
 	}
 }
 

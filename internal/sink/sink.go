@@ -7,11 +7,28 @@ import (
 	"log/slog"
 	"slices"
 	"sync"
+	"time"
 
 	"tempestwx-utilities/internal/tempestudp"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
+
+// writeTimeout bounds a single writer's acceptance of one report/metrics
+// batch in SendReport/SendMetrics. Both are called synchronously from the
+// single UDP read loop with the top-level application ctx, which is not
+// canceled during normal operation — so an unbounded per-writer send (e.g. a
+// full Postgres batch channel while the database is degraded) would stall
+// ingest for every sink, not just the degraded one. Writers already select on
+// ctx.Done() in their enqueue paths, so bounding the ctx here is sufficient
+// to release them; no writer changes are needed (#47).
+//
+// 5s matches eventBlockTimeout in internal/sqlite/writer.go:29, which bounds
+// the analogous case (a discrete event blocking on a full channel). Kept
+// consistent rather than picking an independent value for the same class of
+// wait. It is a var, not a const, so tests can shrink it to keep the
+// timeout-path tests fast without sleeping the real 5s.
+var writeTimeout = 5 * time.Second
 
 // MetricsWriter is the interface that all metric backends must implement.
 type MetricsWriter interface {
@@ -81,7 +98,9 @@ func (s *MetricsSink) SendReport(ctx context.Context, report tempestudp.Report) 
 					mu.Unlock()
 				}
 			}()
-			if err := writer.WriteReport(ctx, report); err != nil {
+			wctx, cancel := context.WithTimeout(ctx, writeTimeout)
+			defer cancel()
+			if err := writer.WriteReport(wctx, report); err != nil {
 				mu.Lock() // mutex guards the append — required, else -race flags the concurrent slice write
 				errs = append(errs, fmt.Errorf("writer %T: %w", writer, err))
 				mu.Unlock()
@@ -116,7 +135,9 @@ func (s *MetricsSink) SendMetrics(ctx context.Context, metrics []prometheus.Metr
 					mu.Unlock()
 				}
 			}()
-			if err := writer.WriteMetrics(ctx, metrics); err != nil {
+			wctx, cancel := context.WithTimeout(ctx, writeTimeout)
+			defer cancel()
+			if err := writer.WriteMetrics(wctx, metrics); err != nil {
 				mu.Lock() // mutex guards the append — required, else -race flags the concurrent slice write
 				errs = append(errs, fmt.Errorf("writer %T: %w", writer, err))
 				mu.Unlock()
