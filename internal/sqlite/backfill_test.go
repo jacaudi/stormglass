@@ -237,3 +237,140 @@ func TestInsertObservationsEmptyIsNoop(t *testing.T) {
 		t.Errorf("n = %d, want 0", n)
 	}
 }
+
+// TestInsertObservationsRoundTripsAllColumns pins the 21-argument bind order
+// in InsertObservations against insertObservationSQL (writer.go). Every
+// measurement field carries a distinct, unambiguous value so a transposition
+// of any two bind arguments (e.g. WindAvg <-> WindGust) changes an observable
+// column value and fails this test by name, rather than leaving the whole
+// suite green.
+//
+// wind_sample_interval, precip_type, lightning_strike_count, and
+// report_interval are declared INTEGER in migrations/0001_init.sql, so this
+// test keeps those four fields integral. That is a deliberate accommodation
+// of the deferred *float64-into-INTEGER-column finding, not a claim that the
+// finding is resolved — SQLite's column affinity converts an integral REAL
+// bind to INTEGER storage losslessly, so using integral values here avoids
+// dragging that out-of-scope issue into this test.
+func TestInsertObservationsRoundTripsAllColumns(t *testing.T) {
+	db := newTestDB(t)
+	o := weather.Observation{
+		SerialNumber:         "ST-A",
+		Timestamp:            ts(1000),
+		WindLull:             f(1.5),
+		WindAvg:              f(3.5),
+		WindGust:             f(6.5),
+		WindDirection:        f(180),
+		WindSampleInterval:   f(3), // INTEGER column: kept integral
+		Pressure:             f(1013.25),
+		TempAir:              f(22.5),
+		Humidity:             f(65),
+		Illuminance:          f(15000),
+		UVIndex:              f(4.5),
+		Irradiance:           f(600),
+		RainRate:             f(0.5),
+		PrecipType:           f(1), // INTEGER column: kept integral
+		LightningDistance:    f(12.5),
+		LightningStrikeCount: f(2), // INTEGER column: kept integral
+		Battery:              f(2.85),
+		ReportInterval:       f(5), // INTEGER column: kept integral
+	}
+
+	if _, err := InsertObservations(t.Context(), db, []weather.Observation{o}); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+
+	var (
+		windLull, windAvg, windGust, windDirection, windSampleInterval sql.NullFloat64
+		pressure, tempAir, tempWetbulb, humidity                       sql.NullFloat64
+		illuminance, uvIndex, irradiance, rainRate, precipType         sql.NullFloat64
+		lightningDistance, lightningStrikeCount, battery               sql.NullFloat64
+		reportInterval                                                 sql.NullFloat64
+	)
+	row := db.QueryRowContext(t.Context(), `
+		SELECT wind_lull, wind_avg, wind_gust, wind_direction, wind_sample_interval,
+		       pressure, temp_air, temp_wetbulb, humidity,
+		       illuminance, uv_index, irradiance, rain_rate, precip_type,
+		       lightning_distance, lightning_strike_count,
+		       battery, report_interval
+		FROM tempest_observations WHERE serial_number = ? AND timestamp = ?`,
+		o.SerialNumber, o.Timestamp.Unix())
+	if err := row.Scan(
+		&windLull, &windAvg, &windGust, &windDirection, &windSampleInterval,
+		&pressure, &tempAir, &tempWetbulb, &humidity,
+		&illuminance, &uvIndex, &irradiance, &rainRate, &precipType,
+		&lightningDistance, &lightningStrikeCount,
+		&battery, &reportInterval,
+	); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+
+	cases := []struct {
+		column string
+		got    sql.NullFloat64
+		want   float64
+	}{
+		{"wind_lull", windLull, 1.5},
+		{"wind_avg", windAvg, 3.5},
+		{"wind_gust", windGust, 6.5},
+		{"wind_direction", windDirection, 180},
+		{"wind_sample_interval", windSampleInterval, 3},
+		{"pressure", pressure, 1013.25},
+		{"temp_air", tempAir, 22.5},
+		{"humidity", humidity, 65},
+		{"illuminance", illuminance, 15000},
+		{"uv_index", uvIndex, 4.5},
+		{"irradiance", irradiance, 600},
+		{"rain_rate", rainRate, 0.5},
+		{"precip_type", precipType, 1},
+		{"lightning_distance", lightningDistance, 12.5},
+		{"lightning_strike_count", lightningStrikeCount, 2},
+		{"battery", battery, 2.85},
+		{"report_interval", reportInterval, 5},
+	}
+	for _, c := range cases {
+		if !c.got.Valid {
+			t.Errorf("%s = NULL, want %v", c.column, c.want)
+			continue
+		}
+		if c.got.Float64 != c.want {
+			t.Errorf("%s = %v, want %v", c.column, c.got.Float64, c.want)
+		}
+	}
+
+	// temp_wetbulb is derived, not bound from the struct, so assert
+	// plausibility rather than equality with an input.
+	if !tempWetbulb.Valid {
+		t.Fatal("temp_wetbulb is NULL; it must be derived at the store boundary")
+	}
+	if tempWetbulb.Float64 <= 0 || tempWetbulb.Float64 > 22.5 {
+		t.Errorf("temp_wetbulb = %v, want a plausible value in (0, 22.5] for dry-bulb 22.5", tempWetbulb.Float64)
+	}
+}
+
+// TestFindObservationGapsRespectsWindow pins the WHERE timestamp BETWEEN ? AND ?
+// predicate in findObservationGapsSQL. ST-C's rows sit well outside the
+// queried window with a hole wide enough to qualify as a gap if the window
+// predicate did not exclude them; ST-D has a genuine in-window hole. If the
+// window predicate were removed, ST-C's rows would participate in the query
+// (and, if the argument list still matched, would surface an extra gap
+// outside the requested range) rather than being excluded entirely.
+func TestFindObservationGapsRespectsWindow(t *testing.T) {
+	db := newTestDB(t)
+	seedObs(t, db, "ST-D", 1000, 5000)   // in-window hole: 4000s > 30min
+	seedObs(t, db, "ST-C", 50000, 90000) // out-of-window hole: 40000s > 30min
+
+	gaps, err := FindObservationGaps(t.Context(), db, ts(0), ts(10000), 30*time.Minute)
+	if err != nil {
+		t.Fatalf("FindObservationGaps: %v", err)
+	}
+	if len(gaps) != 1 {
+		t.Fatalf("got %d gaps, want 1 (ST-C's out-of-window hole must not appear): %+v", len(gaps), gaps)
+	}
+	if gaps[0].SerialNumber != "ST-D" {
+		t.Errorf("SerialNumber = %q, want ST-D", gaps[0].SerialNumber)
+	}
+	if !gaps[0].From.Equal(ts(1000)) || !gaps[0].To.Equal(ts(5000)) {
+		t.Errorf("gap = [%v, %v], want [%v, %v]", gaps[0].From, gaps[0].To, ts(1000), ts(5000))
+	}
+}
