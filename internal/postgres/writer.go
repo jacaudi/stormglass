@@ -877,21 +877,43 @@ func isRetryable(err error) bool {
 	// Check for pgconn errors
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
+		// isRetryable's default (below) is fail-closed: any SQLSTATE not
+		// explicitly listed here as retryable gets zero retries and an
+		// immediate batch drop, not the 1s/2s/4s backoff. So omitting a
+		// genuinely-transient code from this switch is not "falls back to
+		// retry" — it is "drop on first failure". Keep this list complete
+		// for the transient classes actually seen in practice (connection
+		// setup, deadlock, server restart/shutdown), and default-deny
+		// everything else deliberately, not by oversight.
 		switch pgErr.Code {
-		// Retryable: connection failures (Class 08)
-		case "08000", "08003", "08006":
+		// Retryable: connection problems (Class 08). 08007
+		// (transaction_resolution_unknown) is included even though its
+		// outcome is genuinely ambiguous — the in-flight statement may or
+		// may not have committed — because every insert in this package is
+		// `INSERT ... ON CONFLICT (serial_number, timestamp[, event_type])
+		// DO NOTHING`, matching the tables' UNIQUE constraints (schema.go),
+		// so a retried insert that already landed is a harmless no-op, not
+		// a double-apply.
+		case "08000", "08001", "08003", "08004", "08006", "08007":
 			return true
 		// Retryable: deadlock (Class 40)
 		case "40001", "40P01":
 			return true
 		// Retryable: transient resource/availability conditions that clear
-		// as load drops or connections close (53300 too_many_connections,
-		// 57P01 admin_shutdown). 53400 (configuration_limit_exceeded) is
-		// deliberately excluded: it signals a fixed server configuration
-		// limit (e.g. temp_file_limit, per-role limits), not transient
-		// load — the identical batch hits it identically on retry, so
-		// retrying only burns the retry budget.
-		case "53300", "57P01":
+		// as load drops, connections close, or the server finishes
+		// restarting (53300 too_many_connections, 57P01 admin_shutdown,
+		// 57P02 crash_shutdown, 57P03 cannot_connect_now — the latter two
+		// cover a routine Postgres restart/upgrade, which this project's
+		// docker-compose/k8s deployment triggers regularly). 53400
+		// (configuration_limit_exceeded) is deliberately excluded: it
+		// signals a fixed server configuration limit (e.g. temp_file_limit,
+		// per-role limits), not transient load — the identical batch hits
+		// it identically on retry, so retrying only burns the retry budget.
+		// 57014 (query_canceled) is excluded for the same reason: it most
+		// often means a server-side statement_timeout or lock_timeout fired
+		// for this exact statement, which will likely recur identically on
+		// an unmodified retry rather than clear on its own.
+		case "53300", "57P01", "57P02", "57P03":
 			return true
 		// Not retryable: constraint violations (Class 23)
 		case "23505", "23503", "23502":
