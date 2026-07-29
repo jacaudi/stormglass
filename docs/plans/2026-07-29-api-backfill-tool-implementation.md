@@ -38,7 +38,7 @@ The design's signature sketch predates the decision to call the core from `packa
 - **Zero new module dependencies.** Nothing gets added to `go.mod`.
 - **`log/slog` for all new code.** Do not add `log.Printf` call sites; do not convert existing ones.
 - **No goroutines** in any new package-level store function. The `sqlite.Writer.run` goroutine is documented as "the only goroutine that ever touches db" — new functions take a `*sql.DB` / `*pgxpool.Pool` directly and must not be methods on the writer types.
-- **`sqlite.Open` sets `db.SetMaxOpenConns(1)`** (`internal/sqlite/db.go:73`). Any query must fully materialize its results and close its `*sql.Rows` before another query or insert runs on the same handle. A streaming iterator would deadlock with no error and no timeout.
+- **`sqlite.Open` sets `db.SetMaxOpenConns(1)`** (`internal/sqlite/db.go:74`). Any query must fully materialize its results and close its `*sql.Rows` before another query or insert runs on the same handle. A streaming iterator would deadlock with no error and no timeout.
 - **Timestamps are UTC.** SQLite stores unix-epoch `INTEGER`; Postgres stores `TIMESTAMPTZ`. Conversion happens at the SQLite boundary only.
 - **Tests use repo idiom:** `t.Context()`, `t.TempDir()`, stdlib table-driven subtests, no testify.
 - **The full gate must pass before any task is reported complete:**
@@ -588,7 +588,45 @@ func (c *Client) ListDevices(ctx context.Context) ([]Station, error) {
 }
 ```
 
-Then rewrite `ListStations`' body to call `fetchStations` and keep its existing collapse loop verbatim over `data.Stations`. Its observable behavior — including last-ST-wins and the `deviceId != 0 && instance != ""` filter — must not change; `TestListStationsStillCollapsesToOneDevicePerStation` is the guard.
+Then replace `ListStations`' body with exactly this — its observable behavior, including last-ST-wins and the `deviceId != 0 && instance != ""` filter, must not change. `TestListStationsStillCollapsesToOneDevicePerStation` is the guard.
+
+```go
+// ListStations returns one Station per station, collapsing each station's
+// devices to a SINGLE ST device — the last one seen, because the loop below
+// has no break. That behavior is load-bearing for ModeAPIExport and is
+// deliberately preserved; backfill uses ListDevices instead.
+func (c *Client) ListStations(ctx context.Context) ([]Station, error) {
+	data, err := c.fetchStations(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var out []Station
+	for _, station := range data.Stations {
+		var deviceId int
+		var instance string
+		for _, dev := range station.Devices {
+			if dev.DeviceType == "ST" {
+				deviceId = dev.DeviceID
+				instance = dev.SerialNumber
+			}
+		}
+
+		if deviceId != 0 && instance != "" {
+			out = append(out, Station{
+				Name:         station.Name,
+				DeviceID:     deviceId,
+				SerialNumber: instance,
+				StationID:    station.StationID,
+				CreatedAt:    time.Unix(station.CreatedEpoch, 0),
+			})
+		}
+	}
+	return out, nil
+}
+```
+
+Delete the now-unused inline request/decode code this replaces (`client.go:64-107` in the original) — `fetchStations` owns it. If `io`, `encoding/json`, or `net/http` become unused in `client.go` afterwards, `go build` will say so; `GetObservations` still uses all three, so expect none to.
 
 Note this changes `ListStations`' error *type* for HTTP and status failures from `fmt.Errorf` to `*StatusError`. That is an improvement (it makes them classifiable) and `errors.As` still matches; check `client_test.go` for any assertion on the exact error string and update it if present.
 
@@ -1258,7 +1296,7 @@ git commit -m "refactor(postgres): extract OpenPool as the single source of pool
 
 **`PARTITION BY serial_number` is not optional.** Without it, two stations phase-offset by ~30s produce a merged sequence in which no interval ever exceeds `minGap`, so a multi-hour outage on one station is undetectable and the tool reports "no gaps" and exits 0.
 
-**Do not stream.** `sqlite.Open` sets `db.SetMaxOpenConns(1)` (`db.go:73`). Both queries must fully materialize their slice and close `rows` before returning; a caller inserting while iterating would deadlock on the single connection with no error and no timeout.
+**Do not stream.** `sqlite.Open` sets `db.SetMaxOpenConns(1)` (`db.go:74`). Both queries must fully materialize their slice and close `rows` before returning; a caller inserting while iterating would deadlock on the single connection with no error and no timeout.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1538,7 +1576,7 @@ import (
 // single-writer invariant and be callable from the daemon. Nothing here
 // starts a goroutine.
 //
-// IMPORTANT: sqlite.Open sets db.SetMaxOpenConns(1) (db.go:73). Every query
+// IMPORTANT: sqlite.Open sets db.SetMaxOpenConns(1) (db.go:74). Every query
 // below fully materializes its result slice and closes its *sql.Rows before
 // returning. A streaming iterator that yielded rows while the caller inserted
 // would deadlock on the single connection with no error and no timeout. Do
@@ -1804,14 +1842,6 @@ docker run --rm -d --name twx-itest -e POSTGRES_PASSWORD=x -e POSTGRES_DB=weathe
 until docker exec twx-itest pg_isready -U postgres; do sleep 1; done
 POSTGRES_URL='postgres://postgres:x@localhost:55432/weather?sslmode=disable' \
   go test ./internal/postgres/ -run TestBackfillPostgresIntegration -v -count=1
-docker rm -f twx-itest
-```
-
-```bash
-docker run --rm -d --name twx-itest -e POSTGRES_PASSWORD=x -e POSTGRES_DB=weather -p 55432:5432 postgres:16
-# wait for readiness, then:
-POSTGRES_URL='postgres://postgres:x@localhost:55432/weather?sslmode=disable' \
-  go test ./internal/postgres/ -run TestBackfillPostgresIntegration -v
 docker rm -f twx-itest
 ```
 
@@ -2837,7 +2867,11 @@ git commit -m "feat(backfill): assemble head, tail, and empty-store gaps around 
 
 **Why `Store` is an interface:** two concrete implementors exist on day one (SQLite and Postgres), so it is not speculative. It is defined in the consumer, Go-idiomatic; thin adapters live in the shell.
 
-**Serial pre-flight is a hard stop.** If an API serial is absent from a **non-empty** store, backfill would write a parallel series under a second serial: `UNIQUE` never fires, rows double, and the gap never closes — silently and cumulatively. Warning-then-writing-anyway is incoherent; it names an outcome as corrupting and then produces it. An **empty** store is not a mismatch — it is the first-run case.
+**Serial pre-flight is a hard stop, and the rule is DISJOINT SETS.** If the API's serials and a **non-empty** store's serials have **no overlap at all**, the two are using different serial formats, and backfilling would write a parallel series under a second serial: `UNIQUE` never fires, rows double, and the gap never closes — silently and cumulatively. Warning-then-writing-anyway is incoherent; it names an outcome as corrupting and then produces it.
+
+**Do not implement "some API serial is absent from a non-empty store".** That rule is wrong, and it is the one a reader reaches for first. It fires on two ordinary situations and bricks the tool for both: a newly added station (its serial has no rows yet), and any station this host never hears over UDP — a different VLAN or subnet — whose serial will *never* enter the store. Under the disjoint rule both proceed normally and the unseen serial simply yields a whole-range gap, which is `assembleGaps`' job. `TestRunNewSerialAlongsideKnownSerialIsNotAMismatch` exists to forbid the wrong rule; if you find yourself making that test pass by changing the test, stop.
+
+An **empty** store is likewise not a mismatch — it is the first-run case.
 
 **Insert batches are bounded to 200 rows.** A long transaction contends with live ingest, whose error path only *logs* (`sqlite/writer.go:646`), so an unbounded backfill transaction could cause **live observations to be silently lost while repairing historical ones**.
 
@@ -2852,6 +2886,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -2912,12 +2947,10 @@ func (f *fakeStore) InsertObservations(_ context.Context, obs []weather.Observat
 	return len(obs), nil
 }
 
-var deviceIDs = map[string]int{"ST-A": 1, "ST-B": 2}
-
 func station(serial string) tempestapi.Station {
 	return tempestapi.Station{
 		SerialNumber: serial,
-		DeviceID:     deviceIDs[serial],
+		DeviceID:     1, // no assertion reads this; keeping it constant is honest
 		CreatedAt:    time.Unix(1000, 0).UTC(),
 	}
 }
@@ -2931,6 +2964,12 @@ func obsAt(serial string, epoch int64) weather.Observation {
 func at(epoch int64) time.Time { return ts(epoch) }
 
 // --- tests ---
+//
+// NOTE on fixtures: tests that pass an explicit Config{From, To} run the
+// path where Run does NOT query SeriesBounds, so setting store.bounds in
+// them is dead fixture data. It is left in place only where it documents
+// intent; do not infer from its presence that such a test exercises bounds.
+// TestRunAutoDetectUsesSeriesBounds is the only test that pins the fetch.
 
 func TestRunDryRunMakesNoAPICallsAndNoWrites(t *testing.T) {
 	src := &fakeSource{obs: []weather.Observation{obsAt("ST-A", 5000)}}
@@ -3022,6 +3061,52 @@ func TestRunNewSerialAlongsideKnownSerialIsNotAMismatch(t *testing.T) {
 	}
 }
 
+// Regression guard for the CONDITIONAL SeriesBounds fetch.
+//
+// Run skips the SeriesBounds query on the explicit --from/--to path. Nothing
+// else pins that it still performs it on the auto-detect path: deleting the
+// query outright (always nil bounds) leaves every other test green, because
+// assembleGaps is unit-tested with bounds passed in directly and six Run
+// tests set store.bounds on the explicit path where it is dead fixture data.
+//
+// The consequence of nil bounds in production is not an error, which is why
+// it hides: every serial gets ONE whole-range gap from CreatedAt to
+// now-MinGap. For a two-year-old station that is ~730 sequential 24h API
+// windows on every run, forever, instead of the handful of real holes. It
+// still converges — it just silently turns a 30-second repair into hours of
+// API hammering.
+//
+// So assert the SHAPE of the gap, not the count: with a stored series ending
+// at Last, the planned tail gap must START at Last. Nil bounds would start it
+// at detectFrom instead.
+func TestRunAutoDetectUsesSeriesBounds(t *testing.T) {
+	last := at(100000)
+	src := &fakeSource{obs: []weather.Observation{obsAt("ST-A", 150000)}}
+	store := &fakeStore{
+		serials: []string{"ST-A"},
+		bounds:  []weather.Bounds{{SerialNumber: "ST-A", First: at(1000), Last: last}},
+	}
+
+	_, err := Run(t.Context(),
+		Config{MinGap: 30 * time.Minute},
+		src, store, []tempestapi.Station{station("ST-A")}, at(300000))
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if len(src.calls) == 0 {
+		t.Fatal("no windows fetched")
+	}
+
+	// The first fetched window must begin at the stored series' Last, not at
+	// the station's CreatedAt.
+	got := src.calls[0].from
+	if !got.Equal(last) {
+		t.Errorf("first fetch starts at %v, want %v (the stored series' Last). "+
+			"Starting at CreatedAt means SeriesBounds was not consulted, and the tool "+
+			"will re-request the station's entire history on every run.", got, last)
+	}
+}
+
 // Regression for the windowed-bounds bug: the pre-flight check must read
 // DistinctSerials (whole table), not SeriesBounds (windowed). A station that
 // simply had no rows inside the requested window is not missing from the
@@ -3082,6 +3167,39 @@ func TestRunBackfillsEveryDevice(t *testing.T) {
 	}
 	if !fetched["ST-A"] || !fetched["ST-B"] {
 		t.Errorf("fetched for %v, want both ST-A and ST-B — a two-sensor station must not lose one", fetched)
+	}
+}
+
+// The insert-abort asymmetry is deliberate and must stay: a WINDOW error
+// continues to the next window, but an INSERT error aborts the whole gap,
+// because an unhealthy store will not be helped by the remaining windows.
+//
+// fakeStore.insertErr exists precisely to test this and was previously never
+// set by any test — inverting the behavior to `continue` would have shipped
+// green while hammering a dying store with every remaining window.
+func TestFillGapAbortsGapOnInsertError(t *testing.T) {
+	src := &fakeSource{obs: []weather.Observation{obsAt("ST-A", 5000)}}
+	store := &fakeStore{insertErr: errors.New("disk full")}
+
+	from := at(0)
+	to := from.Add(72 * time.Hour) // three windows
+
+	stats, err := Run(t.Context(),
+		Config{From: from, To: to, MinGap: 30 * time.Minute},
+		src, store, []tempestapi.Station{station("ST-A")}, to)
+
+	if err == nil {
+		t.Fatal("an insert failure must surface as an error")
+	}
+	if !strings.Contains(err.Error(), "disk full") {
+		t.Errorf("err = %v, want it to wrap the insert error", err)
+	}
+	if len(src.calls) != 1 {
+		t.Errorf("made %d API calls, want 1 — an insert failure must abort the gap, "+
+			"not continue fetching the remaining windows", len(src.calls))
+	}
+	if stats.Failed != 1 {
+		t.Errorf("Failed = %d, want 1", stats.Failed)
 	}
 }
 
@@ -3294,9 +3412,13 @@ const (
 	baseBackoff = time.Second
 )
 
-// ErrSerialMismatch is returned when the API reports a serial the non-empty
-// store has never seen. See preflight.
-var ErrSerialMismatch = errors.New("station serial not present in store")
+// ErrSerialMismatch is returned when the API's serials and a non-empty
+// store's serials are DISJOINT — no API serial appears in the store at all.
+//
+// NOT "some API serial is absent from the store": that rule is wrong and
+// bricks the tool for a newly added station, or for any station this host
+// never hears over UDP. See preflight.
+var ErrSerialMismatch = errors.New("station serials disjoint from store")
 
 // Config is the backfill run's parameters. It holds no I/O handles and no
 // clock — both are passed to Run explicitly so the core is testable.
@@ -3591,7 +3713,12 @@ func fillGap(
 		obs, err := fetchWithRetry(ctx, src, station, w)
 		if err != nil {
 			if ctx.Err() != nil {
-				return returned, inserted, errors.Join(append(windowErrs, ctx.Err())...)
+				// Bare ctx.Err(), not a join: Run owns cancellation
+				// reporting and returns ctx.Err() itself the moment it sees
+				// ctx.Err() != nil, so anything joined here is discarded.
+				// Building a richer error only to have it thrown away reads
+				// as a guarantee this code does not provide.
+				return returned, inserted, ctx.Err()
 			}
 			slog.Error("backfill: window failed, continuing with the rest of the gap",
 				"serial", station.SerialNumber, "from", w.from, "to", w.to, "error", err)
@@ -3845,6 +3972,24 @@ func TestResolveStore(t *testing.T) {
 	}
 }
 
+// The design's "Store selection" row demands exit 2 AND nothing written.
+// TestResolveStore covers the pure function; this covers the command, which
+// is what the row actually specifies. No Docker needed — resolveStore fires
+// before any handle is opened.
+func TestRunBackfillRefusesAmbiguousStoreAndWritesNothing(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "never.db")
+	t.Setenv("TOKEN", "x")
+	t.Setenv("ENABLE_POSTGRES", "true")
+	t.Setenv("SQLITE_PATH", dbPath)
+
+	if got := runBackfill(t.Context(), nil); got != 2 {
+		t.Errorf("exit code = %d, want 2 — both stores configured with no --store must refuse", got)
+	}
+	if _, err := os.Stat(dbPath); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("SQLite database at %s was created; an ambiguous store selection must write nothing", dbPath)
+	}
+}
+
 // --help is not a usage error.
 func TestRunBackfillHelpExitsZero(t *testing.T) {
 	t.Setenv("TOKEN", "x")
@@ -3902,6 +4047,37 @@ func TestUnknownSubcommandExitsTwoWithoutStartingDaemon(t *testing.T) {
 	}
 	if !strings.Contains(string(out), "unknown subcommand") {
 		t.Errorf("output should name the bad subcommand, got:\n%s", out)
+	}
+}
+
+// `backfill` must actually REACH runBackfill through main()'s dispatch.
+//
+// TestRunBackfillHelpExitsZero calls runBackfill directly and so never crosses
+// the dispatch — deleting `case "backfill":` from main() leaves the entire
+// suite green while the binary falls through and starts the UDP daemon. That
+// is the same silent-daemon failure Task 10 exists to eliminate, reachable by
+// a one-line edit. Only a re-exec catches it.
+func TestBackfillSubcommandReachesRunBackfill(t *testing.T) {
+	bin := filepath.Join(t.TempDir(), "twx")
+	//nolint:gosec // G204: test-only; builds this package's own binary into t.TempDir()
+	build := exec.CommandContext(t.Context(), "go", "build", "-o", bin, ".")
+	build.Env = append(os.Environ(), "CGO_ENABLED=0")
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build: %v\n%s", err, out)
+	}
+
+	// --help exits 0 and prints the backfill flag set. The daemon prints
+	// nothing resembling this, so it discriminates cleanly.
+	//nolint:gosec // G204: test-only; runs the binary this test just built
+	cmd := exec.CommandContext(t.Context(), bin, "backfill", "--help")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("`backfill --help` should exit 0, got %v\n%s", err, out)
+	}
+	for _, flagName := range []string{"-dry-run", "-from", "-min-gap", "-store", "-to"} {
+		if !strings.Contains(string(out), flagName) {
+			t.Errorf("`backfill --help` output missing %s — dispatch may not be reaching runBackfill.\ngot:\n%s", flagName, out)
+		}
 	}
 }
 ```
@@ -4275,6 +4451,17 @@ func main() {
 			// runBackfill owns all of its cleanup via internal defers and
 			// wires its own signal context.
 			os.Exit(runBackfill(context.Background(), os.Args[2:]))
+		default:
+			// Unreachable while this switch and isKnownSubcommand agree — but
+			// the subcommand name is duplicated across the two, so they CAN
+			// desync. Without this arm a desync falls through to daemon mode
+			// and silently starts the UDP listener, which is precisely the
+			// bug the isKnownSubcommand check above exists to prevent.
+			// Fail loudly instead.
+			fmt.Fprintf(os.Stderr,
+				"internal error: %q passed isKnownSubcommand but has no dispatch case\n\n%s",
+				os.Args[1], usageText)
+			os.Exit(2)
 		}
 	}
 ```
@@ -4337,9 +4524,11 @@ Rename the existing `### API Export with Backfill` heading (`CLAUDE.md:239`) to 
 
 - [ ] **Step 2: Add the subcommand section**
 
-Immediately after it, add:
+Immediately after it, add everything between the four-backtick fences below.
+The block contains a nested ```bash fence, which is why the outer fence is four
+backticks — insert the inner fence verbatim, backticks included:
 
-```markdown
+````markdown
 ### Backfill Subcommand
 
 Fills holes in the local observation history from the Tempest REST API. Unlike
@@ -4381,10 +4570,15 @@ either); `1` one or more gaps failed, or a runtime error; `2` usage error.
 rapid wind, hub status, or discrete events. Lightning is partially recovered in
 aggregate through the observation columns, but not as `tempest_events` rows.
 
-**Safety:** if the API reports a station serial the (non-empty) store has never
-seen, backfill stops and writes nothing — a mismatched serial would create a
-parallel series that never dedupes.
-```
+**Safety:** if the API's station serials and the store's serials have **no
+overlap at all** (on a non-empty store), backfill stops and writes nothing — that
+is the signature of a serial-format mismatch, which would create a parallel
+series that never dedupes.
+
+A *newly added* station, or one this host never hears over UDP, is **not** a
+mismatch: its serial simply has no rows yet, and backfill fetches its whole
+history normally.
+````
 
 - [ ] **Step 3: Update the package list**
 
@@ -4399,7 +4593,7 @@ Leave the `internal/tempestudp/` line as it is — it correctly describes UDP pa
 
 - [ ] **Step 4: Note that subcommands bypass mode selection**
 
-Under the "Operational Modes" table, add:
+Under the "Operational Modes" **table** (`CLAUDE.md:186` — note there are two `### Operational Modes` headings, at `:69` and `:174`; only the latter has a table), add:
 
 ```markdown
 > **Subcommands bypass mode selection.** `backfill` and `healthcheck` are chosen

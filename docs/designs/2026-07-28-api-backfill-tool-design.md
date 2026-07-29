@@ -86,14 +86,19 @@ The subcommand is split into a **shell** and a **testable core**. A single `runB
 func runBackfill(ctx context.Context, args []string) int
 
 // Core: no env, no clock, no I/O construction. Fully testable.
-func backfill(
-    ctx   context.Context,
-    cfg   backfillConfig,
-    client observationSource,
-    store  backfillStore,
-    now   time.Time,
-) (backfillStats, error)
+// Lives in internal/backfill and is EXPORTED — the shell is in package main
+// and cannot call an unexported function across the package boundary.
+func Run(
+    ctx      context.Context,
+    cfg      Config,
+    src      ObservationSource,
+    store    Store,
+    stations []tempestapi.Station,
+    now      time.Time,
+) (Stats, error)
 ```
+
+The `stations` parameter is required, not incidental: `Run` cannot resolve `detectFrom` (from each station's `CreatedAt`), run the serial pre-flight, or key any fetch without it. An earlier draft of this section omitted it and used unexported names throughout; both were wrong, and the implementation plan's Task 9 is authoritative on this signature.
 
 - **`now` is injected.** Nothing below the shell calls `time.Now()`. `detectTo = now - minGap` is then deterministic in tests.
 - **`backfillStore` is the one earned interface** — two concrete implementors exist on day one (SQLite and Postgres), so it is not speculative:
@@ -235,7 +240,7 @@ The epoch conversion stays at the SQLite boundary, matching how that package alr
 
 ### SQLite connection limit — must not stream
 
-`sqlite.Open` sets `db.SetMaxOpenConns(1)` (`internal/sqlite/db.go:73`) — a single writer connection, by design.
+`sqlite.Open` sets `db.SetMaxOpenConns(1)` (`internal/sqlite/db.go:74`) — a single writer connection, by design.
 
 **Therefore `FindObservationGaps` must fully materialize its `[]weather.Gap` and close its `*sql.Rows` before any insert runs.** The specification above already does this. A "nicer" streaming iterator that yielded gaps while the caller inserted would **deadlock on the single connection with no error and no timeout** — it would simply hang. This constraint is load-bearing; do not refactor it away.
 
