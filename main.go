@@ -544,7 +544,13 @@ func exportWithSink(ctx context.Context, token string, metricsSink *sink.Metrics
 				log.Printf("fetching %s starting %s", station.Name, cur.Format(time.RFC3339))
 				stationMetrics, err := client.GetObservations(ctx, station, cur, next)
 				if err != nil {
-					log.Fatalf("error fetching %#v for %d-%d: %v", station, cur.Unix(), next.Unix(), err) //nolint:gosec // pre-existing: station/error data logged unsanitized; deferred as follow-up hardening, not owned by a current task
+					// station and err are derived from the WeatherFlow API response and
+					// are logged as typed slog attributes (not interpolated into the
+					// format string) so the handler's quoting/escaping neutralizes any
+					// embedded control characters. Exit behavior matches log.Fatalf
+					// (log, then os.Exit(1); neither runs deferred functions).
+					slog.Error("error fetching observations", "station", station, "start_unix", cur.Unix(), "end_unix", next.Unix(), "err", err)
+					os.Exit(1)
 				}
 				metrics = append(metrics, stationMetrics...)
 			}
@@ -557,7 +563,7 @@ func exportWithSink(ctx context.Context, token string, metricsSink *sink.Metrics
 		// Send to sink (Postgres), wrapped in an export.batch span so
 		// each batch send shows up in the trace backend the same way
 		// UDP ingest's sink.write does.
-		log.Printf("sending %d metrics to sink", len(metrics)) //nolint:gosec // pre-existing: logs a count derived from tainted input, not raw content; deferred as follow-up hardening, not owned by a current task
+		slog.Info("sending metrics to sink", "count", len(metrics))
 		if err := otel.TraceExportBatch(ctx, func(ctx context.Context) error {
 			return metricsSink.SendMetrics(ctx, metrics)
 		}); err != nil {
