@@ -117,7 +117,15 @@ All fetches — auto-detected **and** `--from/--to` — go through the chunker. 
 
 `GetObservationRows` must check `status.status_code` (as `ListStations` does, `client.go:102-104`; `GetObservations` currently does not), distinguish "no data" from a real error, treat an absent/null `obs` array as **zero rows, not an error**, and must **not** route through `tempestudp.ParseReport`, whose type dispatch errors with `unhandled message type: ""` on a `status`-only envelope.
 
-> **OPEN QUESTION (blocks planning of this component only):** the exact response shape for a window with no data is not determinable from public docs. Resolve with one live call using a real token against a window predating the station's `created_epoch`, and pin the response as a test fixture. The permanent-hole tradeoff below depends on this returning cleanly.
+**Resolved from the published OpenAPI spec** ([swagger.json](https://weatherflow.github.io/Tempest/api/swagger/swagger.json)), which settles this without a token:
+
+- The `ObservationSet` response includes a `status` object → `status_code` (`integer/int32`, example `0`) and `status_message` (`string`, example `"SUCCESS"`). So `status_code == 0` is the success signal, and checking it is correct.
+- **`ObservationSet` declares no `required` array.** Neither `type` nor `obs` is required, so a response omitting either is schema-legal. This confirms the hazard directly: routing through `tempestudp.ParseReport` — which dispatches on a top-level `type` and errors `unhandled message type: ""` when absent — would turn a legitimate empty window into a hard error.
+- Reported in the field: `status_code` 0 with `status_message` `"SUCCESS - Either no capabilities or no recent observations"` and an empty/absent `obs` ([Tempest community](https://community.tempest.earth/t/getting-station-data/17879)).
+
+**Therefore, treat as normative:** `status_code == 0` is success; an absent, `null`, or empty `obs` is **zero rows, not an error**; an absent `type` is **not** an error. A non-zero `status_code` is a real failure carrying `status_message`.
+
+*Remaining (non-blocking) verification:* pin a real empty-window body as a fixture when a token is available, to confirm the exact serialization. The design no longer depends on that answer — the schema establishes that both fields are optional, which is the property the handling must be robust to either way.
 
 ### Retry
 
@@ -184,7 +192,7 @@ A failed gap logs and continues; the process exits **non-zero** if any gap faile
 | Gap detection — partitioning | **Two serials with interleaved timestamps that mask each other.** Regression test for C1. |
 | Gap detection — domain | Head gap, tail gap, empty table, no-gaps. |
 | Chunking | Multi-day range → N single-day requests. |
-| Empty window | Fixture (pinned from the live call above) → zero rows, no error. |
+| Empty window | Three fixtures, all → zero rows + no error: `obs` empty, `obs` null/absent, and a status-only envelope with no `type`. |
 | Idempotency | Insert twice; second inserts 0, changes nothing. |
 | Dry-run | Zero writes, zero API calls. |
 | Serial pre-flight | Mismatched serials → warning. |
