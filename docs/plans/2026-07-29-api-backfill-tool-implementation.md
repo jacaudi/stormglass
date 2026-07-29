@@ -19,7 +19,17 @@
 
 **Tech Stack:** Go 1.25, `database/sql` + `modernc.org/sqlite` (CGO_ENABLED=0), `pgx/v5` + `pgxpool`, stdlib `flag`, `log/slog`, stdlib testing (no testify).
 
-**Design:** `docs/designs/2026-07-28-api-backfill-tool-design.md` — read it before starting. This plan implements it; where they disagree, the design wins and the plan is wrong.
+**Design:** `docs/designs/2026-07-28-api-backfill-tool-design.md` — read it before starting. This plan implements it; where they disagree, the design wins and the plan is wrong — **with the settled exceptions below.**
+
+**Settled exceptions — the plan supersedes the design here. Do not "correct" toward the design:**
+
+| Topic | Design says | Use this instead |
+|---|---|---|
+| Core entry point | an unexported `backfill(ctx, cfg, client, store, now)` with unexported `backfillConfig`/`backfillStats`/`backfillStore` | **Task 9's exported `Run(ctx, cfg Config, src ObservationSource, store Store, stations []tempestapi.Station, now time.Time) (Stats, error)`** |
+| `stations` parameter | absent from the design's signature sketch | **required** — `Run` cannot resolve `detectFrom`, run the pre-flight, or key any fetch without it |
+| Summary attribute name | `requested` in one place, `returned` in another (the design contradicts itself) | **`returned`** |
+
+The design's signature sketch predates the decision to call the core from `package main`; an unexported `backfill()` is not reachable from the command shell, and one without `stations` cannot work at all. These are settled — implement the plan's version.
 
 ## Global Constraints
 
@@ -189,7 +199,7 @@ type Observation struct {
 // already exist (prev/next from LAG, First/Last from SeriesBounds), so both
 // ends get re-fetched and re-offered to the store. ON CONFLICT DO NOTHING
 // absorbs the duplicates, so this costs nothing but a slightly inflated
-// Requested count — but the doc must not claim a half-open interval it does
+// Returned count — but the doc must not claim a half-open interval it does
 // not have.
 //
 // The series is keyed by (SerialNumber, Timestamp) — the same uniqueness
@@ -223,7 +233,7 @@ Expected: PASS — both tests.
 - [ ] **Step 5: Run the full gate**
 
 ```bash
-CGO_ENABLED=0 go build ./... && go vet ./... && gofmt -l . && go test ./... -race
+CGO_ENABLED=0 go build ./... && go vet ./... && gofmt -l . && golangci-lint run ./... && go test ./... -race
 ```
 Expected: build clean, vet clean, `gofmt -l .` prints nothing, all tests pass.
 
@@ -394,7 +404,7 @@ Do **not** change any other behavior in `client.go`. In particular, leave the mi
 
 - [ ] **Step 4b: Rename the 20 references in `client_test.go` — REQUIRED, and expected**
 
-Exporting these fields **breaks `internal/tempestapi/client_test.go` in 20 places**. This is not optional collateral to be worked around; it is a mechanical rename with no behavior change, and it is in scope for this task.
+Exporting these fields **breaks `internal/tempestapi/client_test.go` across 20 lines** (26 identifier occurrences — six of the literal lines carry both field names). This is not optional collateral to be worked around; it is a mechanical rename with no behavior change, and it is in scope for this task.
 
 - **12 composite-literal keys** — `:421, :422, :464, :465, :485, :500, :515, :542, :660, :661, :764, :787`
   `deviceID:` → `DeviceID:`, `serialNumber:` → `SerialNumber:`
@@ -625,9 +635,12 @@ Create `internal/tempestapi/observations_test.go`:
 package tempestapi
 
 import (
+	"bytes"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -778,8 +791,20 @@ func TestObservationsKeepsShortTupleWithNullTail(t *testing.T) {
 	}
 }
 
-// Below the floor there is nothing usable, so the tuple is dropped.
-func TestObservationsDropsTupleBelowFloor(t *testing.T) {
+// Below the floor there is nothing usable, so the tuple is dropped — and the
+// drop MUST be logged.
+//
+// Asserting only len(obs)==0 would be insufficient: that outcome is identical
+// to an empty window, which is exactly the confusion the WARN exists to
+// prevent. A window whose tuples were all malformed would otherwise report
+// zero rows and read as a permanent hole — the one machine-readable
+// diagnostic the reporting design rests on.
+func TestObservationsDropsTupleBelowFloorAndLogsIt(t *testing.T) {
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn})))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+
 	body := `{"status":{"status_code":0},"type":"obs_st","obs":[[1700000000,0.1,0.2]]}`
 	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(body))
@@ -791,6 +816,33 @@ func TestObservationsDropsTupleBelowFloor(t *testing.T) {
 	}
 	if len(obs) != 0 {
 		t.Errorf("got %d observations, want 0 — a 3-element tuple is below the 13 floor", len(obs))
+	}
+
+	logged := buf.String()
+	if !strings.Contains(logged, "dropped=1") {
+		t.Errorf("the drop must be logged with a count; got:\n%s", logged)
+	}
+	if !strings.Contains(logged, "ST-1") {
+		t.Errorf("the drop log must name the serial; got:\n%s", logged)
+	}
+}
+
+// The contrast case: a genuinely empty window must NOT log a drop warning,
+// or the signal is worthless.
+func TestObservationsEmptyWindowLogsNoDropWarning(t *testing.T) {
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn})))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"status":{"status_code":0},"obs":[]}`))
+	})
+	if _, err := c.Observations(t.Context(), Station{DeviceID: 1, SerialNumber: "ST-1"}, time.Unix(0, 0), time.Unix(1, 0)); err != nil {
+		t.Fatalf("Observations: %v", err)
+	}
+	if strings.Contains(buf.String(), "dropped") {
+		t.Errorf("an empty window must not log a drop warning; got:\n%s", buf.String())
 	}
 }
 
@@ -878,7 +930,6 @@ const (
 	obsLightningStrikeCount
 	obsBattery
 	obsReportInterval
-	obsFieldCount // 18 — the number of indices this code reads
 )
 
 // obsMinFields is the floor below which a tuple carries no usable core
@@ -1009,7 +1060,7 @@ Expected: PASS — all six tests.
 - [ ] **Step 5: Run the full gate**
 
 ```bash
-CGO_ENABLED=0 go build ./... && go vet ./... && gofmt -l . && go test ./... -race
+CGO_ENABLED=0 go build ./... && go vet ./... && gofmt -l . && golangci-lint run ./... && go test ./... -race
 ```
 
 - [ ] **Step 6: Commit**
@@ -1177,7 +1228,7 @@ Expected: PASS, unchanged. (Integration tests requiring a live database skip whe
 - [ ] **Step 6: Run the full gate**
 
 ```bash
-CGO_ENABLED=0 go build ./... && go vet ./... && gofmt -l . && go test ./... -race
+CGO_ENABLED=0 go build ./... && go vet ./... && gofmt -l . && golangci-lint run ./... && go test ./... -race
 ```
 
 - [ ] **Step 7: Commit**
@@ -1688,8 +1739,10 @@ Expected: PASS — all nine tests. In particular `TestFindObservationGapsPartiti
 
 A test that guards an invariant it cannot actually detect is worse than no test. Prove this one bites — but do it so the mutation cannot survive by accident:
 
+Use a file copy, **not** git. A `git commit` checkpoint here would leave Step 7 with nothing to stage (it exits 1, stopping the plan) and would strand a `wip:` commit in the branch that the final cold review sees; `git add -A` would also sweep in unrelated untracked files.
+
 ```bash
-git add -A && git commit -m "wip: pre-mutation checkpoint"      # checkpoint first
+cp internal/sqlite/backfill.go /tmp/backfill.go.bak
 # now edit findObservationGapsSQL: delete " PARTITION BY serial_number"
 go test ./internal/sqlite/ -run TestFindObservationGapsPartitionsBySerial -v
 ```
@@ -1698,16 +1751,16 @@ Expected: **FAIL** with "got 0 gaps, want 1".
 Then restore and **prove** the restore was exact:
 
 ```bash
-git checkout -- internal/sqlite/backfill.go
-git diff --exit-code                                            # must print nothing, exit 0
+cp /tmp/backfill.go.bak internal/sqlite/backfill.go
+diff -u /tmp/backfill.go.bak internal/sqlite/backfill.go        # must print nothing
 go test ./internal/sqlite/ -run TestFindObservationGapsPartitionsBySerial -v
 ```
-Expected: `git diff --exit-code` clean, test PASS. Do not proceed while `git diff` shows anything — a half-restored mutation in production SQL is exactly the failure this step exists to prevent.
+Expected: `diff` silent, test PASS. Do not proceed while `diff` shows anything — a half-restored mutation in production SQL is exactly the failure this step exists to prevent.
 
 - [ ] **Step 6: Run the full gate**
 
 ```bash
-CGO_ENABLED=0 go build ./... && go vet ./... && gofmt -l . && go test ./... -race
+CGO_ENABLED=0 go build ./... && go vet ./... && gofmt -l . && golangci-lint run ./... && go test ./... -race
 ```
 
 - [ ] **Step 7: Commit**
@@ -1861,7 +1914,20 @@ func TestBackfillPostgresIntegration(t *testing.T) {
 	// were not partitioned.
 	var seed []weather.Observation
 	for _, off := range []time.Duration{0, time.Hour, 90 * time.Minute} {
-		seed = append(seed, weather.Observation{SerialNumber: serialA, Timestamp: base.Add(off), TempAir: f(20)})
+		seed = append(seed, weather.Observation{
+			SerialNumber: serialA,
+			Timestamp:    base.Add(off),
+			TempAir:      f(20),
+			// These four map to INTEGER columns (schema.go:55 and siblings)
+			// while the bind is a *float64 — the exact hazard named at the
+			// top of this task. Seeding them is what makes the integration
+			// test exercise the risk it was written for; pgx truncates a
+			// float into int4 silently, so only a real round-trip catches it.
+			PrecipType:           f(1),
+			WindSampleInterval:   f(3),
+			LightningStrikeCount: f(0),
+			ReportInterval:       f(1),
+		})
 	}
 	for off := 30 * time.Second; off <= 95*time.Minute; off += 10 * time.Minute {
 		seed = append(seed, weather.Observation{SerialNumber: serialB, Timestamp: base.Add(off), TempAir: f(21)})
@@ -1909,6 +1975,33 @@ func TestBackfillPostgresIntegration(t *testing.T) {
 	}
 	if !gotA {
 		t.Errorf("SeriesBounds missing %s: %+v", serialA, bounds)
+	}
+
+	// Round-trip the INTEGER-typed columns: this is the named hazard.
+	var precip, interval, strikes, report *int64
+	if err := pool.QueryRow(ctx,
+		`SELECT precip_type, wind_sample_interval, lightning_strike_count, report_interval
+		 FROM tempest_observations WHERE serial_number = $1 AND timestamp = $2`,
+		serialA, base).Scan(&precip, &interval, &strikes, &report); err != nil {
+		t.Fatalf("read back INTEGER columns: %v", err)
+	}
+	for _, c := range []struct {
+		name string
+		got  *int64
+		want int64
+	}{
+		{"precip_type", precip, 1},
+		{"wind_sample_interval", interval, 3},
+		{"lightning_strike_count", strikes, 0},
+		{"report_interval", report, 1},
+	} {
+		if c.got == nil {
+			t.Errorf("%s is NULL, want %d", c.name, c.want)
+			continue
+		}
+		if *c.got != c.want {
+			t.Errorf("%s = %d, want %d", c.name, *c.got, c.want)
+		}
 	}
 
 	gaps, err := FindObservationGaps(ctx, pool, from, to, 30*time.Minute)
@@ -2163,7 +2256,7 @@ Expected: PASS; integration tests skip without a database, as before.
 - [ ] **Step 5: Run the full gate**
 
 ```bash
-CGO_ENABLED=0 go build ./... && go vet ./... && gofmt -l . && go test ./... -race
+CGO_ENABLED=0 go build ./... && go vet ./... && gofmt -l . && golangci-lint run ./... && go test ./... -race
 ```
 
 - [ ] **Step 6: Commit**
@@ -2462,7 +2555,7 @@ Expected: PASS — all chunking and classification cases.
 - [ ] **Step 5: Run the full gate**
 
 ```bash
-CGO_ENABLED=0 go build ./... && go vet ./... && gofmt -l . && go test ./... -race
+CGO_ENABLED=0 go build ./... && go vet ./... && gofmt -l . && golangci-lint run ./... && go test ./... -race
 ```
 
 - [ ] **Step 6: Commit**
@@ -2686,7 +2779,7 @@ Expected: PASS — all six tests.
 - [ ] **Step 5: Run the full gate**
 
 ```bash
-CGO_ENABLED=0 go build ./... && go vet ./... && gofmt -l . && go test ./... -race
+CGO_ENABLED=0 go build ./... && go vet ./... && gofmt -l . && golangci-lint run ./... && go test ./... -race
 ```
 
 - [ ] **Step 6: Commit**
@@ -2718,6 +2811,7 @@ git commit -m "feat(backfill): assemble head, tail, and empty-store gaps around 
       Observations(ctx context.Context, station tempestapi.Station, start, end time.Time) ([]weather.Observation, error)
   }
   type Store interface {
+      DistinctSerials(ctx context.Context) ([]string, error)   // UNWINDOWED
       SeriesBounds(ctx context.Context, from, to time.Time) ([]weather.Bounds, error)
       FindObservationGaps(ctx context.Context, from, to time.Time, minGap time.Duration) ([]weather.Gap, error)
       InsertObservations(ctx context.Context, obs []weather.Observation) (int, error)
@@ -2754,14 +2848,16 @@ import (
 // --- fakes ---
 
 type fakeSource struct {
-	calls   []window
-	obs     []weather.Observation
-	errs    []error // consumed one per call; nil entries succeed
-	callNum int
+	calls    []window
+	stations []tempestapi.Station // which device each call was for
+	obs      []weather.Observation
+	errs     []error // consumed one per call; nil entries succeed
+	callNum  int
 }
 
-func (f *fakeSource) Observations(_ context.Context, _ tempestapi.Station, start, end time.Time) ([]weather.Observation, error) {
+func (f *fakeSource) Observations(_ context.Context, st tempestapi.Station, start, end time.Time) ([]weather.Observation, error) {
 	f.calls = append(f.calls, window{from: start, to: end})
+	f.stations = append(f.stations, st)
 	i := f.callNum
 	f.callNum++
 	if i < len(f.errs) && f.errs[i] != nil {
@@ -2802,10 +2898,12 @@ func (f *fakeStore) InsertObservations(_ context.Context, obs []weather.Observat
 	return len(obs), nil
 }
 
+var deviceIDs = map[string]int{"ST-A": 1, "ST-B": 2}
+
 func station(serial string) tempestapi.Station {
 	return tempestapi.Station{
 		SerialNumber: serial,
-		DeviceID:     1,
+		DeviceID:     deviceIDs[serial],
 		CreatedAt:    time.Unix(1000, 0).UTC(),
 	}
 }
@@ -2914,21 +3012,56 @@ func TestRunNewSerialAlongsideKnownSerialIsNotAMismatch(t *testing.T) {
 // DistinctSerials (whole table), not SeriesBounds (windowed). A station that
 // simply had no rows inside the requested window is not missing from the
 // store, and `backfill --from X --to Y` is the tool's main repair path.
+//
+// The fixture is chosen so the two inputs DISAGREE — that is the whole point.
+// serials={ST-A, ST-OLD} overlaps the API's {ST-A}, so preflight passes; but
+// bounds={ST-OLD} does NOT overlap it, so feeding preflight the windowed key
+// set would report a false mismatch. A fixture where both inputs contain an
+// overlapping serial cannot tell the two apart and would pass either way.
 func TestRunQuietSerialInRequestedWindowIsNotAMismatch(t *testing.T) {
-	src := &fakeSource{obs: []weather.Observation{obsAt("ST-B", 5000)}}
+	src := &fakeSource{obs: []weather.Observation{obsAt("ST-A", 5000)}}
 	store := &fakeStore{
-		// Both serials exist in the store...
-		serials: []string{"ST-A", "ST-B"},
-		// ...but only ST-A has rows inside the queried window.
-		bounds: []weather.Bounds{{SerialNumber: "ST-A", First: at(1000), Last: at(2000)}},
+		// Whole table: the API's ST-A IS in the store, alongside a retired
+		// serial.
+		serials: []string{"ST-A", "ST-OLD"},
+		// In-window: only ST-OLD has rows here. ST-A was quiet.
+		bounds: []weather.Bounds{{SerialNumber: "ST-OLD", First: at(1000), Last: at(2000)}},
 	}
 
 	from := at(0)
 	_, err := Run(t.Context(),
 		Config{From: from, To: from.Add(time.Hour), MinGap: 30 * time.Minute},
-		src, store, []tempestapi.Station{station("ST-A"), station("ST-B")}, from.Add(time.Hour))
+		src, store, []tempestapi.Station{station("ST-A")}, from.Add(time.Hour))
 	if err != nil {
 		t.Fatalf("a serial with no rows in the requested window must not be a mismatch: %v", err)
+	}
+}
+
+// The design mandates that a station with two ST devices has BOTH backfilled.
+// Task 2's ListDevices test proves the two devices are discovered; this proves
+// Run actually fetches for each of them. Without it, the second half of that
+// requirement is untested and a regression that silently drops one sensor
+// would ship green.
+func TestRunBackfillsEveryDevice(t *testing.T) {
+	src := &fakeSource{obs: []weather.Observation{obsAt("ST-A", 5000)}}
+	store := &fakeStore{} // empty: both devices get a whole-range gap
+
+	devices := []tempestapi.Station{station("ST-A"), station("ST-B")}
+	stats, err := Run(t.Context(),
+		Config{MinGap: 30 * time.Minute}, src, store, devices, at(200000))
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if stats.Gaps < 2 {
+		t.Errorf("Gaps = %d, want at least 2 — one per device", stats.Gaps)
+	}
+
+	fetched := map[string]bool{}
+	for _, s := range src.stations {
+		fetched[s.SerialNumber] = true
+	}
+	if !fetched["ST-A"] || !fetched["ST-B"] {
+		t.Errorf("fetched for %v, want both ST-A and ST-B — a two-sensor station must not lose one", fetched)
 	}
 }
 
@@ -3240,9 +3373,15 @@ func Run(
 		return stats, err
 	}
 
-	bounds, err := store.SeriesBounds(ctx, detectFrom, detectTo)
-	if err != nil {
-		return stats, fmt.Errorf("series bounds: %w", err)
+	// SeriesBounds is only needed by the auto-detect path — an explicit
+	// --from/--to names the window outright and never reads it. Querying it
+	// unconditionally would be a wasted round-trip on every explicit run.
+	var bounds []weather.Bounds
+	if cfg.From.IsZero() || cfg.To.IsZero() {
+		bounds, err = store.SeriesBounds(ctx, detectFrom, detectTo)
+		if err != nil {
+			return stats, fmt.Errorf("series bounds: %w", err)
+		}
 	}
 
 	gaps, err := plannedGaps(ctx, cfg, store, stations, bounds, detectFrom, detectTo)
@@ -3432,7 +3571,7 @@ func fillGap(
 		obs, err := fetchWithRetry(ctx, src, station, w)
 		if err != nil {
 			if ctx.Err() != nil {
-				return returned, inserted, ctx.Err()
+				return returned, inserted, errors.Join(append(windowErrs, ctx.Err())...)
 			}
 			slog.Error("backfill: window failed, continuing with the rest of the gap",
 				"serial", station.SerialNumber, "from", w.from, "to", w.to, "error", err)
@@ -3445,7 +3584,10 @@ func fillGap(
 		for chunk := range slices.Chunk(obs, insertBatchSize) {
 			n, err := store.InsertObservations(ctx, chunk)
 			if err != nil {
-				return returned, inserted, fmt.Errorf("insert: %w", err)
+				// Abort the gap — an unhealthy store will not be helped by
+				// the remaining windows — but keep any window diagnostics
+				// already accumulated rather than discarding them.
+				return returned, inserted, errors.Join(append(windowErrs, fmt.Errorf("insert: %w", err))...)
 			}
 			inserted += n
 		}
@@ -3498,7 +3640,7 @@ Expected: PASS — all nine tests.
 - [ ] **Step 5: Run the full gate**
 
 ```bash
-CGO_ENABLED=0 go build ./... && go vet ./... && gofmt -l . && go test ./... -race
+CGO_ENABLED=0 go build ./... && go vet ./... && gofmt -l . && golangci-lint run ./... && go test ./... -race
 ```
 
 - [ ] **Step 6: Commit**
@@ -3720,12 +3862,14 @@ func TestKnownSubcommands(t *testing.T) {
 // failure here shows up as a timeout, not just a bad exit code.
 func TestUnknownSubcommandExitsTwoWithoutStartingDaemon(t *testing.T) {
 	bin := filepath.Join(t.TempDir(), "twx")
+	//nolint:gosec // G204: test-only; builds this package's own binary into t.TempDir()
 	build := exec.CommandContext(t.Context(), "go", "build", "-o", bin, ".")
 	build.Env = append(os.Environ(), "CGO_ENABLED=0")
 	if out, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build: %v\n%s", err, out)
 	}
 
+	//nolint:gosec // G204: test-only; runs the binary this test just built
 	cmd := exec.CommandContext(t.Context(), bin, "backfil")
 	out, err := cmd.CombinedOutput()
 
@@ -3837,7 +3981,7 @@ func parseBackfillFlags(args []string) (backfill.Config, string, error) {
 // nothing itself, so flag's message is never duplicated.
 func usageErr(fs *flag.FlagSet, format string, a ...any) error {
 	err := fmt.Errorf(format, a...)
-	fmt.Fprintln(fs.Output(), err)
+	_, _ = fmt.Fprintln(fs.Output(), err)
 	fs.Usage()
 	return err
 }
@@ -3881,7 +4025,18 @@ func resolveStore(choice storeChoice, flagValue string) (string, error) {
 }
 
 // sqliteStore adapts the package-level SQLite functions to backfill.Store.
+//
+// backfill.Store has FOUR methods. If either adapter fails to compile with
+// "does not implement backfill.Store (missing method DistinctSerials)", the
+// fix is to ADD the method here. Do NOT remove DistinctSerials from the
+// interface — that silently reverts the pre-flight fix, because SeriesBounds
+// is windowed and would false-positive on any station quiet during the
+// queried window.
 type sqliteStore struct{ db *sql.DB }
+
+func (s sqliteStore) DistinctSerials(ctx context.Context) ([]string, error) {
+	return sqlite.DistinctSerials(ctx, s.db)
+}
 
 func (s sqliteStore) SeriesBounds(ctx context.Context, from, to time.Time) ([]weather.Bounds, error) {
 	return sqlite.SeriesBounds(ctx, s.db, from, to)
@@ -3896,7 +4051,12 @@ func (s sqliteStore) InsertObservations(ctx context.Context, obs []weather.Obser
 }
 
 // postgresStore adapts the package-level Postgres functions to backfill.Store.
+// See sqliteStore's comment: four methods, and DistinctSerials is not optional.
 type postgresStore struct{ pool *pgxpool.Pool }
+
+func (s postgresStore) DistinctSerials(ctx context.Context) ([]string, error) {
+	return postgres.DistinctSerials(ctx, s.pool)
+}
 
 func (s postgresStore) SeriesBounds(ctx context.Context, from, to time.Time) ([]weather.Bounds, error) {
 	return postgres.SeriesBounds(ctx, s.pool, from, to)
@@ -3990,7 +4150,7 @@ func runBackfill(ctx context.Context, args []string) int {
 			return 1
 		}
 		store = postgresStore{pool: pool}
-	case choice.sqlite:
+	case "sqlite":
 		// The write handle, not OpenReadOnly: read-only fails when the file
 		// does not exist and cannot migrate, and its ingest-contention
 		// rationale does not apply to a separate one-shot process.
@@ -4005,6 +4165,12 @@ func runBackfill(ctx context.Context, args []string) int {
 			}
 		}()
 		store = sqliteStore{db: db}
+	default:
+		// Unreachable today — resolveStore returns only "sqlite" or
+		// "postgres" — but a nil Store interface would panic deep inside Run,
+		// far from the cause.
+		slog.Error("backfill: unknown store target", "target", target)
+		return 1
 	}
 	slog.Info("backfill: store selected", "store", target)
 
@@ -4122,7 +4288,7 @@ Expected: refuses with a message naming both stores and telling you to pass `--s
 - [ ] **Step 7: Run the full gate**
 
 ```bash
-CGO_ENABLED=0 go build ./... && go vet ./... && gofmt -l . && go test ./... -race
+CGO_ENABLED=0 go build ./... && go vet ./... && gofmt -l . && golangci-lint run ./... && go test ./... -race
 ```
 
 - [ ] **Step 8: Commit**
@@ -4229,12 +4395,12 @@ Run each command in the new section against the built binary and confirm the fla
 ```bash
 CGO_ENABLED=0 go build -o /tmp/twx . && /tmp/twx backfill --help
 ```
-Expected: the four flags with the documented defaults. Fix the doc if it disagrees — the binary is the source of truth.
+Expected: the five flags with the documented defaults, and exit 0. Fix the doc if it disagrees — the binary is the source of truth.
 
 - [ ] **Step 6: Run the full gate**
 
 ```bash
-CGO_ENABLED=0 go build ./... && go vet ./... && gofmt -l . && go test ./... -race
+CGO_ENABLED=0 go build ./... && go vet ./... && gofmt -l . && golangci-lint run ./... && go test ./... -race
 ```
 
 - [ ] **Step 7: Commit**

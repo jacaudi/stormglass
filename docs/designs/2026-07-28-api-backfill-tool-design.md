@@ -383,7 +383,7 @@ The consequence of inheriting the behavior is silent data loss. With two Tempest
 
 If the station was genuinely offline, the API has no data for that window either. Auto-detect rediscovers the same hole on every run and never converges.
 
-**Decision: accept it, and make it visible.** Log per gap with structured `slog` attrs — `serial`, `from`, `to`, `requested`, `inserted` — so automation can detect non-convergence (`inserted=0` across runs) directly from the log stream. Exit code stays 0: a permanent hole is not an error.
+**Decision: accept it, and make it visible.** Log per gap with structured `slog` attrs — `serial`, `from`, `to`, `returned`, `inserted` — so automation can detect non-convergence (`inserted=0` across runs) directly from the log stream. Exit code stays 0: a permanent hole is not an error.
 
 **Cut:** the bespoke `gaps=3 requested=4320 inserted=0` summary line. It was a third output format with no present consumer, and `go-standards` §6.1 would want `--json` rather than an ad-hoc grammar. `slog` attrs already provide the machine-readable surface; if a caller later needs a single-line total, add `--json` then.
 
