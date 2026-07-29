@@ -184,7 +184,11 @@ REST `obs_st` indices 0–17 match the UDP layout exactly, so the existing `len(
 
 **"Unmodified" means graduated, not all-or-nothing.** The UDP path accepts a tuple at `len(ob) >= 13` and fills the tail conditionally (`>= 6`, `>= 14`, `>= 16`, `>= 17`, `>= 18` — `sqlite/writer.go:406-457`). A single hard `len(ob) < 18 → drop` is **not** the same rule: it discards a short tuple's core measurements entirely. Because every `weather.Observation` measurement is a `*float64`, honoring the graduated guards is free — absent indices simply stay nil.
 
-**Dropped tuples must be counted and logged.** A tuple that *is* rejected (below the floor, or a null `ob[0]` that cannot be keyed) must increment a counter surfaced in the run summary. Otherwise a window whose tuples were all malformed reports `requested=0, inserted=0` — byte-identical to the permanent-hole signal, which is the one machine-readable diagnostic the whole reporting design rests on.
+**Dropped tuples must be counted and logged at WARN, per window, by the decode itself.** A tuple that *is* rejected (below the floor, or a null `ob[0]` that cannot be keyed) must appear in the log with a count and the serial. Otherwise a window whose tuples were all malformed reports `returned=0, inserted=0` — byte-identical to the permanent-hole signal, which is the one machine-readable diagnostic the whole reporting design rests on.
+
+The count is deliberately **not** threaded into the run summary: doing so would widen the `ObservationSource` seam between backfill and the REST client to carry a diagnostic, and the log stream is already the machine-readable surface this design chose when it cut the bespoke summary line.
+
+Note the summary field is named `returned`, not `requested`: it counts what the API handed back after drops. The closed gap interval and the shared chunk-window endpoints both mean a few observations are fetched more than once, so it is not a count of distinct missing observations.
 
 ## Gap detection
 
