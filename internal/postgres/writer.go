@@ -884,8 +884,14 @@ func isRetryable(err error) bool {
 		// Retryable: deadlock (Class 40)
 		case "40001", "40P01":
 			return true
-		// Retryable: transient resource/availability conditions
-		case "53300", "53400", "57P01":
+		// Retryable: transient resource/availability conditions that clear
+		// as load drops or connections close (53300 too_many_connections,
+		// 57P01 admin_shutdown). 53400 (configuration_limit_exceeded) is
+		// deliberately excluded: it signals a fixed server configuration
+		// limit (e.g. temp_file_limit, per-role limits), not transient
+		// load — the identical batch hits it identically on retry, so
+		// retrying only burns the retry budget.
+		case "53300", "57P01":
 			return true
 		// Not retryable: constraint violations (Class 23)
 		case "23505", "23503", "23502":

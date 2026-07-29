@@ -425,12 +425,32 @@ func TestIsRetryable(t *testing.T) {
 		{"context deadline exceeded", context.DeadlineExceeded, false},
 		{"connection failure SQLSTATE 08006", &pgconn.PgError{Code: "08006"}, true},
 		{"serialization failure SQLSTATE 40001", &pgconn.PgError{Code: "40001"}, true},
+		{"deadlock detected SQLSTATE 40P01", &pgconn.PgError{Code: "40P01"}, true},
+		{"too many connections SQLSTATE 53300", &pgconn.PgError{Code: "53300"}, true},
+		{"admin shutdown SQLSTATE 57P01", &pgconn.PgError{Code: "57P01"}, true},
+		{"configuration limit exceeded SQLSTATE 53400", &pgconn.PgError{Code: "53400"}, false},
 		{"constraint violation SQLSTATE 23505", &pgconn.PgError{Code: "23505"}, false},
 		{"unrecognized SQLSTATE XX000", &pgconn.PgError{Code: "XX000"}, false},
 		{"plain unknown error", errors.New("some totally unknown failure"), false},
 		{
 			"transient network error (connection refused)",
 			&net.OpError{Op: "dial", Net: "tcp", Err: syscall.ECONNREFUSED},
+			true,
+		},
+		{
+			// Uniquely exercises the *net.OpError catch-all: DNSError.Timeout()
+			// is false (IsNotFound, not IsTimeout) so the net.Error/Timeout()
+			// branch above does not match; only errors.As(err, &opErr) does.
+			"dns not found",
+			&net.OpError{Op: "dial", Net: "tcp", Err: &net.DNSError{Err: "no such host", IsNotFound: true}},
+			true,
+		},
+		{
+			// Uniquely exercises the net.Error/Timeout() branch: *net.DNSError
+			// implements net.Error directly but is NOT a *net.OpError, so the
+			// catch-all below cannot match it.
+			"network timeout",
+			&net.DNSError{Err: "i/o timeout", IsTimeout: true},
 			true,
 		},
 	}
