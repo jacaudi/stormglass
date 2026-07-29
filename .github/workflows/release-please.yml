@@ -1,0 +1,51 @@
+---
+name: Release Please
+
+"on":
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+# Serialize: two quick pushes to main must not race on the same release PR.
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  release-please:
+    name: release-please
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      # Mint an installation token from the GitHub App.
+      #
+      # This is REQUIRED, not cosmetic: a tag pushed using the default
+      # GITHUB_TOKEN does not trigger other workflows, so "Versioned Release"
+      # (on-release.yml) would never fire and no image or binaries would be
+      # published. An app installation token does trigger it.
+      #
+      # It also lets release-please open the release PR as the app, which
+      # sidesteps the "Allow GitHub Actions to create and approve pull
+      # requests" repository setting.
+      - name: Mint app token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+
+      # Maintains a release PR from conventional commits. Merging that PR cuts
+      # the vX.Y.Z tag, which triggers on-release.yml (tests -> tagged image ->
+      # binaries). This workflow deliberately builds nothing itself.
+      - name: Release Please
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
