@@ -872,3 +872,52 @@ func TestListStationsStillCollapsesToOneDevicePerStation(t *testing.T) {
 		t.Errorf("SerialNumber = %q, want ST-00000033 (last ST wins — unchanged behavior)", stations[0].SerialNumber)
 	}
 }
+
+// ListStations' HTTP-level failure (non-200 response) must be classifiable
+// via errors.As, not just matched by message text — the retry layer decides
+// whether to retry by extracting *StatusError, and a message-only assertion
+// would keep passing even if fetchStations reverted to a plain fmt.Errorf.
+func TestListStations_HTTPFailure_ClassifiesAsStatusError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusTooManyRequests)
+	}))
+	t.Cleanup(srv.Close)
+	c := NewClient("test-token", WithBaseURL(srv.URL))
+
+	_, err := c.ListStations(t.Context())
+	if err == nil {
+		t.Fatal("ListStations() error = nil, want a *StatusError for HTTP 429")
+	}
+	var se *StatusError
+	if !errors.As(err, &se) {
+		t.Fatalf("ListStations() error = %v (%T), want errors.As to find a *StatusError", err, err)
+	}
+	if se.HTTPStatus != http.StatusTooManyRequests {
+		t.Errorf("StatusError.HTTPStatus = %d, want %d", se.HTTPStatus, http.StatusTooManyRequests)
+	}
+}
+
+// ListStations' API-status-level failure (HTTP 200 with a non-zero
+// status.status_code envelope) must also be classifiable via errors.As.
+func TestListStations_APIStatusFailure_ClassifiesAsStatusError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"stations":[],"status":{"status_code":2,"status_message":"BAD TOKEN"}}`))
+	}))
+	t.Cleanup(srv.Close)
+	c := NewClient("test-token", WithBaseURL(srv.URL))
+
+	_, err := c.ListStations(t.Context())
+	if err == nil {
+		t.Fatal("ListStations() error = nil, want a *StatusError for non-zero status_code")
+	}
+	var se *StatusError
+	if !errors.As(err, &se) {
+		t.Fatalf("ListStations() error = %v (%T), want errors.As to find a *StatusError", err, err)
+	}
+	if se.StatusCode != 2 {
+		t.Errorf("StatusError.StatusCode = %d, want 2", se.StatusCode)
+	}
+	if se.Message != "BAD TOKEN" {
+		t.Errorf("StatusError.Message = %q, want %q", se.Message, "BAD TOKEN")
+	}
+}
