@@ -748,6 +748,52 @@ func TestObservationsSkipsRowWithNullTimestamp(t *testing.T) {
 	}
 }
 
+// The guards are GRADUATED, matching the UDP ingest path (>= 13 floor, tail
+// filled conditionally). A 13-element tuple must be KEPT with its core
+// measurements and NULL for the indices it does not carry — not dropped.
+func TestObservationsKeepsShortTupleWithNullTail(t *testing.T) {
+	// Exactly 13 elements: timestamp through rain_rate, nothing after.
+	body := `{"status":{"status_code":0},"type":"obs_st","obs":[
+		[1700000000,0.1,0.2,0.3,180,3,1013.0,20.5,55.0,1000,1.5,300,0.0]
+	]}`
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(body))
+	})
+
+	obs, err := c.Observations(t.Context(), Station{DeviceID: 1, SerialNumber: "ST-1"}, time.Unix(0, 0), time.Unix(1, 0))
+	if err != nil {
+		t.Fatalf("Observations: %v", err)
+	}
+	if len(obs) != 1 {
+		t.Fatalf("got %d observations, want 1 — a 13-element tuple must not be dropped", len(obs))
+	}
+	if obs[0].TempAir == nil || *obs[0].TempAir != 20.5 {
+		t.Errorf("TempAir = %v, want 20.5 (core measurements must survive)", obs[0].TempAir)
+	}
+	if obs[0].Battery != nil {
+		t.Errorf("Battery = %v, want nil (index 16 absent from a 13-element tuple)", *obs[0].Battery)
+	}
+	if obs[0].ReportInterval != nil {
+		t.Errorf("ReportInterval = %v, want nil (index 17 absent)", *obs[0].ReportInterval)
+	}
+}
+
+// Below the floor there is nothing usable, so the tuple is dropped.
+func TestObservationsDropsTupleBelowFloor(t *testing.T) {
+	body := `{"status":{"status_code":0},"type":"obs_st","obs":[[1700000000,0.1,0.2]]}`
+	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(body))
+	})
+
+	obs, err := c.Observations(t.Context(), Station{DeviceID: 1, SerialNumber: "ST-1"}, time.Unix(0, 0), time.Unix(1, 0))
+	if err != nil {
+		t.Fatalf("Observations: %v", err)
+	}
+	if len(obs) != 0 {
+		t.Errorf("got %d observations, want 0 — a 3-element tuple is below the 13 floor", len(obs))
+	}
+}
+
 func TestObservationsRequestsCorrectWindow(t *testing.T) {
 	var gotQuery string
 	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
@@ -781,6 +827,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -834,6 +881,17 @@ const (
 	obsFieldCount // 18 — the number of indices this code reads
 )
 
+// obsMinFields is the floor below which a tuple carries no usable core
+// measurements. It mirrors the UDP ingest path, which accepts a report at
+// len(ob) >= 13 and fills the tail conditionally (sqlite/writer.go:406-457).
+//
+// The guards here are GRADUATED, not all-or-nothing. A hard
+// "len(ob) < 18 -> drop" would silently discard a short tuple's temperature,
+// pressure and wind — a real divergence from the ingest path the design
+// forbids. Because every weather.Observation measurement is a *float64,
+// honoring the graduated rule is free: absent indices simply stay nil.
+const obsMinFields = 13
+
 // Observations fetches raw historical observations for one device over
 // [start, end] and returns them in store-neutral form.
 //
@@ -886,35 +944,58 @@ func (c *Client) Observations(ctx context.Context, station Station, start, end t
 		}
 	}
 
+	// at returns ob[i] when the tuple is long enough, nil otherwise. This is
+	// the graduated guard: a short tuple keeps its core measurements and gets
+	// NULL for the indices it does not carry.
+	at := func(ob []*float64, i int) *float64 {
+		if i < len(ob) {
+			return ob[i]
+		}
+		return nil
+	}
+
 	out := make([]weather.Observation, 0, len(set.Obs))
+	dropped := 0
 	for _, ob := range set.Obs {
-		if len(ob) < obsFieldCount || ob[obsTimestamp] == nil {
-			// Short tuple or no timestamp: the row cannot be keyed by
+		if len(ob) < obsMinFields || ob[obsTimestamp] == nil {
+			// Below the floor, or no timestamp: the row cannot be keyed by
 			// (serial_number, timestamp), so writing it would create an
-			// un-dedupable row at some arbitrary instant. Drop it.
+			// un-dedupable row at some arbitrary instant. Drop it — and count
+			// it, so an all-malformed window is distinguishable from a
+			// permanent hole.
+			dropped++
 			continue
 		}
 		out = append(out, weather.Observation{
 			SerialNumber:         station.SerialNumber,
 			Timestamp:            time.Unix(int64(*ob[obsTimestamp]), 0).UTC(),
-			WindLull:             ob[obsWindLull],
-			WindAvg:              ob[obsWindAvg],
-			WindGust:             ob[obsWindGust],
-			WindDirection:        ob[obsWindDirection],
-			WindSampleInterval:   ob[obsWindSampleInterval],
-			Pressure:             ob[obsPressure],
-			TempAir:              ob[obsTempAir],
-			Humidity:             ob[obsHumidity],
-			Illuminance:          ob[obsIlluminance],
-			UVIndex:              ob[obsUVIndex],
-			Irradiance:           ob[obsIrradiance],
-			RainRate:             ob[obsRainRate],
-			PrecipType:           ob[obsPrecipType],
-			LightningDistance:    ob[obsLightningDistance],
-			LightningStrikeCount: ob[obsLightningStrikeCount],
-			Battery:              ob[obsBattery],
-			ReportInterval:       ob[obsReportInterval],
+			WindLull:             at(ob, obsWindLull),
+			WindAvg:              at(ob, obsWindAvg),
+			WindGust:             at(ob, obsWindGust),
+			WindDirection:        at(ob, obsWindDirection),
+			WindSampleInterval:   at(ob, obsWindSampleInterval),
+			Pressure:             at(ob, obsPressure),
+			TempAir:              at(ob, obsTempAir),
+			Humidity:             at(ob, obsHumidity),
+			Illuminance:          at(ob, obsIlluminance),
+			UVIndex:              at(ob, obsUVIndex),
+			Irradiance:           at(ob, obsIrradiance),
+			RainRate:             at(ob, obsRainRate),
+			PrecipType:           at(ob, obsPrecipType),
+			LightningDistance:    at(ob, obsLightningDistance),
+			LightningStrikeCount: at(ob, obsLightningStrikeCount),
+			Battery:              at(ob, obsBattery),
+			ReportInterval:       at(ob, obsReportInterval),
 		})
+	}
+
+	if dropped > 0 {
+		// WARN, not silence: without this, a window whose tuples were all
+		// malformed reports zero rows — byte-identical to the permanent-hole
+		// signal the reporting design rests on.
+		slog.Warn("tempestapi: dropped malformed observation tuples",
+			"serial", station.SerialNumber, "dropped", dropped, "total", len(set.Obs),
+			"start", start, "end", end)
 	}
 	return out, nil
 }
@@ -1081,7 +1162,9 @@ In `internal/postgres/writer.go`, replace the block currently at `:145-167` (fro
 	}
 ```
 
-Leave everything from `// Auto-create schema` onward unchanged. Then remove any import of `pgxpool` or `time` from `writer.go` **only if** `go build` reports it unused — `time` is used elsewhere in that file, so expect only `pgxpool` to possibly become unused. Let the compiler tell you; do not guess.
+Leave everything from `// Auto-create schema` onward unchanged.
+
+**No imports become unused.** `pgxpool` is still referenced by the `pool *pgxpool.Pool` struct field (`writer.go:98`), and `time` is used throughout. Do not go hunting for imports to delete — if the compiler reports one unused, something else went wrong; re-read the edit.
 
 - [ ] **Step 5: Run tests to verify they pass**
 
@@ -1115,7 +1198,8 @@ git commit -m "refactor(postgres): extract OpenPool as the single source of pool
 **Interfaces:**
 - Consumes: `weather.Observation`, `weather.Gap`, `weather.Bounds` (Task 1).
 - Produces (all package-level, all taking `*sql.DB`, none starting goroutines):
-  - `func SeriesBounds(ctx context.Context, db *sql.DB, from, to time.Time) ([]weather.Bounds, error)`
+  - `func DistinctSerials(ctx context.Context, db *sql.DB) ([]string, error)` — **unwindowed**
+  - `func SeriesBounds(ctx context.Context, db *sql.DB, from, to time.Time) ([]weather.Bounds, error)` — windowed
   - `func FindObservationGaps(ctx context.Context, db *sql.DB, from, to time.Time, minGap time.Duration) ([]weather.Gap, error)`
   - `func InsertObservations(ctx context.Context, db *sql.DB, obs []weather.Observation) (int, error)`
 
@@ -1133,7 +1217,6 @@ Create `internal/sqlite/backfill_test.go`:
 package sqlite
 
 import (
-	"context"
 	"database/sql"
 	"testing"
 	"time"
@@ -1148,7 +1231,7 @@ import (
 func seedObs(t *testing.T, db *sql.DB, serial string, epochs ...int64) {
 	t.Helper()
 	for _, e := range epochs {
-		_, err := db.ExecContext(context.Background(),
+		_, err := db.ExecContext(t.Context(),
 			`INSERT INTO tempest_observations (id, serial_number, timestamp) VALUES (?, ?, ?)`,
 			uuid.Must(uuid.NewV7()).String(), serial, e)
 		if err != nil {
@@ -1218,6 +1301,43 @@ func TestSeriesBoundsPerSerial(t *testing.T) {
 	}
 	if !got["ST-B"].First.Equal(ts(5000)) || !got["ST-B"].Last.Equal(ts(6000)) {
 		t.Errorf("ST-B bounds = [%v, %v], want [5000, 6000]", got["ST-B"].First, got["ST-B"].Last)
+	}
+}
+
+// DistinctSerials must ignore the window entirely. This is the regression
+// guard for the false-mismatch bug: ST-B's only rows sit outside any window a
+// caller is likely to ask about, but it is still very much in the store.
+func TestDistinctSerialsIsUnwindowed(t *testing.T) {
+	db := newTestDB(t)
+	seedObs(t, db, "ST-A", 1000, 2000)
+	seedObs(t, db, "ST-B", 900000) // far outside a [0, 10000] window
+
+	serials, err := DistinctSerials(t.Context(), db)
+	if err != nil {
+		t.Fatalf("DistinctSerials: %v", err)
+	}
+	if len(serials) != 2 || serials[0] != "ST-A" || serials[1] != "ST-B" {
+		t.Errorf("got %v, want [ST-A ST-B] — the query must not be windowed", serials)
+	}
+
+	// Contrast: the windowed query legitimately does not see ST-B.
+	bounds, err := SeriesBounds(t.Context(), db, ts(0), ts(10000))
+	if err != nil {
+		t.Fatalf("SeriesBounds: %v", err)
+	}
+	if len(bounds) != 1 {
+		t.Errorf("SeriesBounds returned %d serials, want 1 — this is why the two queries cannot be merged", len(bounds))
+	}
+}
+
+func TestDistinctSerialsEmptyTable(t *testing.T) {
+	db := newTestDB(t)
+	serials, err := DistinctSerials(t.Context(), db)
+	if err != nil {
+		t.Fatalf("DistinctSerials on empty table must not error: %v", err)
+	}
+	if len(serials) != 0 {
+		t.Errorf("got %d serials, want 0", len(serials))
 	}
 }
 
@@ -1462,6 +1582,34 @@ func SeriesBounds(ctx context.Context, db *sql.DB, from, to time.Time) ([]weathe
 	return out, nil
 }
 
+// DistinctSerials returns every serial the table has ever held.
+//
+// UNWINDOWED, deliberately. This is the pre-flight check's input, and it must
+// NOT be replaced by SeriesBounds' key set: SeriesBounds is windowed, so a
+// station that was simply quiet during the queried window would look absent
+// from the store entirely and trip a false serial mismatch — breaking
+// `backfill --from X --to Y`, which is the tool's main repair path.
+func DistinctSerials(ctx context.Context, db *sql.DB) ([]string, error) {
+	rows, err := db.QueryContext(ctx, `SELECT DISTINCT serial_number FROM tempest_observations ORDER BY serial_number`)
+	if err != nil {
+		return nil, fmt.Errorf("query distinct serials: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var out []string
+	for rows.Next() {
+		var serial string
+		if err := rows.Scan(&serial); err != nil {
+			return nil, fmt.Errorf("scan distinct serial: %w", err)
+		}
+		out = append(out, serial)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate distinct serials: %w", err)
+	}
+	return out, nil
+}
+
 // InsertObservations writes obs idempotently and reports how many rows were
 // actually new.
 //
@@ -1538,9 +1686,23 @@ Expected: PASS — all nine tests. In particular `TestFindObservationGapsPartiti
 
 - [ ] **Step 5: Sanity-check the partitioning claim by deleting it**
 
-Temporarily remove `PARTITION BY serial_number` from `findObservationGapsSQL` and re-run only that test.
-Run: `go test ./internal/sqlite/ -run TestFindObservationGapsPartitionsBySerial -v`
-Expected: **FAIL** with "got 0 gaps, want 1" — proving the test actually guards the invariant. **Restore the `PARTITION BY` immediately** and re-run to confirm PASS.
+A test that guards an invariant it cannot actually detect is worse than no test. Prove this one bites — but do it so the mutation cannot survive by accident:
+
+```bash
+git add -A && git commit -m "wip: pre-mutation checkpoint"      # checkpoint first
+# now edit findObservationGapsSQL: delete " PARTITION BY serial_number"
+go test ./internal/sqlite/ -run TestFindObservationGapsPartitionsBySerial -v
+```
+Expected: **FAIL** with "got 0 gaps, want 1".
+
+Then restore and **prove** the restore was exact:
+
+```bash
+git checkout -- internal/sqlite/backfill.go
+git diff --exit-code                                            # must print nothing, exit 0
+go test ./internal/sqlite/ -run TestFindObservationGapsPartitionsBySerial -v
+```
+Expected: `git diff --exit-code` clean, test PASS. Do not proceed while `git diff` shows anything — a half-restored mutation in production SQL is exactly the failure this step exists to prevent.
 
 - [ ] **Step 6: Run the full gate**
 
@@ -1567,13 +1729,24 @@ git commit -m "feat(sqlite): add partitioned gap detection and idempotent backfi
 **Interfaces:**
 - Consumes: `weather.*` (Task 1), `OpenPool` (Task 4).
 - Produces (mirroring Task 5's signatures exactly, with `*pgxpool.Pool` in place of `*sql.DB`):
-  - `func SeriesBounds(ctx context.Context, pool *pgxpool.Pool, from, to time.Time) ([]weather.Bounds, error)`
+  - `func DistinctSerials(ctx context.Context, pool *pgxpool.Pool) ([]string, error)` — **unwindowed**
+  - `func SeriesBounds(ctx context.Context, pool *pgxpool.Pool, from, to time.Time) ([]weather.Bounds, error)` — windowed
   - `func FindObservationGaps(ctx context.Context, pool *pgxpool.Pool, from, to time.Time, minGap time.Duration) ([]weather.Gap, error)`
   - `func InsertObservations(ctx context.Context, pool *pgxpool.Pool, obs []weather.Observation) (int, error)`
 
 **Signatures are pinned to `time.Time` on both stores** so one interface satisfies both without a shim. The epoch conversion stays inside the SQLite implementation, matching how that package already handles timestamps; Postgres passes `time.Time` straight through to `TIMESTAMPTZ`.
 
-**Note on tests:** this package's database tests require a live Postgres and skip without one — that is pre-existing behavior. The unit-testable part here is wet-bulb derivation, which is shared logic; the SQL is verified by the integration suite when a database is available. Follow the existing skip idiom in `internal/postgres/writer_integration_test.go` for anything requiring a connection.
+**This task's SQL is the least-covered code in the change, and that is a stated risk, not an oversight.** Both reviews flagged it. The unit tests here cover only wet-bulb derivation; every query is exercised solely by `TestBackfillPostgresIntegration`, which **skips** unless `POSTGRES_URL` is set.
+
+**Therefore: run it against a real database at least once before this branch merges, and paste the output.** A run in which it skipped is not evidence. If no database is available, say so explicitly when reporting this task complete — do not report the Postgres path as verified.
+
+```bash
+docker run --rm -d --name twx-itest -e POSTGRES_PASSWORD=x -e POSTGRES_DB=weather -p 55432:5432 postgres:16
+# wait for readiness, then:
+POSTGRES_URL='postgres://postgres:x@localhost:55432/weather?sslmode=disable' \
+  go test ./internal/postgres/ -run TestBackfillPostgresIntegration -v
+docker rm -f twx-itest
+```
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1583,8 +1756,11 @@ Create `internal/postgres/backfill_test.go`:
 package postgres
 
 import (
-	"strings"
+	"context"
+	"os"
+	"slices"
 	"testing"
+	"time"
 
 	"tempestwx-utilities/internal/weather"
 )
@@ -1635,21 +1811,131 @@ func TestBackfillWetBulbDerivation(t *testing.T) {
 	}
 }
 
-// The gap SQL must partition by serial. This pins the text so the invariant
-// cannot be dropped silently; the behavioral proof lives in the SQLite suite,
-// where the query runs against a real database without external setup.
-func TestFindObservationGapsSQLPartitionsBySerial(t *testing.T) {
-	if !strings.Contains(findObservationGapsSQL, "PARTITION BY serial_number") {
-		t.Error("findObservationGapsSQL must PARTITION BY serial_number; " +
-			"without it, two phase-offset stations mask each other's outages")
+// --- integration: requires a live Postgres ---
+//
+// Everything above is a pure unit test. The SQL below is the ONLY thing that
+// exercises this file's actual queries, and the Postgres dialect differs from
+// SQLite's in ways that can fail at runtime and nowhere else:
+//
+//   - EXTRACT(EPOCH FROM (ts - prev)) yields numeric in PG14+, compared here
+//     against a float64 parameter.
+//   - MIN/MAX over timestamptz scanned into time.Time.
+//   - precip_type is INTEGER in the DDL (schema.go:55) while the bind is a
+//     *float64 — pgx truncates silently rather than erroring.
+//
+// Follow the existing skip idiom in writer_integration_test.go. This must be
+// RUN AT LEAST ONCE against a real database before the branch merges; a run
+// where it skips is not evidence.
+func TestBackfillPostgresIntegration(t *testing.T) {
+	dsn := os.Getenv("POSTGRES_URL")
+	if dsn == "" {
+		t.Skip("POSTGRES_URL not set; skipping Postgres integration test")
+	}
+
+	ctx := t.Context()
+	pool, err := OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("OpenPool: %v", err)
+	}
+	t.Cleanup(pool.Close)
+	if err := CreateSchema(ctx, pool); err != nil {
+		t.Fatalf("CreateSchema: %v", err)
+	}
+
+	// Isolate this run from anything already in the table.
+	serialA := "ST-ITEST-A"
+	serialB := "ST-ITEST-B"
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(),
+			`DELETE FROM tempest_observations WHERE serial_number IN ($1, $2)`, serialA, serialB)
+	})
+	if _, err := pool.Exec(ctx,
+		`DELETE FROM tempest_observations WHERE serial_number IN ($1, $2)`, serialA, serialB); err != nil {
+		t.Fatalf("pre-clean: %v", err)
+	}
+
+	base := time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC) // far from real data
+
+	// The same interleaved fixture the SQLite suite uses: ST-A has a one-hour
+	// hole; ST-B reports throughout, offset, and would mask it if the query
+	// were not partitioned.
+	var seed []weather.Observation
+	for _, off := range []time.Duration{0, time.Hour, 90 * time.Minute} {
+		seed = append(seed, weather.Observation{SerialNumber: serialA, Timestamp: base.Add(off), TempAir: f(20)})
+	}
+	for off := 30 * time.Second; off <= 95*time.Minute; off += 10 * time.Minute {
+		seed = append(seed, weather.Observation{SerialNumber: serialB, Timestamp: base.Add(off), TempAir: f(21)})
+	}
+
+	n, err := InsertObservations(ctx, pool, seed)
+	if err != nil {
+		t.Fatalf("InsertObservations: %v", err)
+	}
+	if n != len(seed) {
+		t.Errorf("inserted %d rows, want %d", n, len(seed))
+	}
+
+	// Idempotency: the same batch again must insert nothing.
+	again, err := InsertObservations(ctx, pool, seed)
+	if err != nil {
+		t.Fatalf("second InsertObservations: %v", err)
+	}
+	if again != 0 {
+		t.Errorf("re-insert added %d rows, want 0", again)
+	}
+
+	from, to := base.Add(-time.Hour), base.Add(3*time.Hour)
+
+	serials, err := DistinctSerials(ctx, pool)
+	if err != nil {
+		t.Fatalf("DistinctSerials: %v", err)
+	}
+	if !slices.Contains(serials, serialA) || !slices.Contains(serials, serialB) {
+		t.Errorf("DistinctSerials = %v, want it to contain %s and %s", serials, serialA, serialB)
+	}
+
+	bounds, err := SeriesBounds(ctx, pool, from, to)
+	if err != nil {
+		t.Fatalf("SeriesBounds: %v", err)
+	}
+	var gotA bool
+	for _, b := range bounds {
+		if b.SerialNumber == serialA {
+			gotA = true
+			if !b.First.Equal(base) {
+				t.Errorf("%s First = %v, want %v", serialA, b.First, base)
+			}
+		}
+	}
+	if !gotA {
+		t.Errorf("SeriesBounds missing %s: %+v", serialA, bounds)
+	}
+
+	gaps, err := FindObservationGaps(ctx, pool, from, to, 30*time.Minute)
+	if err != nil {
+		t.Fatalf("FindObservationGaps: %v", err)
+	}
+	var found bool
+	for _, g := range gaps {
+		if g.SerialNumber == serialA && g.From.Equal(base) && g.To.Equal(base.Add(time.Hour)) {
+			found = true
+		}
+		if g.SerialNumber == serialB {
+			t.Errorf("unexpected gap for %s: %+v", serialB, g)
+		}
+	}
+	if !found {
+		t.Errorf("did not find the %s hole [%v, %v]; got %+v", serialA, base, base.Add(time.Hour), gaps)
 	}
 }
 ```
 
+The `strings.Contains(findObservationGapsSQL, "PARTITION BY serial_number")` assertion that appeared in an earlier draft of this task is **deliberately absent**. It asserts that a string constant contains a substring the same file defines — it would pass against SQL with a broken `WHERE`, a wrong comparison operator, or a missing alias, and it cannot fail for the reason its name claims. The behavioral proof is the integration test above plus the SQLite suite's mutation check.
+
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `go test ./internal/postgres/ -run 'TestBackfillWetBulb|TestFindObservationGapsSQL' -v`
-Expected: FAIL to compile — `undefined: wetBulb`, `undefined: findObservationGapsSQL`.
+Run: `go test ./internal/postgres/ -run 'TestBackfillWetBulb|TestBackfillPostgresIntegration' -v`
+Expected: FAIL to compile — `undefined: wetBulb`, `undefined: DistinctSerials`, `undefined: SeriesBounds`, `undefined: FindObservationGaps`, `undefined: InsertObservations`.
 
 - [ ] **Step 3: Write the implementation**
 
@@ -1679,9 +1965,9 @@ import (
 // abstraction. The signatures are identical so one consumer-side interface
 // satisfies both.
 
-// insertBatchSize bounds how many rows go into one SendBatch. The daemon's
-// 5s timeout at insertObservations was sized for the 1-row live path; a
-// backfill batch needs its own budget.
+// backfillBatchTimeout bounds one backfill SendBatch. The daemon's hardcoded
+// 5s at insertObservations (writer.go:240) was sized for the 1-row live path;
+// a backfill batch of up to 200 rows needs its own budget.
 const backfillBatchTimeout = 30 * time.Second
 
 // findObservationGapsSQL locates interior holes in each station's series.
@@ -1767,6 +2053,32 @@ func SeriesBounds(ctx context.Context, pool *pgxpool.Pool, from, to time.Time) (
 	return out, nil
 }
 
+// DistinctSerials returns every serial the table has ever held.
+//
+// UNWINDOWED, deliberately — see the identical comment in
+// internal/sqlite/backfill.go. Merging this into SeriesBounds causes a false
+// serial mismatch for any station that was quiet during the queried window.
+func DistinctSerials(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
+	rows, err := pool.Query(ctx, `SELECT DISTINCT serial_number FROM tempest_observations ORDER BY serial_number`)
+	if err != nil {
+		return nil, fmt.Errorf("query distinct serials: %w", err)
+	}
+	defer rows.Close()
+
+	var out []string
+	for rows.Next() {
+		var serial string
+		if err := rows.Scan(&serial); err != nil {
+			return nil, fmt.Errorf("scan distinct serial: %w", err)
+		}
+		out = append(out, serial)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate distinct serials: %w", err)
+	}
+	return out, nil
+}
+
 const backfillInsertSQL = `
 	INSERT INTO tempest_observations (
 		id, serial_number, timestamp,
@@ -1836,12 +2148,14 @@ func wetBulb(o weather.Observation) *float64 {
 }
 ```
 
-> **Implementer note:** `wetBulb` appears in both `internal/sqlite/backfill.go` and `internal/postgres/backfill.go`. This is deliberate and must NOT be extracted into a shared helper — the two store packages do not import each other, and the only neutral home (`internal/weather`) would then have to import `internal/tempestudp`, which pulls the UDP wire protocol into the leaf type package and creates exactly the coupling Task 1 exists to prevent. The *shared knowledge* — the wet-bulb formula — already lives in exactly one place: `tempestudp.WetBulbTemperatureC`. What is duplicated here is a four-line nil guard, which is shared shape, not shared knowledge. If `closeBatchResults` is unexported and already defined in `writer.go`, reuse it; do not redefine it.
+> **Implementer note on the duplicated `wetBulb`.** It appears in both `internal/sqlite/backfill.go` and `internal/postgres/backfill.go`, four lines each. Keep it duplicated — but understand the *real* reason, because an earlier draft of this plan justified it with a false claim (that a shared home would force `internal/weather` to import `internal/tempestudp` and create a cycle). That is **not true**: `internal/tempestudp` imports only stdlib and `internal/tempest`, so `weather → tempestudp` is a perfectly legal acyclic edge. The honest justification is narrower: the duplicated part is a four-line nil guard, the *formula* — the actual shared knowledge — already lives in exactly one place (`tempestudp.WetBulbTemperatureC`), and four lines is cheaper than a new cross-package dependency. Note the counter-argument is real: the rule "wet bulb is NULL unless temp, humidity and pressure are all present" *is* shared knowledge under the DRY test, and if it ever changes both copies must change together. Leave a comment in each saying so.
+>
+> Also: `closeBatchResults` is already defined (unexported) at `internal/postgres/writer.go:223`. Reuse it; do not redefine it.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `go test ./internal/postgres/ -run 'TestBackfillWetBulb|TestFindObservationGapsSQL' -v`
-Expected: PASS.
+Run: `go test ./internal/postgres/ -run 'TestBackfillWetBulb|TestBackfillPostgresIntegration' -v`
+Expected: the wet-bulb subtests PASS; the integration test SKIPs without `POSTGRES_URL`. Then run it for real per the note at the top of this task and paste that output too.
 
 Run the package suite: `go test ./internal/postgres/ -v`
 Expected: PASS; integration tests skip without a database, as before.
@@ -2287,7 +2601,9 @@ Create `internal/backfill/gaps.go`:
 package backfill
 
 import (
-	"sort"
+	"cmp"
+	"slices"
+	"strings"
 	"time"
 
 	"tempestwx-utilities/internal/weather"
@@ -2350,11 +2666,13 @@ func assembleGaps(
 		}
 	}
 
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].SerialNumber != out[j].SerialNumber {
-			return out[i].SerialNumber < out[j].SerialNumber
-		}
-		return out[i].From.Before(out[j].From)
+	// slices.SortFunc, not sort.Slice: it is the Go 1.25 idiom, and sort.Slice
+	// is unstable while (serial, From) is not guaranteed unique.
+	slices.SortFunc(out, func(a, b weather.Gap) int {
+		return cmp.Or(
+			strings.Compare(a.SerialNumber, b.SerialNumber),
+			a.From.Compare(b.From),
+		)
 	})
 	return out
 }
@@ -2844,8 +3162,12 @@ type Config struct {
 	// reporting jitter from registering.
 	MinGap time.Duration
 
-	// DryRun detects and plans only: zero API calls, zero writes. It
-	// consequently cannot validate the token or reachability.
+	// DryRun detects and plans only: Run makes zero observation fetches and
+	// zero writes.
+	//
+	// Note the shell still calls ListDevices before invoking Run, so the
+	// COMMAND does make one API call in dry-run and therefore does validate
+	// the token. Do not document it as "zero API calls".
 	DryRun bool
 }
 
@@ -3215,13 +3537,17 @@ Create `backfill_cmd_test.go`:
 package main
 
 import (
+	"errors"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
 
 func TestParseBackfillFlagsDefaults(t *testing.T) {
-	cfg, err := parseBackfillFlags(nil)
+	cfg, _, err := parseBackfillFlags(nil)
 	if err != nil {
 		t.Fatalf("parseBackfillFlags: %v", err)
 	}
@@ -3237,7 +3563,7 @@ func TestParseBackfillFlagsDefaults(t *testing.T) {
 }
 
 func TestParseBackfillFlagsRFC3339IsUTC(t *testing.T) {
-	cfg, err := parseBackfillFlags([]string{"--from", "2026-01-02T03:04:05Z", "--to", "2026-01-03T03:04:05Z"})
+	cfg, _, err := parseBackfillFlags([]string{"--from", "2026-01-02T03:04:05Z", "--to", "2026-01-03T03:04:05Z"})
 	if err != nil {
 		t.Fatalf("parseBackfillFlags: %v", err)
 	}
@@ -3250,7 +3576,7 @@ func TestParseBackfillFlagsRFC3339IsUTC(t *testing.T) {
 }
 
 func TestParseBackfillFlagsRejectsNonRFC3339(t *testing.T) {
-	_, err := parseBackfillFlags([]string{"--from", "2026-01-02"})
+	_, _, err := parseBackfillFlags([]string{"--from", "2026-01-02"})
 	if err == nil {
 		t.Fatal("a non-RFC3339 --from must be rejected; an ambiguous local-time parse is a quiet wrong-window bug")
 	}
@@ -3260,23 +3586,23 @@ func TestParseBackfillFlagsRejectsNonRFC3339(t *testing.T) {
 }
 
 func TestParseBackfillFlagsRequiresBothOrNeither(t *testing.T) {
-	if _, err := parseBackfillFlags([]string{"--from", "2026-01-02T00:00:00Z"}); err == nil {
+	if _, _, err := parseBackfillFlags([]string{"--from", "2026-01-02T00:00:00Z"}); err == nil {
 		t.Error("--from without --to must be rejected")
 	}
-	if _, err := parseBackfillFlags([]string{"--to", "2026-01-02T00:00:00Z"}); err == nil {
+	if _, _, err := parseBackfillFlags([]string{"--to", "2026-01-02T00:00:00Z"}); err == nil {
 		t.Error("--to without --from must be rejected")
 	}
 }
 
 func TestParseBackfillFlagsRejectsInvertedRange(t *testing.T) {
-	_, err := parseBackfillFlags([]string{"--from", "2026-01-03T00:00:00Z", "--to", "2026-01-02T00:00:00Z"})
+	_, _, err := parseBackfillFlags([]string{"--from", "2026-01-03T00:00:00Z", "--to", "2026-01-02T00:00:00Z"})
 	if err == nil {
 		t.Fatal("--to before --from must be rejected")
 	}
 }
 
 func TestParseBackfillFlagsDryRun(t *testing.T) {
-	cfg, err := parseBackfillFlags([]string{"--dry-run", "--min-gap", "2h"})
+	cfg, _, err := parseBackfillFlags([]string{"--dry-run", "--min-gap", "2h"})
 	if err != nil {
 		t.Fatalf("parseBackfillFlags: %v", err)
 	}
@@ -3288,15 +3614,80 @@ func TestParseBackfillFlagsDryRun(t *testing.T) {
 	}
 }
 
-func TestRunBackfillWithoutTokenFailsFast(t *testing.T) {
-	// TOKEN is validated before any store handle is opened, so the failure
-	// costs no I/O and leaves nothing to close. SQLITE_PATH points at a
-	// location that would fail to open, proving no store was touched.
+// TOKEN must be validated BEFORE any store handle is opened, so the failure
+// costs no I/O and leaves nothing to close.
+//
+// The ordering is proven by pointing SQLITE_PATH at a path inside a writable
+// temp dir and asserting the file was never created. An earlier version of
+// this test used a bogus path and asserted only exit==1 — which passes
+// identically whether TOKEN is checked before or after the store opens, since
+// a failed open also returns 1. That test could not fail for its stated
+// reason.
+func TestRunBackfillWithoutTokenFailsBeforeOpeningTheStore(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "should-never-be-created.db")
 	t.Setenv("TOKEN", "")
-	t.Setenv("SQLITE_PATH", "/nonexistent-dir-should-never-be-opened/tempest.db")
+	t.Setenv("ENABLE_POSTGRES", "")
+	t.Setenv("SQLITE_PATH", dbPath)
 
 	if got := runBackfill(t.Context(), nil); got != 1 {
 		t.Errorf("exit code = %d, want 1 for a missing TOKEN", got)
+	}
+	if _, err := os.Stat(dbPath); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("SQLite database at %s was created; TOKEN must be validated before the store is opened", dbPath)
+	}
+}
+
+func TestParseBackfillFlagsStoreValidation(t *testing.T) {
+	for _, v := range []string{"sqlite", "postgres", ""} {
+		if _, got, err := parseBackfillFlags([]string{"--store", v}); err != nil || got != v {
+			t.Errorf("--store=%q: got (%q, %v), want (%q, nil)", v, got, err, v)
+		}
+	}
+	if _, _, err := parseBackfillFlags([]string{"--store", "mysql"}); err == nil {
+		t.Error("--store=mysql must be rejected")
+	}
+}
+
+func TestResolveStore(t *testing.T) {
+	both := storeChoice{sqlite: true, postgres: true}
+	onlySQLite := storeChoice{sqlite: true}
+	onlyPG := storeChoice{postgres: true}
+	none := storeChoice{}
+
+	tests := []struct {
+		name    string
+		choice  storeChoice
+		flag    string
+		want    string
+		wantErr bool
+	}{
+		{"single store needs no flag", onlySQLite, "", "sqlite", false},
+		{"single store, matching flag", onlyPG, "postgres", "postgres", false},
+		{"single store, contradicting flag", onlySQLite, "postgres", "", true},
+		{"both configured, flag chooses", both, "postgres", "postgres", false},
+		{"both configured, flag chooses sqlite", both, "sqlite", "sqlite", false},
+		// The regression: never silently pick one.
+		{"both configured, no flag", both, "", "", true},
+		{"nothing configured", none, "", "", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := resolveStore(tt.choice, tt.flag)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("err = %v, wantErr %v", err, tt.wantErr)
+			}
+			if got != tt.want {
+				t.Errorf("got %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// --help is not a usage error.
+func TestRunBackfillHelpExitsZero(t *testing.T) {
+	t.Setenv("TOKEN", "x")
+	if got := runBackfill(t.Context(), []string{"--help"}); got != 0 {
+		t.Errorf("exit code = %d, want 0 — `cmd --help` is a successful invocation", got)
 	}
 }
 
@@ -3313,20 +3704,48 @@ func TestKnownSubcommands(t *testing.T) {
 			t.Errorf("%q should be a known subcommand", name)
 		}
 	}
-	// The regression this guards: "backfil" previously fell through to daemon
-	// mode and silently started a UDP listener.
 	for _, name := range []string{"backfil", "helthcheck", "migrate", ""} {
 		if isKnownSubcommand(name) {
 			t.Errorf("%q should NOT be a known subcommand", name)
 		}
 	}
 }
+
+// TestKnownSubcommands above tests a pure predicate — it would still pass if
+// main() never called it. This one tests the BEHAVIOR the design mandates:
+// an unknown subcommand must exit 2 and must NOT start the daemon.
+//
+// The regression it guards is real: before the dispatch fix, `backfil` fell
+// through and silently started a UDP listener, which never exits — so a
+// failure here shows up as a timeout, not just a bad exit code.
+func TestUnknownSubcommandExitsTwoWithoutStartingDaemon(t *testing.T) {
+	bin := filepath.Join(t.TempDir(), "twx")
+	build := exec.CommandContext(t.Context(), "go", "build", "-o", bin, ".")
+	build.Env = append(os.Environ(), "CGO_ENABLED=0")
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build: %v\n%s", err, out)
+	}
+
+	cmd := exec.CommandContext(t.Context(), bin, "backfil")
+	out, err := cmd.CombinedOutput()
+
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) {
+		t.Fatalf("expected a non-zero exit, got err=%v\n%s", err, out)
+	}
+	if code := exitErr.ExitCode(); code != 2 {
+		t.Errorf("exit code = %d, want 2\n%s", code, out)
+	}
+	if !strings.Contains(string(out), "unknown subcommand") {
+		t.Errorf("output should name the bad subcommand, got:\n%s", out)
+	}
+}
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `go test . -run 'TestParseBackfill|TestRunBackfill|TestKnownSubcommands' -v`
-Expected: FAIL to compile — `undefined: parseBackfillFlags`, `undefined: runBackfill`, `undefined: isKnownSubcommand`.
+Run: `go test . -run 'TestParseBackfill|TestRunBackfill|TestResolveStore|TestKnownSubcommands|TestUnknownSubcommand' -v`
+Expected: FAIL to compile — `undefined: parseBackfillFlags`, `undefined: runBackfill`, `undefined: resolveStore`, `undefined: isKnownSubcommand`.
 
 - [ ] **Step 3: Write the shell**
 
@@ -3343,6 +3762,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"strings"
 	"time"
 
 	"tempestwx-utilities/internal/backfill"
@@ -3366,39 +3786,98 @@ import (
 // --from/--to are RFC3339 interpreted as UTC. The store is UTC epoch and the
 // API takes epoch seconds; an ambiguous local-time parse would be a quiet
 // wrong-window bug, so a non-RFC3339 value is rejected rather than guessed at.
-func parseBackfillFlags(args []string) (backfill.Config, error) {
+func parseBackfillFlags(args []string) (backfill.Config, string, error) {
 	fs := flag.NewFlagSet("backfill", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 
 	fromStr := fs.String("from", "", "start of the window to repair, RFC3339 UTC (default: auto-detect)")
 	toStr := fs.String("to", "", "end of the window to repair, RFC3339 UTC (default: auto-detect)")
 	minGap := fs.Duration("min-gap", 30*time.Minute, "smallest interval that counts as a gap")
-	dryRun := fs.Bool("dry-run", false, "detect and plan only: zero API calls, zero writes")
+	dryRun := fs.Bool("dry-run", false, "detect and plan only: no observation fetches, no writes")
+
+	store := fs.String("store", "", "which store to repair: sqlite or postgres (required when both are configured)")
 
 	if err := fs.Parse(args); err != nil {
-		return backfill.Config{}, err
+		return backfill.Config{}, "", err
 	}
 
 	cfg := backfill.Config{MinGap: *minGap, DryRun: *dryRun}
 
+	// --store is returned separately, not folded into backfill.Config: it
+	// selects which handle the SHELL opens, and Run has no use for it. A core
+	// config struct carrying a field the core ignores is a trap.
+	switch *store {
+	case "", "sqlite", "postgres":
+	default:
+		return cfg, *store, usageErr(fs, "--store must be sqlite or postgres, got %q", *store)
+	}
+
 	if (*fromStr == "") != (*toStr == "") {
-		return cfg, errors.New("--from and --to must be given together, or neither")
+		return cfg, *store, usageErr(fs, "--from and --to must be given together, or neither")
 	}
 	if *fromStr != "" {
 		from, err := time.Parse(time.RFC3339, *fromStr)
 		if err != nil {
-			return cfg, fmt.Errorf("--from must be RFC3339 (e.g. 2026-01-02T03:04:05Z): %w", err)
+			return cfg, *store, usageErr(fs, "--from must be RFC3339 (e.g. 2026-01-02T03:04:05Z): %w", err)
 		}
 		to, err := time.Parse(time.RFC3339, *toStr)
 		if err != nil {
-			return cfg, fmt.Errorf("--to must be RFC3339 (e.g. 2026-01-02T03:04:05Z): %w", err)
+			return cfg, *store, usageErr(fs, "--to must be RFC3339 (e.g. 2026-01-02T03:04:05Z): %w", err)
 		}
 		cfg.From, cfg.To = from.UTC(), to.UTC()
 		if !cfg.To.After(cfg.From) {
-			return cfg, errors.New("--to must be after --from")
+			return cfg, *store, usageErr(fs, "--to must be after --from")
 		}
 	}
-	return cfg, nil
+	return cfg, *store, nil
+}
+
+// usageErr reports a validation failure the way flag reports a parse failure:
+// message plus usage, on stderr. Centralizing it means runBackfill prints
+// nothing itself, so flag's message is never duplicated.
+func usageErr(fs *flag.FlagSet, format string, a ...any) error {
+	err := fmt.Errorf(format, a...)
+	fmt.Fprintln(fs.Output(), err)
+	fs.Usage()
+	return err
+}
+
+// resolveStore decides which single store this run repairs.
+//
+// Backfill repairs ONE store per run. selectStore returns BOTH when
+// ENABLE_POSTGRES=true and SQLITE_PATH is set — a documented fan-out the
+// daemon honors by writing every observation to both (main.go:302-336). In
+// that configuration backfill cannot infer the target, and guessing is the
+// worst option available: repairing Postgres while leaving the
+// Litestream-replicated SQLite database holed, then exiting 0, tells the
+// operator the history is fixed when it is not.
+func resolveStore(choice storeChoice, flagValue string) (string, error) {
+	var configured []string
+	if choice.sqlite {
+		configured = append(configured, "sqlite")
+	}
+	if choice.postgres {
+		configured = append(configured, "postgres")
+	}
+
+	switch len(configured) {
+	case 0:
+		return "", errors.New("backfill: no store configured; set SQLITE_PATH, or ENABLE_POSTGRES=true with POSTGRES_URL")
+	case 1:
+		if flagValue != "" && flagValue != configured[0] {
+			return "", fmt.Errorf("backfill: --store=%s, but only %s is configured", flagValue, configured[0])
+		}
+		return configured[0], nil
+	default:
+		if flagValue == "" {
+			return "", fmt.Errorf(
+				"backfill: both %s are configured; pass --store=sqlite or --store=postgres. "+
+					"Backfill repairs one store per run and will not guess — silently repairing "+
+					"only one while reporting success would leave the other permanently holed",
+				strings.Join(configured, " and "))
+		}
+		return flagValue, nil
+	}
 }
 
 // sqliteStore adapts the package-level SQLite functions to backfill.Store.
@@ -3441,12 +3920,17 @@ func (s postgresStore) InsertObservations(ctx context.Context, obs []weather.Obs
 // Exit codes: 0 success (including permanent holes), 1 a gap failed or a
 // runtime error, 2 a usage error.
 func runBackfill(ctx context.Context, args []string) int {
-	cfg, err := parseBackfillFlags(args)
+	cfg, storeFlag, err := parseBackfillFlags(args)
 	if err != nil {
-		// flag.ContinueOnError already printed the message for parse errors.
-		if !errors.Is(err, flag.ErrHelp) {
-			fmt.Fprintln(os.Stderr, err)
+		// --help is NOT a usage error. flag prints the usage itself and
+		// returns ErrHelp; exiting 2 here would break every CI smoke test
+		// that runs `cmd --help`.
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
 		}
+		// parseBackfillFlags owns the FlagSet's output and has already
+		// reported the error, so nothing is printed here — printing again
+		// would duplicate flag's own message.
 		return 2
 	}
 
@@ -3470,9 +3954,20 @@ func runBackfill(ctx context.Context, args []string) int {
 	}
 	choice := selectStore(enablePostgres, os.Getenv("SQLITE_PATH"))
 
+	// Backfill repairs ONE store per run, and must never guess which. The
+	// daemon fans out to both when ENABLE_POSTGRES and SQLITE_PATH are both
+	// set (main.go:147-154, :302-336); silently repairing Postgres while
+	// leaving the SQLite database — the one Litestream replicates to S3 —
+	// still holed, then reporting success, is the worst available outcome.
+	target, err := resolveStore(choice, storeFlag)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 2
+	}
+
 	var store backfill.Store
-	switch {
-	case choice.postgres:
+	switch target {
+	case "postgres":
 		dbConfig, err := config.GetDatabaseConfig()
 		if err != nil {
 			slog.Error("backfill: database configuration", "error", err)
@@ -3510,23 +4005,25 @@ func runBackfill(ctx context.Context, args []string) int {
 			}
 		}()
 		store = sqliteStore{db: db}
-	default:
-		slog.Error("backfill: no store configured")
-		return 1
 	}
+	slog.Info("backfill: store selected", "store", target)
 
 	client := tempestapi.NewClient(token)
-	stations, err := client.ListStations(ctx)
+	// ListDevices, NOT ListStations: ListStations collapses each station to a
+	// single ST device, so a two-sensor station would leave one sensor's gaps
+	// permanently unrepaired and unlogged.
+	devices, err := client.ListDevices(ctx)
 	if err != nil {
-		slog.Error("backfill: list stations", "error", err)
+		slog.Error("backfill: list devices", "error", err)
 		return 1
 	}
-	if len(stations) == 0 {
+	if len(devices) == 0 {
 		slog.Error("backfill: the API reported no ST devices for this token")
 		return 1
 	}
+	slog.Info("backfill: devices discovered", "count", len(devices))
 
-	stats, err := backfill.Run(ctx, cfg, client, store, stations, time.Now().UTC())
+	stats, err := backfill.Run(ctx, cfg, client, store, devices, time.Now().UTC())
 	slog.Info("backfill: complete",
 		"gaps", stats.Gaps, "returned", stats.Returned,
 		"inserted", stats.Inserted, "failed", stats.Failed, "dry_run", cfg.DryRun)
@@ -3600,10 +4097,12 @@ Add `"strings"` to `main.go`'s import block. `context` and `fmt` are already imp
 
 - [ ] **Step 5: Run tests to verify they pass**
 
-Run: `go test . -run 'TestParseBackfill|TestRunBackfill|TestKnownSubcommands' -v`
-Expected: PASS — all nine tests.
+Run: `go test . -run 'TestParseBackfill|TestRunBackfill|TestResolveStore|TestKnownSubcommands|TestUnknownSubcommand' -v`
+Expected: PASS.
 
 - [ ] **Step 6: Verify the dispatch by hand**
+
+These behaviors also have real tests (`TestUnknownSubcommandExitsTwoWithoutStartingDaemon`, `TestRunBackfillHelpExitsZero`); run them by hand once as a sanity check on the built artifact:
 
 ```bash
 CGO_ENABLED=0 go build -o /tmp/twx . && /tmp/twx backfil; echo "exit=$?"
@@ -3613,7 +4112,12 @@ Expected: prints `unknown subcommand "backfil"` plus usage, `exit=2`, and **does
 ```bash
 /tmp/twx backfill --help; echo "exit=$?"
 ```
-Expected: prints the four backfill flags with their defaults.
+Expected: prints the five backfill flags with their defaults, and **`exit=0`** — `--help` is not a usage error.
+
+```bash
+ENABLE_POSTGRES=true SQLITE_PATH=/tmp/x.db TOKEN=x /tmp/twx backfill; echo "exit=$?"
+```
+Expected: refuses with a message naming both stores and telling you to pass `--store`; `exit=2`; nothing written.
 
 - [ ] **Step 7: Run the full gate**
 
@@ -3669,11 +4173,23 @@ It writes to whichever store is configured (SQLite by default, Postgres when
 |---|---|---|
 | `--from`, `--to` | unset (auto-detect) | Explicit window, RFC3339 **UTC**. Must be given together. |
 | `--min-gap` | `30m` | Smallest interval that counts as a gap. Raise it for stations with a long `report_interval`. |
-| `--dry-run` | `false` | Detect and plan only: zero API calls, zero writes. Cannot validate the token. |
+| `--dry-run` | `false` | Detect and plan only: zero observation fetches, zero writes. It still lists devices, so it *does* validate the token. |
+| `--store` | unset | `sqlite` or `postgres`. **Required** when both stores are configured. |
 
-**Exit codes:** `0` success (including permanent holes — windows the station was
-genuinely offline for, which the API cannot fill either), `1` one or more gaps
-failed or a runtime error, `2` usage error.
+**`--store` and the fan-out configuration.** With `ENABLE_POSTGRES=true` *and*
+`SQLITE_PATH` set, the daemon writes every observation to **both** stores.
+Backfill repairs one store per run, so in that configuration it refuses to start
+without `--store` rather than guessing — silently repairing Postgres while
+leaving the Litestream-replicated SQLite database holed, and then reporting
+success, would be worse than failing.
+
+**Multiple sensors.** `backfill` enumerates every `ST` device on the account, so a
+station with two Tempest units has both repaired. (This differs from `TOKEN`-mode
+API export, which sees one device per station.)
+
+**Exit codes:** `0` success — including `--help`, and including permanent holes
+(windows the station was genuinely offline for, which the API cannot fill
+either); `1` one or more gaps failed, or a runtime error; `2` usage error.
 
 **Scope:** `tempest_observations` only. There is no historical REST endpoint for
 rapid wind, hub status, or discrete events. Lightning is partially recovered in
