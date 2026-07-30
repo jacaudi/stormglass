@@ -4,9 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
-	"net/http"
 	"time"
 
 	"tempestwx-utilities/internal/weather"
@@ -29,8 +27,7 @@ type observationSet struct {
 		StatusCode    int    `json:"status_code"`
 		StatusMessage string `json:"status_message"`
 	} `json:"status"`
-	Type string       `json:"type"`
-	Obs  [][]*float64 `json:"obs"`
+	Obs [][]*float64 `json:"obs"`
 }
 
 // obs_st tuple indices. Indices 0-17 match the UDP layout exactly, so the
@@ -93,23 +90,7 @@ func (c *Client) Observations(ctx context.Context, station Station, start, end t
 	url := fmt.Sprintf("%s/observations/device/%d?time_start=%d&time_end=%d",
 		c.baseURL, station.DeviceID, start.Unix(), end.Unix())
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Authorization", "Bearer "+c.token)
-
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, &StatusError{HTTPStatus: resp.StatusCode}
-	}
-
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
+	body, err := c.get(ctx, url)
 	if err != nil {
 		return nil, err
 	}

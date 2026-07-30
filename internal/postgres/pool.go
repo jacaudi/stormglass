@@ -28,11 +28,15 @@ func poolConfig(databaseURL string) (*pgxpool.Config, error) {
 
 // OpenPool opens and verifies a connection pool.
 //
-// It starts no goroutines and does NOT create the schema — unlike
-// NewPostgresWriter, which additionally runs CreateSchema and launches four
-// background batch workers. A one-shot tool needs the pool without any of
-// that, and calls CreateSchema explicitly so schema creation stays an
-// observable step of the caller rather than a side effect of opening a pool.
+// It does NOT create the schema and starts no batch-worker goroutines —
+// unlike NewPostgresWriter, which additionally runs CreateSchema and launches
+// four background batch workers. (pgxpool.NewWithConfig itself starts its own
+// internal goroutine for idle-connection maintenance and health checks,
+// regardless of caller; that is pgx's concern, not this function's, and is
+// not the goroutine count this comment is contrasting.) A one-shot tool needs
+// the pool without CreateSchema or the batch workers, and calls CreateSchema
+// explicitly so schema creation stays an observable step of the caller rather
+// than a side effect of opening a pool.
 //
 // The caller owns the returned pool and must Close it.
 func OpenPool(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {

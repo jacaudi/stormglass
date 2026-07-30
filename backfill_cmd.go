@@ -49,6 +49,14 @@ func parseBackfillFlags(args []string) (backfill.Config, string, error) {
 
 	cfg := backfill.Config{MinGap: *minGap, DryRun: *dryRun}
 
+	// A non-positive --min-gap is a silent misconfiguration, not a usable
+	// setting: zero makes every consecutive one-minute observation pair a
+	// "gap", and a negative value pushes detectTo (now - minGap) into the
+	// future.
+	if *minGap <= 0 {
+		return cfg, *store, usageErr(fs, "--min-gap must be positive, got %s", minGap.String())
+	}
+
 	// --store is returned separately, not folded into backfill.Config: it
 	// selects which handle the SHELL opens, and Run has no use for it. A core
 	// config struct carrying a field the core ignores is a trap.
@@ -240,7 +248,11 @@ func runBackfill(ctx context.Context, args []string) int {
 			return 1
 		}
 		// Backfill opens the WRITE path: it must create the schema and
-		// insert. OpenPool starts no goroutines, unlike NewPostgresWriter.
+		// insert. OpenPool starts no batch-worker goroutines, unlike
+		// NewPostgresWriter's four (pgxpool.NewWithConfig itself starts its
+		// own internal goroutine for idle-connection maintenance regardless
+		// of caller — that's pgx's concern, not the contrast being drawn
+		// here).
 		pool, err := postgres.OpenPool(ctx, dbConfig)
 		if err != nil {
 			slog.Error("backfill: open postgres", "error", err)

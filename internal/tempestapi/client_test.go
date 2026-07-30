@@ -1,9 +1,11 @@
 package tempestapi
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -841,6 +843,60 @@ func TestListDevicesReturnsEverySTDevice(t *testing.T) {
 	}
 	if got["ST-00000022"] != 22 || got["ST-00000033"] != 33 {
 		t.Errorf("device map = %v, want ST-00000022→22 and ST-00000033→33", got)
+	}
+}
+
+// ListDevices must not silently accept a malformed ST entry. The API can
+// legitimately answer 200/status_code=0 with an empty obs window for a
+// phantom device, which is byte-identical to the permanent-hole signal a real
+// gap produces — so a dropped/malformed sensor must self-report via a WARN,
+// not vanish quietly.
+func TestListDevicesWarnsOnMalformedEntry(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{
+			name: "empty serial number",
+			body: `{"status":{"status_code":0,"status_message":"SUCCESS"},"stations":[{
+				"station_id": 1, "name": "Home", "created_epoch": 1600000000,
+				"devices": [{"device_id": 22, "device_type": "ST", "serial_number": ""}]
+			}]}`,
+		},
+		{
+			name: "zero device id",
+			body: `{"status":{"status_code":0,"status_message":"SUCCESS"},"stations":[{
+				"station_id": 1, "name": "Home", "created_epoch": 1600000000,
+				"devices": [{"device_id": 0, "device_type": "ST", "serial_number": "ST-00000022"}]
+			}]}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			prev := slog.Default()
+			slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn})))
+			t.Cleanup(func() { slog.SetDefault(prev) })
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, _ = w.Write([]byte(tt.body))
+			}))
+			t.Cleanup(srv.Close)
+			c := NewClient("test-token", WithBaseURL(srv.URL))
+
+			devices, err := c.ListDevices(t.Context())
+			if err != nil {
+				t.Fatalf("ListDevices: %v", err)
+			}
+			// The device is still returned — dropping it is the failure this
+			// guard exists to prevent.
+			if len(devices) != 1 {
+				t.Fatalf("got %d devices, want 1 (malformed device must still be returned)", len(devices))
+			}
+			if !strings.Contains(buf.String(), "Home") {
+				t.Errorf("malformed ST device must log a WARN naming the station; got:\n%s", buf.String())
+			}
+		})
 	}
 }
 

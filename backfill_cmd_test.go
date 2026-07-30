@@ -155,6 +155,30 @@ func TestRunBackfillWithoutTokenFailsBeforeOpeningTheStore(t *testing.T) {
 	}
 }
 
+// --min-gap must be strictly positive. Zero makes every consecutive
+// one-minute observation pair a "gap"; a negative value pushes detectTo
+// into the future. Both are silent misconfigurations, not usable settings.
+func TestParseBackfillFlagsRejectsNonPositiveMinGap(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{"zero", []string{"--min-gap", "0s"}},
+		{"negative", []string{"--min-gap", "-5m"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, _, err := parseBackfillFlags(tt.args)
+			if err == nil {
+				t.Fatalf("--min-gap %v must be rejected", tt.args)
+			}
+			if !strings.Contains(err.Error(), "min-gap") {
+				t.Errorf("error = %q, want it to name --min-gap", err)
+			}
+		})
+	}
+}
+
 func TestParseBackfillFlagsStoreValidation(t *testing.T) {
 	for _, v := range []string{"sqlite", "postgres", ""} {
 		if _, got, err := parseBackfillFlags([]string{"--store", v}); err != nil || got != v {

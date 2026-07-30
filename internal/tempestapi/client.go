@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -50,6 +51,34 @@ func NewClient(token string, opts ...ClientOption) *Client {
 	return c
 }
 
+// get performs an authenticated GET against url and returns the response
+// body. It is the single source for the HTTP transport contract shared by
+// fetchStations, GetObservations, and Observations: set the Bearer auth
+// header, cap the body at 10 MiB, and classify a non-200 response as a
+// *StatusError. Those three call sites used to duplicate this block, and the
+// duplication had already produced an untested copy of the auth header — an
+// edit that deleted it from Observations left the entire suite green. Response
+// decoding stays with each caller; no response type enters this signature.
+func (c *Client) get(ctx context.Context, url string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+c.token)
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, &StatusError{HTTPStatus: resp.StatusCode}
+	}
+
+	return io.ReadAll(io.LimitReader(resp.Body, 10<<20))
+}
+
 type Station struct {
 	Name         string
 	StationID    int
@@ -80,23 +109,7 @@ type stationsResponse struct {
 // fetchStations performs the GET /stations call and validates the status
 // envelope. Behavior is byte-identical to what ListStations did inline.
 func (c *Client) fetchStations(ctx context.Context) (*stationsResponse, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/stations", nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Authorization", "Bearer "+c.token)
-
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, &StatusError{HTTPStatus: resp.StatusCode}
-	}
-
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
+	body, err := c.get(ctx, c.baseURL+"/stations")
 	if err != nil {
 		return nil, err
 	}
@@ -134,6 +147,18 @@ func (c *Client) ListDevices(ctx context.Context) ([]Station, error) {
 		for _, dev := range station.Devices {
 			if dev.DeviceType != "ST" {
 				continue
+			}
+			// A phantom device (zero ID or no serial) is deliberately still
+			// RETURNED, never skipped: the API can answer 200/status_code=0
+			// with an empty obs window for such a device, which is
+			// byte-identical to the permanent-hole signal a real gap
+			// produces. Dropping it here would silently swap "this sensor
+			// doesn't exist" for "this sensor has no gaps" -- so the
+			// assumption is made self-verifying with a WARN instead.
+			if dev.DeviceID == 0 || dev.SerialNumber == "" {
+				slog.Warn("tempestapi: ST device has a malformed identifier",
+					"station", station.Name, "station_id", station.StationID,
+					"device_id", dev.DeviceID, "serial_number", dev.SerialNumber)
 			}
 			out = append(out, Station{
 				Name:         station.Name,
@@ -183,23 +208,12 @@ func (c *Client) ListStations(ctx context.Context) ([]Station, error) {
 
 func (c *Client) GetObservations(ctx context.Context, station Station, startAt time.Time, endAt time.Time) ([]prometheus.Metric, error) {
 	url := fmt.Sprintf("%s/observations/device/%d?time_start=%d&time_end=%d", c.baseURL, station.DeviceID, startAt.Unix(), endAt.Unix())
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Authorization", "Bearer "+c.token)
-
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("weatherflow API status %d", resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
+	// A non-200 response now surfaces as *StatusError rather than a plain
+	// fmt.Errorf. StatusError.Error()'s HTTP branch renders the byte-identical
+	// "weatherflow API status %d" string, so this is not an observable
+	// behavior change for ModeAPIExport, which only formats the error with
+	// %v and never type-asserts on it (main.go's export loop).
+	body, err := c.get(ctx, url)
 	if err != nil {
 		return nil, err
 	}

@@ -226,10 +226,11 @@ func TestObservationsEmptyWindowLogsNoDropWarning(t *testing.T) {
 }
 
 func TestObservationsRequestsCorrectWindow(t *testing.T) {
-	var gotPath, gotQuery string
+	var gotPath, gotQuery, gotAuth string
 	c := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
 		gotPath = r.URL.Path
 		gotQuery = r.URL.RawQuery
+		gotAuth = r.Header.Get("Authorization")
 		_, _ = w.Write([]byte(`{"status":{"status_code":0},"obs":[]}`))
 	})
 	_, err := c.Observations(t.Context(), Station{DeviceID: 77}, time.Unix(1700000000, 0), time.Unix(1700086400, 0))
@@ -241,5 +242,13 @@ func TestObservationsRequestsCorrectWindow(t *testing.T) {
 	}
 	if want := "time_start=1700000000&time_end=1700086400"; gotQuery != want {
 		t.Errorf("query = %q, want %q", gotQuery, want)
+	}
+	// This is the ONLY test that directly asserts Observations sends the
+	// Bearer header — deleting the header line from Observations left the
+	// entire suite green before this assertion existed, because every other
+	// test on this path either doesn't inspect the header or exercises a
+	// different method (fetchStations, via ListStations).
+	if want := "Bearer test-token"; gotAuth != want {
+		t.Errorf("Authorization header = %q, want %q", gotAuth, want)
 	}
 }
