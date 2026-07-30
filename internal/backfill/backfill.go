@@ -204,14 +204,18 @@ func Run(
 	return stats, nil
 }
 
-// detectionRange resolves the window to work over. An explicit --from/--to
-// wins; otherwise detection runs from the earliest station creation time to
-// now-MinGap (trailing MinGap so the most recent, still-arriving interval is
-// not mistaken for a hole).
+// detectionRange resolves the auto-detect window: from the earliest station
+// creation time to now-MinGap (trailing MinGap so the most recent,
+// still-arriving interval is not mistaken for a hole).
+//
+// It is called even on an explicit --from/--to run, but its result is never
+// read on that path: SeriesBounds is skipped (Run guards that call with
+// `cfg.From.IsZero() || cfg.To.IsZero()`) and plannedGaps returns its
+// cfg.From/cfg.To-derived gaps before ever reading the detectFrom/detectTo
+// parameters it was passed. There is deliberately no explicit-range branch
+// here — Run's own guard already makes From/To both-set-or-both-zero, and an
+// early return here would be dead code kept only for symmetry.
 func detectionRange(cfg Config, stations []tempestapi.Station, now time.Time) (time.Time, time.Time) {
-	if !cfg.From.IsZero() && !cfg.To.IsZero() {
-		return cfg.From, cfg.To
-	}
 	detectTo := now.Add(-cfg.MinGap)
 	detectFrom := detectTo
 	for _, s := range stations {

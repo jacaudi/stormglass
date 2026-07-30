@@ -47,6 +47,14 @@ func (f *fakeSource) Observations(_ context.Context, st tempestapi.Station, star
 	return f.obs, nil
 }
 
+// obsKey is the (serial, timestamp) identity the real stores' UNIQUE
+// constraint and ON CONFLICT DO NOTHING key off of (sqlite/backfill.go,
+// postgres/backfill.go).
+type obsKey struct {
+	serial string
+	ts     time.Time
+}
+
 type fakeStore struct {
 	// serials is what DistinctSerials returns — the UNWINDOWED whole-table
 	// serial set the pre-flight check uses. It is deliberately independent of
@@ -57,6 +65,15 @@ type fakeStore struct {
 	gaps      []weather.Gap
 	inserted  [][]weather.Observation
 	insertErr error
+
+	// seen tracks which (serial, timestamp) keys have already been reported
+	// as inserted, so InsertObservations can model the real store's
+	// `ON CONFLICT (serial_number, timestamp) DO NOTHING`: a row whose key
+	// was already reported returns 0 newly-inserted, not len(obs). Without
+	// this, Returned == Inserted in every Run-level test, and the plumbing
+	// between the store's real insert count and Stats.Inserted is never
+	// exercised — see TestRunSecondPassInsertsNothingWhenNothingIsNew.
+	seen map[obsKey]struct{}
 }
 
 func (f *fakeStore) DistinctSerials(context.Context) ([]string, error) {
@@ -76,7 +93,20 @@ func (f *fakeStore) InsertObservations(_ context.Context, obs []weather.Observat
 		return 0, f.insertErr
 	}
 	f.inserted = append(f.inserted, obs)
-	return len(obs), nil
+
+	if f.seen == nil {
+		f.seen = make(map[obsKey]struct{})
+	}
+	n := 0
+	for _, o := range obs {
+		key := obsKey{o.SerialNumber, o.Timestamp}
+		if _, ok := f.seen[key]; ok {
+			continue
+		}
+		f.seen[key] = struct{}{}
+		n++
+	}
+	return n, nil
 }
 
 func station(serial string) tempestapi.Station {
@@ -360,8 +390,28 @@ func TestFillGapContinuesAfterAFailedWindow(t *testing.T) {
 	if len(src.calls) != 3 {
 		t.Errorf("made %d API calls, want 3 — window 3 must still be attempted after window 2 fails", len(src.calls))
 	}
-	if stats.Inserted != 2 {
-		t.Errorf("Inserted = %d, want 2 (windows 1 and 3 both landed)", stats.Inserted)
+	// window 3 must still be OFFERED to the store even though fakeSource
+	// hands back the same static observation regardless of which window
+	// asked: two separate batches submitted to InsertObservations proves
+	// window 3's result was not silently dropped after window 2 failed.
+	if len(store.inserted) != 2 {
+		t.Errorf("submitted %d batches to InsertObservations, want 2 (windows 1 and 3 each offer their result)",
+			len(store.inserted))
+	}
+	// Inserted counts genuinely NEW rows: fakeStore dedupes on (serial,
+	// timestamp), mirroring the real stores' ON CONFLICT DO NOTHING
+	// (sqlite/backfill.go, postgres/backfill.go). Windows 1 and 3 return the
+	// IDENTICAL observation here (fakeSource always hands back the same
+	// static obs, regardless of window), so window 3's insert correctly
+	// reports 0 new — a real store would do exactly the same for the same
+	// key offered twice. This previously asserted 2, which only held because
+	// the old fake unconditionally returned len(obs) without checking
+	// whether the row had already landed; see
+	// TestRunSecondPassInsertsNothingWhenNothingIsNew for the scenario that
+	// exposed it.
+	if stats.Inserted != 1 {
+		t.Errorf("Inserted = %d, want 1 (window 1 lands the row; window 3 re-offers the identical "+
+			"serial+timestamp and correctly reports 0 new)", stats.Inserted)
 	}
 	if stats.Returned != 2 {
 		t.Errorf("Returned = %d, want 2 (windows 1 and 3 each returned one observation)", stats.Returned)
@@ -552,6 +602,49 @@ func TestRunHonorsContextCancellation(t *testing.T) {
 	}
 	if len(store.inserted) != 0 {
 		t.Errorf("made %d inserts under a cancelled context, want 0", len(store.inserted))
+	}
+}
+
+// This is the design's actual convergence scenario (Stats.Inserted's doc
+// comment): a station that is genuinely offline yields the exact same
+// observations on every run, so a second Run against the same store must
+// report Returned > 0 (the API still hands back what it has) and
+// Inserted == 0 (every row already landed). Automation watches for exactly
+// this "Inserted == 0 across runs" signal to decide a repair has converged
+// or is permanently stuck — see Stats.Inserted and fillGap's doc comments.
+//
+// This is the regression guard for `inserted += n` in fillGap: replacing it
+// with `inserted += len(chunk)` (discarding the store's real insert count)
+// leaves Returned == Inserted on every run, so a permanently-offline station
+// would report inserted>0 forever and automation would never notice.
+func TestRunSecondPassInsertsNothingWhenNothingIsNew(t *testing.T) {
+	src := &fakeSource{obs: []weather.Observation{obsAt("ST-A", 5000)}}
+	store := &fakeStore{}
+
+	from := at(0)
+	to := from.Add(time.Hour)
+	cfg := Config{From: from, To: to, MinGap: 30 * time.Minute}
+	stations := []tempestapi.Station{station("ST-A")}
+
+	first, err := Run(t.Context(), cfg, src, store, stations, to)
+	if err != nil {
+		t.Fatalf("first Run: %v", err)
+	}
+	if first.Inserted == 0 {
+		t.Fatal("first run should have inserted the fresh row")
+	}
+
+	second, err := Run(t.Context(), cfg, src, store, stations, to)
+	if err != nil {
+		t.Fatalf("second Run: %v", err)
+	}
+	if second.Returned == 0 {
+		t.Error("second run must still fetch — the API always returns what it has")
+	}
+	if second.Inserted != 0 {
+		t.Errorf("second run Inserted = %d, want 0 — every row already landed on the "+
+			"first run, which is the permanent-hole/already-converged signal automation "+
+			"watches for", second.Inserted)
 	}
 }
 

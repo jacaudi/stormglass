@@ -105,12 +105,13 @@ func TestBackfillPostgresIntegration(t *testing.T) {
 	serialA := "ST-ITEST-A"
 	serialB := "ST-ITEST-B"
 	serialC := "ST-ITEST-C" // isolated: exercises the full derive-and-store wetbulb path only
+	serialD := "ST-ITEST-D" // isolated: exercises the full 18-column bind order, one distinct value per field
 	t.Cleanup(func() {
 		_, _ = pool.Exec(context.Background(),
-			`DELETE FROM tempest_observations WHERE serial_number IN ($1, $2, $3)`, serialA, serialB, serialC)
+			`DELETE FROM tempest_observations WHERE serial_number IN ($1, $2, $3, $4)`, serialA, serialB, serialC, serialD)
 	})
 	if _, err := pool.Exec(ctx,
-		`DELETE FROM tempest_observations WHERE serial_number IN ($1, $2, $3)`, serialA, serialB, serialC); err != nil {
+		`DELETE FROM tempest_observations WHERE serial_number IN ($1, $2, $3, $4)`, serialA, serialB, serialC, serialD); err != nil {
 		t.Fatalf("pre-clean: %v", err)
 	}
 
@@ -152,6 +153,35 @@ func TestBackfillPostgresIntegration(t *testing.T) {
 		TempAir:      f(20.5),
 		Humidity:     f(55),
 		Pressure:     f(1013),
+	})
+	// serialD carries a DISTINCT, unambiguous value in every one of the 18
+	// bound columns (17 direct fields + the derived temp_wetbulb), so a
+	// transposition of any two adjacent binds in InsertObservations (e.g.
+	// WindAvg <-> WindGust) changes an observable column value and fails the
+	// round-trip assertion below by name, instead of leaving every other
+	// assertion in this test green. This mirrors the SQLite twin's
+	// TestInsertObservationsRoundTripsAllColumns, which the Postgres side
+	// lacked until now (only 7 of 18 columns were ever read back).
+	seed = append(seed, weather.Observation{
+		SerialNumber:         serialD,
+		Timestamp:            base,
+		WindLull:             f(21.1),
+		WindAvg:              f(22.2),
+		WindGust:             f(23.3),
+		WindDirection:        f(24.4),
+		WindSampleInterval:   f(25),
+		Pressure:             f(26.6),
+		TempAir:              f(27.7),
+		Humidity:             f(28.8),
+		Illuminance:          f(29.9),
+		UVIndex:              f(30.1),
+		Irradiance:           f(31.1),
+		RainRate:             f(32.2),
+		PrecipType:           f(33), // the sole INTEGER column (schema.go:55)
+		LightningDistance:    f(34.4),
+		LightningStrikeCount: f(35),
+		Battery:              f(36.6),
+		ReportInterval:       f(37),
 	})
 
 	// Partial-conflict coverage (the real repair-run shape): insert a prefix
@@ -276,6 +306,94 @@ func TestBackfillPostgresIntegration(t *testing.T) {
 	}
 	if *wetbulbC <= 0 || *wetbulbC >= 20.5 {
 		t.Errorf("%s temp_wetbulb = %v, want a plausible value below dry-bulb 20.5", serialC, *wetbulbC)
+	}
+
+	// Full 18-column round-trip: serialD carries a distinct value in every
+	// bound field, selected here by name — never positionally — to pin the
+	// complete bind order in InsertObservations. A transposition of ANY two
+	// binds (not just the 7 previously checked) fails this by name.
+	var (
+		windLull, windAvg, windGust, windDirection *float64
+		windSampleInterval                         *int64
+		pressureD, tempAirD                        *float64
+		tempWetbulbD                               *float64
+		humidityD                                  *float64
+		illuminance, uvIndex, irradiance, rainRate *float64
+		precipTypeD                                *int64
+		lightningDistance                          *float64
+		lightningStrikeCount                       *int64
+		batteryD                                   *float64
+		reportIntervalD                            *int64
+	)
+	if err := pool.QueryRow(ctx,
+		`SELECT wind_lull, wind_avg, wind_gust, wind_direction, wind_sample_interval,
+		        pressure, temp_air, temp_wetbulb, humidity,
+		        illuminance, uv_index, irradiance, rain_rate, precip_type,
+		        lightning_distance, lightning_strike_count, battery, report_interval
+		 FROM tempest_observations WHERE serial_number = $1 AND timestamp = $2`,
+		serialD, base).Scan(
+		&windLull, &windAvg, &windGust, &windDirection, &windSampleInterval,
+		&pressureD, &tempAirD, &tempWetbulbD, &humidityD,
+		&illuminance, &uvIndex, &irradiance, &rainRate, &precipTypeD,
+		&lightningDistance, &lightningStrikeCount, &batteryD, &reportIntervalD,
+	); err != nil {
+		t.Fatalf("read back %s observation columns: %v", serialD, err)
+	}
+
+	floatCases := []struct {
+		column string
+		got    *float64
+		want   float64
+	}{
+		{"wind_lull", windLull, 21.1},
+		{"wind_avg", windAvg, 22.2},
+		{"wind_gust", windGust, 23.3},
+		{"wind_direction", windDirection, 24.4},
+		{"pressure", pressureD, 26.6},
+		{"temp_air", tempAirD, 27.7},
+		{"humidity", humidityD, 28.8},
+		{"illuminance", illuminance, 29.9},
+		{"uv_index", uvIndex, 30.1},
+		{"irradiance", irradiance, 31.1},
+		{"rain_rate", rainRate, 32.2},
+		{"lightning_distance", lightningDistance, 34.4},
+		{"battery", batteryD, 36.6},
+	}
+	for _, c := range floatCases {
+		if c.got == nil {
+			t.Errorf("%s (%s) is NULL, want %v", c.column, serialD, c.want)
+			continue
+		}
+		if *c.got != c.want {
+			t.Errorf("%s (%s) = %v, want %v", c.column, serialD, *c.got, c.want)
+		}
+	}
+
+	intCases := []struct {
+		column string
+		got    *int64
+		want   int64
+	}{
+		{"wind_sample_interval", windSampleInterval, 25},
+		{"precip_type", precipTypeD, 33},
+		{"lightning_strike_count", lightningStrikeCount, 35},
+		{"report_interval", reportIntervalD, 37},
+	}
+	for _, c := range intCases {
+		if c.got == nil {
+			t.Errorf("%s (%s) is NULL, want %d", c.column, serialD, c.want)
+			continue
+		}
+		if *c.got != c.want {
+			t.Errorf("%s (%s) = %d, want %d", c.column, serialD, *c.got, c.want)
+		}
+	}
+
+	if tempWetbulbD == nil {
+		t.Fatalf("%s temp_wetbulb is NULL, want a derived value (temp/humidity/pressure all present)", serialD)
+	}
+	if *tempWetbulbD <= 0 || *tempWetbulbD >= 27.7 {
+		t.Errorf("%s temp_wetbulb = %v, want a plausible value below dry-bulb 27.7", serialD, *tempWetbulbD)
 	}
 
 	gaps, err := FindObservationGaps(ctx, pool, from, to, 30*time.Minute)

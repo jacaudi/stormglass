@@ -170,11 +170,11 @@ func InsertObservations(ctx context.Context, db *sql.DB, obs []weather.Observati
 	err := execBatch(ctx, db, insertObservationSQL, obs, func(stmt *sql.Stmt, o weather.Observation) error {
 		res, err := stmt.ExecContext(ctx,
 			uuid.Must(uuid.NewV7()).String(), o.SerialNumber, o.Timestamp.Unix(),
-			o.WindLull, o.WindAvg, o.WindGust, o.WindDirection, o.WindSampleInterval,
+			o.WindLull, o.WindAvg, o.WindGust, o.WindDirection, asInt64(o.WindSampleInterval),
 			o.Pressure, o.TempAir, wetBulb(o), o.Humidity,
-			o.Illuminance, o.UVIndex, o.Irradiance, o.RainRate, o.PrecipType,
-			o.LightningDistance, o.LightningStrikeCount,
-			o.Battery, o.ReportInterval)
+			o.Illuminance, o.UVIndex, o.Irradiance, o.RainRate, asInt64(o.PrecipType),
+			o.LightningDistance, asInt64(o.LightningStrikeCount),
+			o.Battery, asInt64(o.ReportInterval))
 		if err != nil {
 			return err
 		}
@@ -189,6 +189,22 @@ func InsertObservations(ctx context.Context, db *sql.DB, obs []weather.Observati
 		return 0, err
 	}
 	return inserted, nil
+}
+
+// asInt64 converts a possibly-nil *float64 into a possibly-nil *int64,
+// matching how the UDP path stores wind_sample_interval, precip_type,
+// lightning_strike_count, and report_interval (writer.go:436-457, fix
+// B-LOW): the SQLite DDL declares these columns INTEGER, and the read model
+// scans them into *int64. Binding one of these fields as *float64 with a
+// fractional value stores it with REAL affinity, which then fails a *int64
+// scan for the whole row. int64(...) truncation, not rounding, mirrors the
+// UDP path exactly. Nil maps to SQL NULL.
+func asInt64(p *float64) *int64 {
+	if p == nil {
+		return nil
+	}
+	v := int64(*p)
+	return &v
 }
 
 // wetBulb derives temp_wetbulb, which the REST API does not return.

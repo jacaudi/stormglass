@@ -247,11 +247,10 @@ func TestInsertObservationsEmptyIsNoop(t *testing.T) {
 //
 // wind_sample_interval, precip_type, lightning_strike_count, and
 // report_interval are declared INTEGER in migrations/0001_init.sql, so this
-// test keeps those four fields integral. That is a deliberate accommodation
-// of the deferred *float64-into-INTEGER-column finding, not a claim that the
-// finding is resolved — SQLite's column affinity converts an integral REAL
-// bind to INTEGER storage losslessly, so using integral values here avoids
-// dragging that out-of-scope issue into this test.
+// test keeps those four fields integral — this test's job is pinning bind
+// ORDER, not the *float64-into-INTEGER-column conversion, which is asInt64's
+// job and TestInsertObservationsStoresIntegerColumnsAsIntegers's coverage
+// (a FRACTIONAL value for these four, round-tripped through a *int64 scan).
 func TestInsertObservationsRoundTripsAllColumns(t *testing.T) {
 	db := newTestDB(t)
 	o := weather.Observation{
@@ -345,6 +344,68 @@ func TestInsertObservationsRoundTripsAllColumns(t *testing.T) {
 	}
 	if tempWetbulb.Float64 <= 0 || tempWetbulb.Float64 > 22.5 {
 		t.Errorf("temp_wetbulb = %v, want a plausible value in (0, 22.5] for dry-bulb 22.5", tempWetbulb.Float64)
+	}
+}
+
+// TestInsertObservationsStoresIntegerColumnsAsIntegers pins the fix for the
+// *float64-into-INTEGER-column hazard: wind_sample_interval, precip_type,
+// lightning_strike_count, and report_interval are declared INTEGER in
+// migrations/0001_init.sql, and the UDP read model (writer.go, fix B-LOW)
+// scans them into *int64. Binding a *float64 with a FRACTIONAL value stores
+// it with SQLite REAL affinity, which then fails a *int64 scan for the WHOLE
+// ROW it is part of — not just that column. InsertObservations must convert
+// these four fields to an integral bind exactly the way the UDP path does
+// (writer.go handleObservationReport, fix B-LOW: int64(...) truncation)
+// before binding, so a fractional API value is stored — and reads back — as
+// an integer, indistinguishable from a live UDP-ingested row.
+func TestInsertObservationsStoresIntegerColumnsAsIntegers(t *testing.T) {
+	db := newTestDB(t)
+	obs := []weather.Observation{
+		{
+			SerialNumber:         "ST-A",
+			Timestamp:            ts(1000),
+			WindSampleInterval:   f(1.5),
+			PrecipType:           f(1.9),
+			LightningStrikeCount: f(2.5),
+			ReportInterval:       f(5.9),
+		},
+	}
+	if _, err := InsertObservations(t.Context(), db, obs); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+
+	// Scan into *int64 — the read model's declared type for these columns.
+	// This is the exact scan that fails with "converting driver.Value type
+	// float64 (...) to a int64: invalid syntax" when a fractional value was
+	// bound as *float64 instead of converted to *int64 first.
+	var windSampleInterval, precipType, lightningStrikeCount, reportInterval sql.NullInt64
+	row := db.QueryRowContext(t.Context(), `
+		SELECT wind_sample_interval, precip_type, lightning_strike_count, report_interval
+		FROM tempest_observations WHERE serial_number = ? AND timestamp = ?`,
+		"ST-A", ts(1000).Unix())
+	if err := row.Scan(&windSampleInterval, &precipType, &lightningStrikeCount, &reportInterval); err != nil {
+		t.Fatalf("scan into *int64 (the read model's declared type): %v", err)
+	}
+
+	cases := []struct {
+		column string
+		got    sql.NullInt64
+		want   int64
+	}{
+		{"wind_sample_interval", windSampleInterval, 1},
+		{"precip_type", precipType, 1},
+		{"lightning_strike_count", lightningStrikeCount, 2},
+		{"report_interval", reportInterval, 5},
+	}
+	for _, c := range cases {
+		if !c.got.Valid {
+			t.Errorf("%s = NULL, want %d", c.column, c.want)
+			continue
+		}
+		if c.got.Int64 != c.want {
+			t.Errorf("%s = %d, want %d (truncated from the fractional API value, matching "+
+				"the UDP path's int64(...) conversion)", c.column, c.got.Int64, c.want)
+		}
 	}
 }
 
