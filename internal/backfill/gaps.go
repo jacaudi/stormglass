@@ -30,6 +30,10 @@ import (
 // absent from the API (a retired station) produces no work — there is nothing
 // to fetch for it. Edges narrower than minGap are ordinary reporting jitter
 // and are dropped, matching the interior threshold.
+//
+// serials must not contain duplicates — the caller's contract, not this
+// function's: a repeated serial yields repeated gaps. serials is derived
+// from ListDevices, which does not repeat a station.
 func assembleGaps(
 	interior []weather.Gap,
 	bounds []weather.Bounds,
@@ -37,14 +41,14 @@ func assembleGaps(
 	detectFrom, detectTo time.Time,
 	minGap time.Duration,
 ) []weather.Gap {
-	byserial := make(map[string]weather.Bounds, len(bounds))
+	bySerial := make(map[string]weather.Bounds, len(bounds))
 	for _, b := range bounds {
-		byserial[b.SerialNumber] = b
+		bySerial[b.SerialNumber] = b
 	}
 
 	var out []weather.Gap
 	for _, serial := range serials {
-		b, ok := byserial[serial]
+		b, ok := bySerial[serial]
 		if !ok {
 			// Nothing stored for this serial in the detection window: the
 			// whole range is one gap.
