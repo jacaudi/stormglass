@@ -40,7 +40,10 @@ var ErrSerialMismatch = errors.New("station serials disjoint from store")
 // Config is the backfill run's parameters. It holds no I/O handles and no
 // clock — both are passed to Run explicitly so the core is testable.
 type Config struct {
-	// From and To bound the work explicitly. Both zero means auto-detect.
+	// From and To bound the work explicitly. Both zero means auto-detect. A
+	// half-specified range (exactly one of the two zero) is rejected by Run
+	// with an error before any I/O — it is never silently treated as
+	// auto-detect.
 	//
 	// The override exists to BOUND API WORK, not to avoid a table scan
 	// (idx_obs_serial_time already covers detection): because permanent holes
@@ -121,6 +124,10 @@ func Run(
 	now time.Time,
 ) (Stats, error) {
 	var stats Stats
+
+	if cfg.From.IsZero() != cfg.To.IsZero() {
+		return stats, fmt.Errorf("backfill: From and To must both be set or both be zero, got From=%v To=%v", cfg.From, cfg.To)
+	}
 
 	detectFrom, detectTo := detectionRange(cfg, stations, now)
 

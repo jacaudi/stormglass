@@ -3,7 +3,10 @@ package backfill
 import (
 	"context"
 	"errors"
+	"io"
+	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -11,6 +14,17 @@ import (
 	"tempestwx-utilities/internal/tempestapi"
 	"tempestwx-utilities/internal/weather"
 )
+
+// TestMain silences slog for this package's test binary. Nearly every test
+// here drives Run/fillGap/fetchWithRetry, which log unconditionally by
+// design (§backfill.go), so the per-test slog.SetDefault + t.Cleanup idiom
+// used elsewhere in the repo (internal/tempestapi, internal/httpserver)
+// would mean repeating it in essentially every test in this file. A single
+// package-wide override is the less invasive form of the same idiom.
+func TestMain(m *testing.M) {
+	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	os.Exit(m.Run())
+}
 
 // --- fakes ---
 
@@ -275,8 +289,8 @@ func TestRunBackfillsEveryDevice(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
-	if stats.Gaps < 2 {
-		t.Errorf("Gaps = %d, want at least 2 — one per device", stats.Gaps)
+	if stats.Gaps != 2 {
+		t.Errorf("Gaps = %d, want exactly 2 — one whole-range gap per device", stats.Gaps)
 	}
 
 	fetched := map[string]bool{}
@@ -349,6 +363,9 @@ func TestFillGapContinuesAfterAFailedWindow(t *testing.T) {
 	if stats.Inserted != 2 {
 		t.Errorf("Inserted = %d, want 2 (windows 1 and 3 both landed)", stats.Inserted)
 	}
+	if stats.Returned != 2 {
+		t.Errorf("Returned = %d, want 2 (windows 1 and 3 each returned one observation)", stats.Returned)
+	}
 	if stats.Failed != 1 {
 		t.Errorf("Failed = %d, want 1", stats.Failed)
 	}
@@ -398,6 +415,42 @@ func TestRunRetriesTransientThenSucceeds(t *testing.T) {
 	}
 	if stats.Inserted != 1 {
 		t.Errorf("Inserted = %d, want 1", stats.Inserted)
+	}
+}
+
+// Regression: fetchWithRetry's exhaustion path (all maxAttempts attempts
+// transient) was previously dead under the suite — nothing supplied enough
+// retryable failures to reach it, so raising maxAttempts (and the unbounded
+// baseBackoff growth that comes with it) would have shipped green.
+//
+// Real backoff applies here (1s + 2s + 4s = 7s between the 4 attempts); do
+// not add a second test like this.
+func TestRunRetryExhaustionFailsTheWindowAfterMaxAttempts(t *testing.T) {
+	src := &fakeSource{
+		errs: []error{
+			&tempestapi.StatusError{HTTPStatus: http.StatusServiceUnavailable},
+			&tempestapi.StatusError{HTTPStatus: http.StatusServiceUnavailable},
+			&tempestapi.StatusError{HTTPStatus: http.StatusServiceUnavailable},
+			&tempestapi.StatusError{HTTPStatus: http.StatusServiceUnavailable},
+		},
+	}
+	store := &fakeStore{bounds: []weather.Bounds{{SerialNumber: "ST-A", First: at(0), Last: at(1)}}}
+
+	from := at(0)
+	stats, err := Run(t.Context(),
+		Config{From: from, To: from.Add(time.Hour), MinGap: 30 * time.Minute},
+		src, store, []tempestapi.Station{station("ST-A")}, from.Add(time.Hour))
+	if err == nil {
+		t.Fatal("exhausting every retry attempt must surface as an error")
+	}
+	if len(src.calls) != 4 {
+		t.Errorf("made %d calls, want 4 (maxAttempts) — raising maxAttempts must show up here", len(src.calls))
+	}
+	if stats.Failed != 1 {
+		t.Errorf("Failed = %d, want 1", stats.Failed)
+	}
+	if !strings.Contains(err.Error(), "4 attempts") {
+		t.Errorf("err = %v, want it to mention the attempt count", err)
 	}
 }
 
@@ -456,11 +509,14 @@ func TestRunBoundsInsertBatchSize(t *testing.T) {
 	store := &fakeStore{bounds: []weather.Bounds{{SerialNumber: "ST-A", First: at(0), Last: at(1)}}}
 
 	from := at(0)
-	_, err := Run(t.Context(),
+	stats, err := Run(t.Context(),
 		Config{From: from, To: from.Add(time.Hour), MinGap: 30 * time.Minute},
 		src, store, []tempestapi.Station{station("ST-A")}, from.Add(time.Hour))
 	if err != nil {
 		t.Fatalf("Run: %v", err)
+	}
+	if stats.Returned != 500 {
+		t.Errorf("Returned = %d, want 500 (observations the API handed back, not rows requested)", stats.Returned)
 	}
 	if len(store.inserted) < 3 {
 		t.Fatalf("got %d batches, want at least 3 for 500 rows at max 200/batch", len(store.inserted))
@@ -485,5 +541,50 @@ func TestRunHonorsContextCancellation(t *testing.T) {
 		src, store, []tempestapi.Station{station("ST-A")}, from.Add(72*time.Hour))
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("err = %v, want context.Canceled", err)
+	}
+	// Cancellation must be honored PROMPTLY — before any window is fetched or
+	// inserted — not merely reported after the run has already done all the
+	// work. Otherwise a cancelled multi-hour backfill would still perform
+	// every API call and every insert before finally returning
+	// context.Canceled, which is indistinguishable from ignoring cancellation.
+	if len(src.calls) != 0 {
+		t.Errorf("made %d API calls under a cancelled context, want 0", len(src.calls))
+	}
+	if len(store.inserted) != 0 {
+		t.Errorf("made %d inserts under a cancelled context, want 0", len(store.inserted))
+	}
+}
+
+// A half-specified range (only From, or only To) must be rejected outright,
+// not silently discarded in favor of a full auto-detect. Auto-detect over a
+// long-lived station is hours of API hammering — exactly what an explicit
+// --from/--to is meant to let an operator avoid (see Config.From's doc
+// comment). Both subcases share one assertion set, which is why they are one
+// table rather than two near-duplicate test functions.
+func TestRunRejectsHalfSpecifiedRange(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  Config
+	}{
+		{"From set, To zero", Config{From: at(1000), MinGap: 30 * time.Minute}},
+		{"To set, From zero", Config{To: at(1000), MinGap: 30 * time.Minute}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			src := &fakeSource{obs: []weather.Observation{obsAt("ST-A", 5000)}}
+			store := &fakeStore{}
+
+			_, err := Run(t.Context(), tt.cfg,
+				src, store, []tempestapi.Station{station("ST-A")}, at(200000))
+			if err == nil {
+				t.Fatal("a half-specified range must be rejected, got nil error")
+			}
+			if len(src.calls) != 0 {
+				t.Errorf("made %d API calls for a rejected config, want 0", len(src.calls))
+			}
+			if len(store.inserted) != 0 {
+				t.Errorf("made %d inserts for a rejected config, want 0", len(store.inserted))
+			}
+		})
 	}
 }
