@@ -26,26 +26,80 @@ func TestParseBackfillFlagsDefaults(t *testing.T) {
 	}
 }
 
+// The Z-suffixed case alone cannot pin the ".UTC()" conversion in
+// parseBackfillFlags: time.Parse(time.RFC3339, ...) already returns a
+// time.UTC location for a Z suffix, so cfg.From.Location() != time.UTC can
+// never fire regardless of whether the conversion is present. The
+// offset-bearing case forces time.Parse to return a non-UTC location, so the
+// location check only passes if the conversion actually runs — and the
+// instant check confirms it converts to the correct point in time, not just
+// relabels the location.
 func TestParseBackfillFlagsRFC3339IsUTC(t *testing.T) {
-	cfg, _, err := parseBackfillFlags([]string{"--from", "2026-01-02T03:04:05Z", "--to", "2026-01-03T03:04:05Z"})
-	if err != nil {
-		t.Fatalf("parseBackfillFlags: %v", err)
+	tests := []struct {
+		name     string
+		args     []string
+		wantFrom time.Time
+		wantTo   time.Time
+	}{
+		{
+			name:     "Z suffix is already UTC",
+			args:     []string{"--from", "2026-01-02T03:04:05Z", "--to", "2026-01-03T03:04:05Z"},
+			wantFrom: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC),
+			wantTo:   time.Date(2026, 1, 3, 3, 4, 5, 0, time.UTC),
+		},
+		{
+			name:     "offset is normalized to UTC",
+			args:     []string{"--from", "2026-01-02T03:04:05+05:00", "--to", "2026-01-03T03:04:05+05:00"},
+			wantFrom: time.Date(2026, 1, 1, 22, 4, 5, 0, time.UTC),
+			wantTo:   time.Date(2026, 1, 2, 22, 4, 5, 0, time.UTC),
+		},
 	}
-	if cfg.From.Location() != time.UTC {
-		t.Errorf("From location = %v, want UTC", cfg.From.Location())
-	}
-	if cfg.From.Format(time.RFC3339) != "2026-01-02T03:04:05Z" {
-		t.Errorf("From = %v, want 2026-01-02T03:04:05Z", cfg.From.Format(time.RFC3339))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, _, err := parseBackfillFlags(tt.args)
+			if err != nil {
+				t.Fatalf("parseBackfillFlags: %v", err)
+			}
+			if cfg.From.Location() != time.UTC {
+				t.Errorf("From location = %v, want UTC", cfg.From.Location())
+			}
+			if cfg.To.Location() != time.UTC {
+				t.Errorf("To location = %v, want UTC", cfg.To.Location())
+			}
+			if !cfg.From.Equal(tt.wantFrom) {
+				t.Errorf("From = %v, want %v", cfg.From, tt.wantFrom)
+			}
+			if !cfg.To.Equal(tt.wantTo) {
+				t.Errorf("To = %v, want %v", cfg.To, tt.wantTo)
+			}
+		})
 	}
 }
 
+// Both flags are always passed here, deliberately. The both-or-neither guard
+// (TestParseBackfillFlagsRequiresBothOrNeither) fires before the RFC3339
+// parse and its error also contains "from" or "to" — so a single-flag call
+// would satisfy a substring-on-the-flag-name assertion without ever reaching
+// the RFC3339 branch under test. Asserting on "RFC3339" instead, which only
+// the parse-failure message contains, is what actually pins this branch.
 func TestParseBackfillFlagsRejectsNonRFC3339(t *testing.T) {
-	_, _, err := parseBackfillFlags([]string{"--from", "2026-01-02"})
-	if err == nil {
-		t.Fatal("a non-RFC3339 --from must be rejected; an ambiguous local-time parse is a quiet wrong-window bug")
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{"bad --from", []string{"--from", "2026-01-02", "--to", "2026-01-03T00:00:00Z"}},
+		{"bad --to", []string{"--from", "2026-01-02T00:00:00Z", "--to", "2026-01-03"}},
 	}
-	if !strings.Contains(err.Error(), "from") {
-		t.Errorf("error = %q, want it to name the offending flag", err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, _, err := parseBackfillFlags(tt.args)
+			if err == nil {
+				t.Fatal("a non-RFC3339 date must be rejected; an ambiguous local-time parse is a quiet wrong-window bug")
+			}
+			if !strings.Contains(err.Error(), "RFC3339") {
+				t.Errorf("error = %q, want it to report the RFC3339 requirement (the both-or-neither guard's message would also contain the flag name)", err)
+			}
+		})
 	}
 }
 
