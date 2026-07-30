@@ -32,6 +32,31 @@ func TestChunkWindowSplitsMultiDayRange(t *testing.T) {
 	}
 }
 
+// TestChunkWindowPinsMaxWidthInvariant exercises a range well past the
+// Tempest API's five-day one-minute-resolution cap. The 1-day chunkSize is a
+// data-integrity control, not a performance knob: a window wider than `size`
+// would silently receive coarser-resolution data from the API, which then
+// gets written as if it were 1-minute observations. Checking only the tail's
+// width (as the other tests here do) cannot catch a chunker that lets every
+// *intermediate* window run unbounded to `to` — this test pins exactly that.
+func TestChunkWindowPinsMaxWidthInvariant(t *testing.T) {
+	from := time.Unix(0, 0).UTC()
+	to := from.Add(30 * 24 * time.Hour) // 30 days, well past the 5-day cap
+
+	got := chunkWindow(from, to, 24*time.Hour)
+	if len(got) != 30 {
+		t.Errorf("got %d windows, want 30: %+v", len(got), got)
+	}
+	for i, w := range got {
+		if w.to.Sub(w.from) > 24*time.Hour {
+			t.Errorf("window %d width = %v, exceeds size 24h", i, w.to.Sub(w.from))
+		}
+		if i > 0 && !w.from.Equal(got[i-1].to) {
+			t.Errorf("window %d from = %v, want contiguous with previous to = %v", i, w.from, got[i-1].to)
+		}
+	}
+}
+
 func TestChunkWindowPartialTail(t *testing.T) {
 	from := time.Unix(0, 0).UTC()
 	to := from.Add(30 * time.Hour)
@@ -67,6 +92,31 @@ func TestChunkWindowEmptyOrInvertedRange(t *testing.T) {
 	}
 	if got := chunkWindow(from, from.Add(-time.Hour), 24*time.Hour); len(got) != 0 {
 		t.Errorf("inverted range produced %d windows, want 0", len(got))
+	}
+}
+
+// TestChunkWindowNonPositiveSizeYieldsNoWindows guards against an infinite
+// loop: with size <= 0, start.Add(size) never advances start past `to`, so
+// the loop would otherwise grow the output slice without bound until the
+// process is OOM-killed. Unreachable today (the only caller passes the
+// chunkSize constant), but the guard is free.
+func TestChunkWindowNonPositiveSizeYieldsNoWindows(t *testing.T) {
+	from := time.Unix(0, 0).UTC()
+	to := from.Add(72 * time.Hour)
+
+	tests := []struct {
+		name string
+		size time.Duration
+	}{
+		{"zero size", 0},
+		{"negative size", -time.Hour},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := chunkWindow(from, to, tt.size); len(got) != 0 {
+				t.Errorf("got %d windows, want 0", len(got))
+			}
+		})
 	}
 }
 

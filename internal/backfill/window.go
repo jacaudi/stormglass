@@ -31,9 +31,9 @@ type window struct {
 
 // chunkWindow splits [from, to] into consecutive windows of at most size. The
 // final window is truncated to `to` rather than overshooting it. A zero-width
-// or inverted range yields no windows.
+// or inverted range, or a non-positive size, yields no windows.
 func chunkWindow(from, to time.Time, size time.Duration) []window {
-	if !to.After(from) {
+	if size <= 0 || !to.After(from) {
 		return nil
 	}
 	var out []window
