@@ -135,18 +135,6 @@ func DistinctSerials(ctx context.Context, pool *pgxpool.Pool) ([]string, error) 
 	return out, nil
 }
 
-const backfillInsertSQL = `
-	INSERT INTO tempest_observations (
-		id, serial_number, timestamp,
-		wind_lull, wind_avg, wind_gust, wind_direction, wind_sample_interval,
-		pressure, temp_air, temp_wetbulb, humidity,
-		illuminance, uv_index, irradiance, rain_rate, precip_type,
-		lightning_distance, lightning_strike_count,
-		battery, report_interval
-	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
-	ON CONFLICT (serial_number, timestamp) DO NOTHING
-`
-
 // InsertObservations writes obs idempotently and reports how many rows were
 // actually new. CommandTag.RowsAffected() is 0 for a skipped conflict and 1
 // for an insert — the same semantics as SQLite's per-row RowsAffected, and
@@ -164,7 +152,7 @@ func InsertObservations(ctx context.Context, pool *pgxpool.Pool, obs []weather.O
 
 	b := &pgx.Batch{}
 	for _, o := range obs {
-		b.Queue(backfillInsertSQL,
+		b.Queue(insertObservationSQL,
 			uuid.Must(uuid.NewV7()), o.SerialNumber, o.Timestamp,
 			o.WindLull, o.WindAvg, o.WindGust, o.WindDirection, o.WindSampleInterval,
 			o.Pressure, o.TempAir, wetBulb(o), o.Humidity,

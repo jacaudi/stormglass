@@ -214,6 +214,25 @@ func (w *PostgresWriter) flushObservations(ctx context.Context, batch []observat
 	}, "tempest_observations", len(batch))
 }
 
+// insertObservationSQL is the single source of truth for the
+// tempest_observations INSERT shape — the live daemon write path
+// (insertObservations below) and the backfill path
+// (InsertObservations in backfill.go) both bind against this constant.
+// Add a column here and both write paths pick it up together; a second,
+// independently-maintained copy is exactly how backfilled and live rows
+// would silently diverge.
+const insertObservationSQL = `
+	INSERT INTO tempest_observations (
+		id, serial_number, timestamp,
+		wind_lull, wind_avg, wind_gust, wind_direction, wind_sample_interval,
+		pressure, temp_air, temp_wetbulb, humidity,
+		illuminance, uv_index, irradiance, rain_rate, precip_type,
+		lightning_distance, lightning_strike_count,
+		battery, report_interval
+	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+	ON CONFLICT (serial_number, timestamp) DO NOTHING
+`
+
 func (w *PostgresWriter) insertObservations(ctx context.Context, batch []observationRow) error {
 	if len(batch) == 0 {
 		return nil
@@ -225,17 +244,7 @@ func (w *PostgresWriter) insertObservations(ctx context.Context, batch []observa
 	b := &pgx.Batch{}
 
 	for _, row := range batch {
-		b.Queue(`
-			INSERT INTO tempest_observations (
-				id, serial_number, timestamp,
-				wind_lull, wind_avg, wind_gust, wind_direction, wind_sample_interval,
-				pressure, temp_air, temp_wetbulb, humidity,
-				illuminance, uv_index, irradiance, rain_rate, precip_type,
-				lightning_distance, lightning_strike_count,
-				battery, report_interval
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
-			ON CONFLICT (serial_number, timestamp) DO NOTHING
-		`, row.id, row.serialNumber, row.timestamp,
+		b.Queue(insertObservationSQL, row.id, row.serialNumber, row.timestamp,
 			row.windLull, row.windAvg, row.windGust, row.windDirection, row.windSampleInterval,
 			row.pressure, row.tempAir, row.tempWetbulb, row.humidity,
 			row.illuminance, row.uvIndex, row.irradiance, row.rainRate, row.precipType,
