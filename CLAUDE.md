@@ -77,6 +77,8 @@ The application switches modes based on presence of `TOKEN` environment variable
 - **`internal/tempest/`**: Defines all Prometheus metric descriptors (`prometheus.Desc`)
 - **`internal/tempestudp/`**: Parses UDP broadcast messages into metrics, includes wet bulb temperature calculations
 - **`internal/tempestapi/`**: REST API client for fetching historical observations
+- **`internal/weather/`**: Store-neutral `Observation`, `Gap`, and `Bounds` types shared by the REST client and both stores
+- **`internal/backfill/`**: Gap detection and API backfill orchestration for the `backfill` subcommand
 
 ### Data Flow (UDP Mode)
 
@@ -186,6 +188,11 @@ All tables use UUIDv7 primary keys (generated in Go, no PostgreSQL extensions re
 
 > **SQLite default:** every UDP-mode row above (`TOKEN` unset) **also** persists to SQLite at `SQLITE_PATH` (default `/data/tempest.db`), unless `ENABLE_POSTGRES` is the only configured store and `SQLITE_PATH` is unset. SQLite is not written in API-export mode (`TOKEN` set).
 
+> **Subcommands bypass mode selection.** `backfill` and `healthcheck` are chosen
+> by the first CLI argument, not by environment variables, and neither starts the
+> UDP listener or the HTTP server. Any other non-flag first argument is a usage
+> error (exit 2) rather than a silent fallthrough to daemon mode.
+
 ### Docker Compose Example
 
 ```yaml
@@ -236,9 +243,11 @@ scrape_configs:
 
 The `/metrics` endpoint exposes all weather station metrics in standard Prometheus format. A `/health` endpoint is also available for health checks.
 
-### API Export with Backfill
+### API Export Mode (TOKEN)
 
-To backfill historical data into Postgres:
+Setting `TOKEN` switches the process into the full historical-export path: it
+fetches historical observation data via the REST API and writes it to
+PostgreSQL and/or compressed files, then exits.
 
 ```bash
 TOKEN=your_api_token ENABLE_POSTGRES=true POSTGRES_URL=postgresql://... go run .
@@ -249,6 +258,56 @@ Optionally keep .gz files:
 ```bash
 TOKEN=your_api_token ENABLE_POSTGRES=true POSTGRES_URL=postgresql://... KEEP_EXPORT_FILES=true go run .
 ```
+
+### Backfill Subcommand
+
+Fills holes in the local observation history from the Tempest REST API. Unlike
+API Export Mode (which is selected by setting `TOKEN` and runs the whole export
+path), this is an explicit subcommand and can be run against a live database:
+
+```bash
+TOKEN=your_api_token tempestwx-utilities backfill
+TOKEN=... tempestwx-utilities backfill --dry-run
+TOKEN=... tempestwx-utilities backfill --from 2026-07-01T00:00:00Z --to 2026-07-05T00:00:00Z
+```
+
+It writes to whichever store is configured (SQLite by default, Postgres when
+`ENABLE_POSTGRES=true`) and is idempotent — re-running inserts nothing new.
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--from`, `--to` | unset (auto-detect) | Explicit window, RFC3339 **UTC**. Must be given together. |
+| `--min-gap` | `30m` | Smallest interval that counts as a gap. Raise it for stations with a long `report_interval`. |
+| `--dry-run` | `false` | Detect and plan only: zero observation fetches, zero writes. It still lists devices, so it *does* validate the token. |
+| `--store` | unset | `sqlite` or `postgres`. **Required** when both stores are configured. |
+
+**`--store` and the fan-out configuration.** With `ENABLE_POSTGRES=true` *and*
+`SQLITE_PATH` set, the daemon writes every observation to **both** stores.
+Backfill repairs one store per run, so in that configuration it refuses to start
+without `--store` rather than guessing — silently repairing Postgres while
+leaving the Litestream-replicated SQLite database holed, and then reporting
+success, would be worse than failing.
+
+**Multiple sensors.** `backfill` enumerates every `ST` device on the account, so a
+station with two Tempest units has both repaired. (This differs from `TOKEN`-mode
+API export, which sees one device per station.)
+
+**Exit codes:** `0` success — including `--help`, and including permanent holes
+(windows the station was genuinely offline for, which the API cannot fill
+either); `1` one or more gaps failed, or a runtime error; `2` usage error.
+
+**Scope:** `tempest_observations` only. There is no historical REST endpoint for
+rapid wind, hub status, or discrete events. Lightning is partially recovered in
+aggregate through the observation columns, but not as `tempest_events` rows.
+
+**Safety:** if the API's station serials and the store's serials have **no
+overlap at all** (on a non-empty store), backfill stops and writes nothing — that
+is the signature of a serial-format mismatch, which would create a parallel
+series that never dedupes.
+
+A *newly added* station, or one this host never hears over UDP, is **not** a
+mismatch: its serial simply has no rows yet, and backfill fetches its whole
+history normally.
 
 ## Testing Notes
 
