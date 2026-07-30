@@ -19,8 +19,6 @@ import (
 // error — it silently returns coarser data, which would then be written as if
 // it were 1-minute observations. One day sits comfortably inside the cap.
 // Every fetch goes through the chunker, including an explicit --from/--to.
-//
-//nolint:unused // consumed by fillGap's chunkWindow call, added in Task 9
 const chunkSize = 24 * time.Hour
 
 // window is one API request's time range.
