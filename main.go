@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -185,9 +186,56 @@ func runHealthcheck() int {
 	return 0
 }
 
+// isKnownSubcommand reports whether name is a subcommand this binary
+// dispatches. It exists so an unrecognized argument becomes a usage error
+// instead of silently falling through to daemon mode — a typo such as
+// `tempestwx-utilities backfil` previously started a UDP listener.
+func isKnownSubcommand(name string) bool {
+	switch name {
+	case "healthcheck", "backfill":
+		return true
+	default:
+		return false
+	}
+}
+
+const usageText = `tempestwx-utilities — Tempest weather station data utilities
+
+usage:
+  tempestwx-utilities                 run the UDP listener / API export daemon (configured by env)
+  tempestwx-utilities backfill [...]  fill gaps in the observation history from the Tempest REST API
+  tempestwx-utilities healthcheck     probe the running server's /healthz endpoint
+
+run "tempestwx-utilities backfill --help" for the backfill flags
+`
+
 func main() {
-	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
-		os.Exit(runHealthcheck())
+	// A non-flag first argument is a subcommand. An unknown one is a usage
+	// error, never a silent fallthrough to daemon mode.
+	if len(os.Args) > 1 && !strings.HasPrefix(os.Args[1], "-") {
+		if !isKnownSubcommand(os.Args[1]) {
+			fmt.Fprintf(os.Stderr, "unknown subcommand %q\n\n%s", os.Args[1], usageText)
+			os.Exit(2)
+		}
+		switch os.Args[1] {
+		case "healthcheck":
+			os.Exit(runHealthcheck())
+		case "backfill":
+			// runBackfill owns all of its cleanup via internal defers and
+			// wires its own signal context.
+			os.Exit(runBackfill(context.Background(), os.Args[2:]))
+		default:
+			// Unreachable while this switch and isKnownSubcommand agree — but
+			// the subcommand name is duplicated across the two, so they CAN
+			// desync. Without this arm a desync falls through to daemon mode
+			// and silently starts the UDP listener, which is precisely the
+			// bug the isKnownSubcommand check above exists to prevent.
+			// Fail loudly instead.
+			fmt.Fprintf(os.Stderr,
+				"internal error: %q passed isKnownSubcommand but has no dispatch case\n\n%s",
+				os.Args[1], usageText)
+			os.Exit(2)
+		}
 	}
 
 	ctx, done := signalContext(context.Background(), signal.NotifyContext)
