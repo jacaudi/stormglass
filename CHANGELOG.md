@@ -1,5 +1,42 @@
 # Changelog
 
+## [3.1.0](https://github.com/jacaudi/tempestwx-utilities/compare/v3.0.0...v3.1.0) (2026-07-31)
+
+
+### Features
+
+* add the backfill subcommand and reject unknown subcommands ([1299bd0](https://github.com/jacaudi/tempestwx-utilities/commit/1299bd021e1e36289256bebb5337a6d1284c08f3))
+* add the backfill subcommand to repair gaps in observation history from the REST API ([552b6c4](https://github.com/jacaudi/tempestwx-utilities/commit/552b6c4fd5e2b673e76e0218560321f40272e6b8))
+* **backfill:** add API window chunking and retry classification ([71e09a6](https://github.com/jacaudi/tempestwx-utilities/commit/71e09a6cbb4ab290f94109ef8d57af4f6cf46a0e))
+* **backfill:** add the Run core with injected clock, store, and API source ([5477bc6](https://github.com/jacaudi/tempestwx-utilities/commit/5477bc67ce8ae08e144ba7f1c053be88e15fea84))
+* **backfill:** assemble head, tail, and empty-store gaps around LAG's interior gaps ([203ff68](https://github.com/jacaudi/tempestwx-utilities/commit/203ff683c4db127a96b2ebc751f6236f29251011))
+* **postgres:** add partitioned gap detection and idempotent backfill insert ([d6d0300](https://github.com/jacaudi/tempestwx-utilities/commit/d6d030012b839b9c95b1285e40781fdbcb8383f0))
+* **sqlite:** add partitioned gap detection and idempotent backfill insert ([8b88b6b](https://github.com/jacaudi/tempestwx-utilities/commit/8b88b6b030eec982a16f1cbbfc20b7b60a17d315))
+* **tempestapi:** add Observations with null-preserving decode ([dfb241f](https://github.com/jacaudi/tempestwx-utilities/commit/dfb241f5d776b87d6e6b471c52cd7b5a8a5f829e))
+* **tempestapi:** export Station identity, add StatusError and ListDevices ([d43251c](https://github.com/jacaudi/tempestwx-utilities/commit/d43251c8c9c1c161ae540d73242cc133e5532562))
+* **weather:** add store-neutral Observation, Gap, and Bounds types ([327e54a](https://github.com/jacaudi/tempestwx-utilities/commit/327e54a80a6e25c9e6fe566ff9f6f6328d0d69d5))
+
+
+### Bug Fixes
+
+* **backfill:** pin the chunk max-width invariant and guard a non-positive size ([4bac68d](https://github.com/jacaudi/tempestwx-utilities/commit/4bac68dca57746efe77b20a4fa993d00e802ab14))
+* **backfill:** reject a half-specified range, pin Returned, prompt cancellation, and retry exhaustion ([dd80237](https://github.com/jacaudi/tempestwx-utilities/commit/dd80237d42b56b65d63cf8c35d168c2fd7aef495))
+* **ci:** go-release Go 1.26 + drop release-as (v3.0.0 binaries job failed) ([8990b88](https://github.com/jacaudi/tempestwx-utilities/commit/8990b889ecafa67c4fdf1496b2b1100a595a9667))
+* **ci:** go-release must install Go 1.26 (go.mod needs &gt;= 1.25, setup-go@v6 pins GOTOOLCHAIN=local) ([6cb7a00](https://github.com/jacaudi/tempestwx-utilities/commit/6cb7a00291d076453e4e550c493947fb6c5a51a0))
+* **main:** structured slog for tainted export logs, drop G706 suppressions ([#50](https://github.com/jacaudi/tempestwx-utilities/issues/50)) ([a3d30da](https://github.com/jacaudi/tempestwx-utilities/commit/a3d30da241c96d4547f7825283ffe783f9ae8728))
+* P1 issues — sink backpressure bound ([#47](https://github.com/jacaudi/tempestwx-utilities/issues/47)), isRetryable classification ([#48](https://github.com/jacaudi/tempestwx-utilities/issues/48)), G706 log injection ([#50](https://github.com/jacaudi/tempestwx-utilities/issues/50)) ([d8c43bf](https://github.com/jacaudi/tempestwx-utilities/commit/d8c43bf2ba1593d2ed07f510f86582c4b5b9d270))
+* pin the inserted-count plumbing, store integral columns as integers, widen the PG round-trip ([ea452e5](https://github.com/jacaudi/tempestwx-utilities/commit/ea452e55cfdbb6a29ba36522eafb45f9a1038861))
+* **postgres:** default unknown errors to non-retryable in isRetryable ([#48](https://github.com/jacaudi/tempestwx-utilities/issues/48)) ([2963277](https://github.com/jacaudi/tempestwx-utilities/commit/29632770240c1412206c57f6dcf92b60d74a5f81))
+* **postgres:** retry startup/connection SQLSTATEs (57P03, 57P02, class 08) (review) ([03c04bc](https://github.com/jacaudi/tempestwx-utilities/commit/03c04bc30482b75b5bdcd70dd879f6caeb3eefe2))
+* **sink:** bound per-writer send so a stalled sink cannot block UDP ingest ([#47](https://github.com/jacaudi/tempestwx-utilities/issues/47)) ([00445fb](https://github.com/jacaudi/tempestwx-utilities/commit/00445fb3fd90c2bb3fd34bb388aa3c31e1dbc46e))
+* **sink:** unbound SendMetrics (export path) + struct-field write timeout (review) ([4784d43](https://github.com/jacaudi/tempestwx-utilities/commit/4784d430bf9b5f682eb78d12412b4fd48d7da666))
+* **tempestapi:** log drop windows in UTC, pin the request path, quiet the drop test ([97bffee](https://github.com/jacaudi/tempestwx-utilities/commit/97bffeee14008cb16b018435098611e5edc348b6))
+
+
+### Miscellaneous Chores
+
+* gitignore session handoff prompts ([9f95293](https://github.com/jacaudi/tempestwx-utilities/commit/9f95293d8197d1b206d5a15e8199da716caaa9e6))
+
 ## [3.0.0](https://github.com/jacaudi/tempestwx-utilities/compare/v2.0.0...v3.0.0) (2026-07-29)
 
 
