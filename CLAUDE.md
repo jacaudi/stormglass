@@ -315,5 +315,18 @@ Test files located alongside implementation:
 - `internal/tempestudp/report_test.go`: UDP message parsing
 - `internal/tempestudp/wetbulb_test.go`: Wet bulb calculations
 - `internal/tempestapi/client_test.go`: API client
+- `internal/tempestapi/observations_test.go`: Null-preserving REST decode
+- `internal/weather/observation_test.go`: Store-neutral types
+- `internal/backfill/`: Window chunking, retry classification, gap assembly, and the `Run` core
+- `internal/sqlite/backfill_test.go`, `internal/postgres/backfill_test.go`: Gap detection and idempotent insert
+- `backfill_cmd_test.go`: Subcommand dispatch and flag parsing
 
-Go 1.23.0+ required (see go.mod).
+Postgres tests that need a live database skip unless `POSTGRES_URL` is set:
+
+```bash
+docker run --rm -d --name pg-test -e POSTGRES_PASSWORD=x -e POSTGRES_DB=weather -p 55432:5432 postgres:16
+POSTGRES_URL='postgres://postgres:x@localhost:55432/weather?sslmode=disable' go test ./internal/postgres/ -count=1
+docker rm -f pg-test
+```
+
+Go 1.25.0+ required (see go.mod; the pinned toolchain is go1.26.1).
