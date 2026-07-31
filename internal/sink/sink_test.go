@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"tempestwx-utilities/internal/tempestudp"
 
@@ -59,6 +60,25 @@ func (m *mockWriter) Close(ctx context.Context) error {
 		panic(m.closePanicMsg)
 	}
 	return nil
+}
+
+// blockingWriter simulates a writer whose enqueue path is stalled behind a
+// full channel (e.g. Postgres's batch channel while the database is down).
+// WriteReport and WriteMetrics both block until the passed ctx is done and
+// then return ctx.Err(), mirroring the writers' real select-on-ctx.Done()
+// enqueue paths. Embedding mockWriter supplies Flush/Close for free.
+type blockingWriter struct {
+	mockWriter
+}
+
+func (b *blockingWriter) WriteReport(ctx context.Context, report tempestudp.Report) error {
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+func (b *blockingWriter) WriteMetrics(ctx context.Context, metrics []prometheus.Metric) error {
+	<-ctx.Done()
+	return ctx.Err()
 }
 
 func TestMetricsSink_AddWriter(t *testing.T) {
@@ -284,6 +304,101 @@ func TestSink_ClosePanicRecovered(t *testing.T) {
 	}
 	if !healthy.closeCalled {
 		t.Error("healthy.Close should still have been called despite the sibling panic")
+	}
+}
+
+// TestSink_SendReportBoundsBlockingWriter verifies that a single stalled
+// writer cannot block SendReport forever (#47). The UDP read loop calls
+// SendReport synchronously with the top-level application ctx, which is
+// never canceled during normal operation — so an unbounded per-writer send
+// (e.g. a full Postgres batch channel) would stall ingest for every sink.
+//
+// The test passes a context.Background()-derived ctx that this test never
+// cancels, so the only thing that can unblock the blocking writer is the
+// sink bounding it internally. SendReport itself runs in a goroutine and is
+// raced against a guard timeout so a regression (infinite block) fails via
+// t.Fatal rather than hanging the suite.
+func TestSink_SendReportBoundsBlockingWriter(t *testing.T) {
+	s := NewMetricsSink()
+	// Shrink this sink instance's per-writer timeout so the assertions below
+	// don't have to wait out the real production 5s bound. A same-package
+	// field assignment is a safe test seam: no test in package sink calls
+	// t.Parallel(), and this only affects this sink instance, not global
+	// state shared with other tests.
+	s.writeTimeout = 50 * time.Millisecond
+
+	blocking := &blockingWriter{}
+	fast := &mockWriter{}
+	s.AddWriter(blocking)
+	s.AddWriter(fast)
+
+	report := &tempestudp.TempestObservationReport{SerialNumber: "TEST-001"}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- s.SendReport(context.Background(), report)
+	}()
+
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("expected a non-nil error naming the timed-out blocking writer")
+		}
+		if !strings.Contains(err.Error(), "blockingWriter") {
+			t.Errorf("expected error to name the blocking writer, got: %v", err)
+		}
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Errorf("expected error to wrap context.DeadlineExceeded, got: %v", err)
+		}
+		if fast.reportCalls != 1 {
+			t.Errorf("fast writer: expected 1 call, got %d", fast.reportCalls)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("SendReport did not return within 2s — regression: a stalled writer blocked the shared fan-out (#47)")
+	}
+}
+
+// TestSink_SendMetricsIsNotBoundedByWriteTimeout verifies SendMetrics passes
+// the caller's ctx straight through instead of wrapping it in the sink's
+// writeTimeout (#47 review finding). SendMetrics's only caller is the API
+// export/backfill path (main.go:562), which accumulates up to 200,000
+// metrics per call; an internal timeout there can expire mid-batch and
+// silently drop the remaining rows while the export advances. There is no
+// shared-read-loop hazard on that path to justify the cost — blocking is
+// correct backpressure.
+//
+// s.writeTimeout is shrunk to far less than the caller-context deadline used
+// below. If SendMetrics still wrapped ctx in s.writeTimeout (as SendReport
+// does), it would return almost immediately; this test proves it instead
+// blocks for the caller's full deadline.
+func TestSink_SendMetricsIsNotBoundedByWriteTimeout(t *testing.T) {
+	s := NewMetricsSink()
+	s.writeTimeout = 10 * time.Millisecond
+
+	blocking := &blockingWriter{}
+	s.AddWriter(blocking)
+
+	const callerDeadline = 150 * time.Millisecond
+	ctx, cancel := context.WithTimeout(context.Background(), callerDeadline)
+	defer cancel()
+
+	start := time.Now()
+	done := make(chan error, 1)
+	go func() {
+		done <- s.SendMetrics(ctx, nil)
+	}()
+
+	select {
+	case err := <-done:
+		elapsed := time.Since(start)
+		if elapsed < callerDeadline {
+			t.Fatalf("SendMetrics returned after %v, want >= %v (the caller's deadline) — regression: sink.writeTimeout bounded SendMetrics again", elapsed, callerDeadline)
+		}
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Errorf("expected error to wrap context.DeadlineExceeded (from the caller's ctx), got: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("SendMetrics did not return within 2s — regression: caller ctx cancellation was not respected")
 	}
 }
 

@@ -7,11 +7,34 @@ import (
 	"log/slog"
 	"slices"
 	"sync"
+	"time"
 
 	"tempestwx-utilities/internal/tempestudp"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
+
+// defaultWriteTimeout bounds a single writer's acceptance of one report in
+// SendReport. SendReport is called synchronously from the single UDP read
+// goroutine (main.go:456) with the top-level application ctx, which is not
+// canceled during normal operation — so an unbounded per-writer send (e.g. a
+// full Postgres batch channel while the database is degraded) would stall
+// ingest for every sink, not just the degraded one. Writers already select on
+// ctx.Done() in their enqueue paths, so bounding the ctx here is sufficient
+// to release them; no writer changes are needed (#47).
+//
+// SendMetrics is deliberately left unbounded: its only caller is the API
+// export/backfill path (main.go:562), where blocking is correct backpressure
+// — wait for the database rather than silently truncate a batch that can
+// hold up to 200,000 metrics. A timeout there would expire mid-batch and
+// drop the remaining rows while the export advances, a silent partial data
+// loss with no analogous shared-read-loop hazard to justify the cost.
+//
+// 5s matches eventBlockTimeout in internal/sqlite/writer.go:29, which bounds
+// the analogous case (a discrete event blocking on a full channel). Kept
+// consistent rather than picking an independent value for the same class of
+// wait.
+const defaultWriteTimeout = 5 * time.Second
 
 // MetricsWriter is the interface that all metric backends must implement.
 type MetricsWriter interface {
@@ -32,12 +55,18 @@ type MetricsWriter interface {
 type MetricsSink struct {
 	writers []MetricsWriter
 	mu      sync.RWMutex
+
+	// writeTimeout bounds SendReport's per-writer send (see
+	// defaultWriteTimeout). It is a field, not a package-level var, so tests
+	// can shrink it on a single sink instance without mutable package state.
+	writeTimeout time.Duration
 }
 
 // NewMetricsSink creates a new metrics sink.
 func NewMetricsSink() *MetricsSink {
 	return &MetricsSink{
-		writers: make([]MetricsWriter, 0),
+		writers:      make([]MetricsWriter, 0),
+		writeTimeout: defaultWriteTimeout,
 	}
 }
 
@@ -81,7 +110,9 @@ func (s *MetricsSink) SendReport(ctx context.Context, report tempestudp.Report) 
 					mu.Unlock()
 				}
 			}()
-			if err := writer.WriteReport(ctx, report); err != nil {
+			wctx, cancel := context.WithTimeout(ctx, s.writeTimeout)
+			defer cancel()
+			if err := writer.WriteReport(wctx, report); err != nil {
 				mu.Lock() // mutex guards the append — required, else -race flags the concurrent slice write
 				errs = append(errs, fmt.Errorf("writer %T: %w", writer, err))
 				mu.Unlock()
@@ -93,7 +124,9 @@ func (s *MetricsSink) SendReport(ctx context.Context, report tempestudp.Report) 
 }
 
 // SendMetrics sends Prometheus metrics to all writers. Same panic-recovery
-// and error-aggregation semantics as SendReport.
+// and error-aggregation semantics as SendReport, but deliberately does not
+// bound each writer's send with a timeout — see defaultWriteTimeout for why.
+// The caller's ctx is passed straight through so cancellation still works.
 func (s *MetricsSink) SendMetrics(ctx context.Context, metrics []prometheus.Metric) error {
 	s.mu.RLock()
 	writers := slices.Clone(s.writers)
