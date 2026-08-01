@@ -45,7 +45,7 @@ a published release any more, so immutability is no longer contended. **No Go so
 - **Do not push, open a PR, or merge.** The human opens and approves the PR. Committing to the
   local branch is expected and fine.
 - **`go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12`** is the exact actionlint
-  invocation, matching `.github/workflows/on-pull-request.yml:36`. Do not install actionlint
+  invocation, matching `.github/workflows/on-pull-request.yml:39`. Do not install actionlint
   another way. First run downloads modules and may take ~2 minutes.
 - **No Go source file may change.** If `git diff --name-only` ever lists a `.go` file, something
   is wrong — stop and report.
@@ -71,16 +71,26 @@ afterwards has not demonstrated the assertion could fail, and its report must be
 in `release-please.yml` (Task 1, Step 6) have no observable behavior. They are verified by reading
 the resulting text, nothing more.
 
-**One critical caveat, load-bearing for Task 2:** `actionlint` checks **workflow files only** —
-composite `action.yml` files are outside its scope
-(<https://github.com/rhysd/actionlint/blob/main/docs/usage.md>). So actionlint does **not** cover
-the input-declaration deletion. Task 2's grep assertions are the only thing that does, and they
-must check **both sides** — declarations *and* callers. Deleting a declaration while a caller still
-passes it is the exact failure mode.
+**What actionlint does and does not cover — verified empirically, not assumed.** It *collects*
+workflow files only (`-verbose` reports `Collected 4 YAML files`, all under `.github/workflows/`),
+so `.github/actions/docker/action.yml` is never independently linted against actionlint's own rule
+set. **But it does resolve local composite actions and validate the caller→declaration contract.**
+Deleting the two declarations while leaving both callers passing them produces:
+
+```
+.github/workflows/on-push-main.yml:44:11: input "latest" is not defined in action "Docker Image"
+  defined at "./.github/actions/docker". available inputs are "push", "token" [action]
+... 4 errors total, exit status 1
+```
+
+So actionlint **does** catch Task 2 half-landing. Task 2's grep assertions are still required —
+they localise the failure and cover the case where the deletion is complete but wrong — but they
+are not the sole coverage. Both still check **both sides**, declarations *and* callers: deleting a
+declaration while a caller still passes it is the exact failure mode, and it is caught twice.
 
 ## File Structure
 
-Six edits across five files. Two tasks.
+Seven edits across six files. Two tasks.
 
 | File | Task | Change |
 |---|---|---|
@@ -204,9 +214,23 @@ The `latest:` and `tag-strategy:` lines stay for now — Task 2 removes them. Ve
 
 ```bash
 wc -l .github/workflows/on-release.yml
+git add .github/workflows/on-release.yml
+git diff --cached --numstat -- .github/workflows/on-release.yml
 ```
 
-Expected: `38`.
+Expected: `38`, then exactly:
+
+```
+0	14	.github/workflows/on-release.yml
+```
+
+**The numstat assertion is the important one — do not skip it.** This step retypes the whole file,
+including the pinned SHA `actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10`, which appears
+**twice**. `0 14` proves the edit was pure deletion, i.e. every surviving line is byte-identical to
+what was there before. A single mistyped character in either SHA leaves `wc -l` at 38 and passes
+every other check in this plan, then breaks checkout on the next tagged release. With a corrupted
+SHA the numstat reads `2 16` instead — that is a failure; restore with
+`git checkout -- .github/workflows/on-release.yml` and redo the step.
 
 - [ ] **Step 5: Re-run the Step 1 assertions — they must now pass**
 
@@ -294,7 +318,7 @@ damage; it does not test the change itself.
 - [ ] **Step 9: Commit**
 
 ```bash
-git add -A .github .goreleaser.yaml
+git add -A .github
 git status --porcelain
 git commit -m "ci: remove GoReleaser; the container image is the release artifact
 
@@ -310,21 +334,39 @@ all eight platforms, and nothing in the tree consumes a release asset. The
 README's only documented install path is the container image, which is
 already tagged per release. Releases now carry no assets by design.
 
+Deleting go-release/action.yml also removes the recorded Go-floor lesson in
+its comment (setup-go@v6 pins GOTOOLCHAIN=local, so the installed Go must
+already satisfy go.mod). That guard survives where it still matters:
+tests/action.yml uses go-version-file: go.mod, and on-pull-request.yml
+carries the same rationale for the actionlint job.
+
 Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01S2gxnijhMiDjc7hC1PVB9D"
 ```
 
-Before committing, `git status --porcelain` must show exactly these four paths and nothing else:
+Before committing, `git status --porcelain` must print **exactly** this — four lines, these status
+codes, in this order (git sorts `.github` before `.goreleaser`):
 
 ```
-D  .goreleaser.yaml
 D  .github/actions/go-release/action.yml
 M  .github/workflows/on-release.yml
 M  .github/workflows/release-please.yml
+D  .goreleaser.yaml
 ```
+
+**Match the two-character status codes, not just the paths.** Every code must be in **column 1**
+(staged). A code in column 2 — ` M` rather than `M ` — means the file is modified but *not staged*,
+and committing then produces a tree where the `release-binaries` job still references the
+`go-release` action that was just deleted. That commit breaks the next release, which is the exact
+outcome this branch exists to prevent. If any line shows a column-2 code, re-run `git add -A .github`
+and re-check before committing.
 
 If signing fails with `failed to fill whole buffer`, retry the identical `git commit` up to three
 times. Do not add `--no-gpg-sign`.
+
+**If anything else fails in this task:** nothing is committed yet, so recovery is
+`git reset -q HEAD && git checkout -- .github .goreleaser.yaml` to return to the branch point, then
+start Task 1 again. Report what failed; do not improvise a partial commit.
 
 ---
 
@@ -349,6 +391,8 @@ tag that gets pushed.
 
 ```bash
 cd /Users/acaudill/Projects/github/tempestwx-exporter/.claude/worktrees/release-binaries
+test -f docs/designs/2026-07-31-remove-goreleaser-binaries-design.md || { echo NEEDS_CONTEXT; exit 1; }
+git status --porcelain   # must be clean: Task 1 is committed
 git grep -n 'inputs\.' -- .github/actions/docker/action.yml
 git grep -nE '^[[:space:]]{2}(latest|tag-strategy):' -- .github/actions/docker/action.yml
 git grep -nE '^[[:space:]]+(latest|tag-strategy):' -- .github/workflows/
@@ -474,8 +518,12 @@ Expected: `token` and `push` only.
 go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12; echo "exit=$?"
 ```
 
-Expected: no output, `exit=0`. Remember this covers the two workflow files but **not**
-`.github/actions/docker/action.yml` — Step 5's greps are what cover that.
+Expected: no output, `exit=0`.
+
+If instead it prints `input "latest" is not defined in action "Docker Image"` (four such errors),
+the deletion half-landed: the declarations went but a caller still passes them. Re-check Steps 3
+and 4. This is a real safety net, not a formality — actionlint validates the caller→declaration
+contract for local composite actions.
 
 - [ ] **Step 7: Confirm no Go source changed, and the suite is green**
 
@@ -508,13 +556,19 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01S2gxnijhMiDjc7hC1PVB9D"
 ```
 
-`git status --porcelain` must show exactly:
+`git status --porcelain` must show exactly this — three lines, all with the status code in
+**column 1** (staged):
 
 ```
 M  .github/actions/docker/action.yml
 M  .github/workflows/on-push-main.yml
 M  .github/workflows/on-release.yml
 ```
+
+**If anything in this task fails:** Task 1's commit is a safe stopping point — GoReleaser removed,
+dead inputs still present *and* still declared, is a coherent tree that lints clean. Recover with
+`git checkout -- .github` to discard only Task 2's changes, then report what failed. Do not
+`git reset` past Task 1's commit, and do not improvise a partial commit.
 
 ---
 
@@ -524,7 +578,7 @@ Run from the worktree root. All of these must hold simultaneously:
 
 ```bash
 # 1. No GoReleaser anywhere outside historical records
-git grep -nE 'goreleaser|go-release|release-binaries' -- ':!CHANGELOG.md' ':!docs/'; echo "exit=$?"   # expect exit=1, no output
+git grep -niE 'goreleaser|go-release|release-binaries' -- ':!CHANGELOG.md' ':!docs/'; echo "exit=$?"  # expect exit=1, no output
 git ls-files | grep -iE 'goreleaser|go-release' | grep -v '^docs/'; echo "exit=$?"                    # expect exit=1, no output
 
 # 2. Dead inputs gone from both sides
@@ -537,7 +591,10 @@ go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12; echo "exit=$?"   # ex
 grep -nE '^  (tests|release-image):|needs:' .github/workflows/on-release.yml
 
 # 5. No Go source touched on the whole branch
-git diff --name-only main...HEAD | grep '\.go$'; echo "exit=$?"   # expect exit=1, no output
+# Use the explicit branch-point SHA. Do NOT use `main...HEAD`: the LOCAL main ref is stale
+# (8990b88, one merge behind), so that form pulls in the whole api-backfill merge and reports
+# 27 .go files on a completely correct branch.
+git diff --name-only a1b07f1..HEAD | grep '\.go$'; echo "exit=$?"   # expect exit=1, no output
 
 # 6. Suite green
 go test ./...

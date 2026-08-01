@@ -148,7 +148,8 @@ selects the arch.
 
 ## Scope — consolidated change list
 
-Five files. Only two of them are workflow files.
+Seven edits across six files. Three of them are workflow files
+(`on-release.yml`, `on-push-main.yml`, `release-please.yml`).
 
 | # | Path | Change |
 |---|---|---|
@@ -185,7 +186,9 @@ noise that make the workflows read as though they configure tagging. **No behavi
   does.
 - **Immutable releases stays enabled.** It is no longer contended, because nothing attaches
   assets after publish.
-- **`release-image`** — untouched in both workflows.
+- **`release-image`'s behaviour** — unchanged in both workflows. Items 3 and 4 do delete two lines
+  from its `with:` block, but those inputs were never read, so the job's inputs, steps, and the
+  image tag it pushes are all identical before and after.
 - **The hardened CI gate from #112** — untouched. `on-release.yml` keeps `release-image: needs: tests`.
 - **`README.md`** — unchanged, by explicit decision.
 - **`${{ github.ref_name }}` interpolated into a `run:` script** in the docker action, flagged in
@@ -232,16 +235,21 @@ Releases carry no assets. That is the intended steady state, not a defect.
 jobs already passed: `tests` ✓ 08:02:03Z and `release-image` ✓ 08:15:27Z. This change deletes only
 the third job and removes unreferenced inputs. Nothing that must keep working is being modified.
 
-1. `actionlint` passes. **Note its actual scope:** it checks workflow files only — composite
-   `action.yml` files are outside it. So it covers items 3, 4 and 6, but **not** item 5, the input
-   deletion. Note also that the `actionlint` job exists only in `on-pull-request.yml:24`, so this
-   change must go through a PR for the check to run at all.
+1. `actionlint` passes. **Its actual scope, verified empirically:** it *collects* workflow files
+   only (`-verbose` → `Collected 4 YAML files`, all under `.github/workflows/`), so
+   `.github/actions/docker/action.yml` is never independently linted against its rule set — **but
+   it does resolve local composite actions and validate the caller→declaration contract.** Deleting
+   the two declarations while leaving the callers passing them yields four
+   `input "latest" is not defined in action "Docker Image"` errors and exit 1. So actionlint covers
+   item 5 after all, contrary to this design's earlier claim. Note the `actionlint` job exists only
+   in `on-pull-request.yml`, so this change must go through a PR for the check to run in CI; it can
+   be run locally with `go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12`.
 2. `git grep -iE "goreleaser|go-release|release-binaries"` over tracked files returns hits only in
    `CHANGELOG.md` and `docs/` (historical records).
-3. **The check that actually covers item 5:** no workflow passes `latest:` or `tag-strategy:` to
+3. **Second, independent cover for item 5:** no workflow passes `latest:` or `tag-strategy:` to
    `./.github/actions/docker`, and the action declares exactly `token` and `push`. Both sides of
    the deletion must be grepped — deleting a declaration while a caller still passes it is the
-   failure mode.
+   failure mode, and it is caught both here and by actionlint.
 4. `go test ./...` green. The change is CI-only and touches no Go source, so this confirms no
    accidental collateral rather than testing the change.
 5. **Post-merge acceptance:** the next tagged release completes with zero failing jobs and
