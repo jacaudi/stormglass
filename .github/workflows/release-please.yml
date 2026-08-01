@@ -27,8 +27,8 @@ jobs:
       #
       # This is REQUIRED, not cosmetic: a tag pushed using the default
       # GITHUB_TOKEN does not trigger other workflows, so "Versioned Release"
-      # (on-release.yml) would never fire and no image or binaries would be
-      # published. An app installation token does trigger it.
+      # (on-release.yml) would never fire and no image would be published. An
+      # app installation token does trigger it.
       #
       # It also lets release-please open the release PR as the app, which
       # sidesteps the "Allow GitHub Actions to create and approve pull
@@ -41,8 +41,8 @@ jobs:
           private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
 
       # Maintains a release PR from conventional commits. Merging that PR cuts
-      # the vX.Y.Z tag, which triggers on-release.yml (tests -> tagged image ->
-      # binaries). This workflow deliberately builds nothing itself.
+      # the vX.Y.Z tag, which triggers on-release.yml (tests -> tagged image).
+      # This workflow deliberately builds nothing itself.
       - name: Release Please
         uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         with:
