@@ -157,7 +157,7 @@ Five files. Only two of them are workflow files.
 | 3 | `.github/workflows/on-release.yml` | delete the `release-binaries` job (`:40-52`); delete `latest: false` (`:36`) and `tag-strategy: "semver"` (`:38`) from the `release-image` step |
 | 4 | `.github/workflows/on-push-main.yml` | delete `latest: true` (`:44`) and `tag-strategy: "latest"` (`:46`) |
 | 5 | `.github/actions/docker/action.yml` | delete the `latest` (`:13-16`) and `tag-strategy` (`:17-20`) input declarations |
-| 6 | `.github/workflows/release-please.yml` | comment-only: drop `-> binaries` from the stale comment at `:43-45` |
+| 6 | `.github/workflows/release-please.yml` | comment-only, **two** sites: `:30` ("no image or binaries would be published") and `:44-45` ("tests -> tagged image -> binaries") |
 
 Line numbers are as of `a1b07f1`; the implementation plan must re-anchor them.
 
@@ -179,7 +179,10 @@ noise that make the workflows read as though they configure tagging. **No behavi
 ### Explicitly NOT changed
 
 - **release-please's behaviour** — it keeps minting the App installation token and keeps creating
-  both the tag and the immutable GitHub Release. Only a stale comment changes (item 6).
+  both the tag and the immutable GitHub Release. Only comments change (item 6). Note the Gate 1
+  review flagged one stale site; writing the plan surfaced a second at `:30`, inside the
+  App-token rationale, which after this change would claim binaries publish when only the image
+  does.
 - **Immutable releases stays enabled.** It is no longer contended, because nothing attaches
   assets after publish.
 - **`release-image`** — untouched in both workflows.
