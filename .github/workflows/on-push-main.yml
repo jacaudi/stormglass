@@ -41,8 +41,6 @@ jobs:
         uses: ./.github/actions/docker
         with:
           token: "${{ secrets.GITHUB_TOKEN }}"
-          latest: true
           push: true
-          tag-strategy: "latest"
         # Ensure context is correct for composite action
         # If build fails, check working-directory or context in action.yml

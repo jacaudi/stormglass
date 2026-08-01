@@ -33,6 +33,4 @@ jobs:
         uses: ./.github/actions/docker
         with:
           token: "${{ secrets.GITHUB_TOKEN }}"
-          latest: false
           push: true
-          tag-strategy: "semver"
