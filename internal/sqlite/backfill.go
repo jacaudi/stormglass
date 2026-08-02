@@ -149,7 +149,7 @@ func DistinctSerials(ctx context.Context, db *sql.DB) ([]string, error) {
 // The count is what makes the permanent-hole tradeoff visible: if the station
 // was genuinely offline, the API has no data either, and inserted stays 0
 // across runs. ON CONFLICT (serial_number, timestamp) DO NOTHING is backed by
-// a real UNIQUE constraint (migrations/0002_init.sql:13), and per-row
+// a real UNIQUE constraint (migrations/0002_init.sql:22), and per-row
 // RowsAffected returns 0 for a skipped conflict and 1 for an insert.
 //
 // The count is returned only after a successful Commit — execBatch rolls the
