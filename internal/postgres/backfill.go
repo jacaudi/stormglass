@@ -135,6 +135,20 @@ func DistinctSerials(ctx context.Context, pool *pgxpool.Pool) ([]string, error) 
 	return out, nil
 }
 
+// asPrecipType converts a possibly-nil *float64 into a possibly-nil *int for
+// precip_type, which is INTEGER here and in SQLite. pgx already truncates a
+// float bind into an integer column silently; doing it here makes the
+// coercion visible and matches the daemon path (writer.go's
+// handleObservationReport) and internal/sqlite's helper of the same name.
+// Nil maps to SQL NULL.
+func asPrecipType(p *float64) *int {
+	if p == nil {
+		return nil
+	}
+	v := int(*p)
+	return &v
+}
+
 // InsertObservations writes obs idempotently and reports how many rows were
 // actually new. CommandTag.RowsAffected() is 0 for a skipped conflict and 1
 // for an insert — the same semantics as SQLite's per-row RowsAffected, and
@@ -156,7 +170,7 @@ func InsertObservations(ctx context.Context, pool *pgxpool.Pool, obs []weather.O
 			uuid.Must(uuid.NewV7()), o.SerialNumber, o.Timestamp,
 			o.WindLull, o.WindAvg, o.WindGust, o.WindDirection, o.WindSampleInterval,
 			o.Pressure, o.TempAir, wetBulb(o), o.Humidity,
-			o.Illuminance, o.UVIndex, o.Irradiance, o.RainRate, o.PrecipType,
+			o.Illuminance, o.UVIndex, o.Irradiance, o.RainRate, asPrecipType(o.PrecipType),
 			o.LightningDistance, o.LightningStrikeCount,
 			o.Battery, o.ReportInterval)
 	}
