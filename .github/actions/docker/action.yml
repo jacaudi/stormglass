@@ -10,14 +10,6 @@ inputs:
     description: Whether to push the built image
     required: false
     default: "false"
-  latest:
-    description: Also tag the image as latest
-    required: false
-    default: "false"
-  tag-strategy:
-    description: Tag strategy (e.g. latest, semver)
-    required: false
-    default: "latest"
 
 runs:
   using: composite
