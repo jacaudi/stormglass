@@ -293,10 +293,24 @@ so the many compile breaks above are mechanical fixes, not evidence.
 - `precip_type` remains an integer in both stores **and still truncates silently**
   — in Go on the SQLite path, in pgx on the Postgres path. That is intended
   coercion of a categorical value, not an oversight.
-- Fresh installs apply `0001` and land at `schema_version = 1`; the next migration
-  is `0002`, in normal sequence. **If the "nothing is deployed" premise is wrong,
-  a `schema_version = 2` database silently skips both this schema and any future
-  `0002`** — which the fail-loud guard converts into a startup error.
+- ~~Fresh installs apply `0001` and land at `schema_version = 1`; the next migration
+  is `0002`, in normal sequence.~~
+
+  **Superseded during execution — the whole-branch review found this combination was
+  a blocking defect.** With the folded init numbered `0001`, `highest` is 1, so the
+  fail-loud guard rejects *any* database at version 2 — including one this very build
+  creates, then meets again after a rollback to v3.1.0 (which applies its own `0002`).
+  Reproduced end to end; roll-forward became permanently impossible, and the error
+  text was inverted, telling the operator the binary was older when it was newer.
+
+  **Resolution:** the folded init ships as `0002_init.sql`, so `highest` is 2 —
+  matching the version every released binary already reaches. Verified: fresh installs
+  land at `schema_version = 2` with `REAL` columns; rollback-then-roll-forward
+  succeeds; a legacy v3.x database (INTEGER-declared, version 2) is accepted and
+  round-trips fractional values correctly, because SQLite affinity is lossless and the
+  read path is float-tolerant. The guard still fires on a genuinely newer database
+  (version 99 → error), with corrected wording. **The next migration must be `0003`**,
+  a constraint now recorded in `0002_init.sql` itself rather than only here.
 - The JSON API can now return a fractional `windSampleInterval`,
   `lightningStrikeCount`, `reportInterval`, or `lightningTotal`. No consumer
   breaks — JSON has no integer type — but the UI renders these raw
