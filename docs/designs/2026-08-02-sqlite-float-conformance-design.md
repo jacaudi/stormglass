@@ -203,6 +203,42 @@ for symmetry with the SQLite helper.
 
 This is #107's Scope item 4, which an earlier revision dropped without saying so.
 
+### Postgres smoke coverage in CI
+
+Today every Postgres-dependent test skips in CI, so the Postgres half of this
+change is asserted by nothing. Add a Postgres service container and set
+`POSTGRES_URL`, so the standard suite exercises it for real.
+
+**Placement is forced.** `services:` is a job-level workflow key; a composite
+action cannot declare one, and `.github/actions/tests` is composite. So the
+service block goes in the three workflows that call it —
+`on-pull-request.yml:22`, `on-push-main.yml:28`, `on-release.yml:20` — and the
+action gains a `POSTGRES_URL` pass-through.
+
+That triplicates the block, which is a DRY cost. It is accepted rather than
+worked around: the alternative (starting Postgres with `docker run` inside the
+composite action, single-sourced) hides the image tag from Renovate, and this
+repo actively relies on Renovate to keep Docker tags current. A `services:`
+image is scanned; a tag buried in a `run:` string is not. Renovate updating all
+three in one PR is what makes the duplication safe.
+
+**Scope: the standard, untagged suite only.** The test this activates is
+`internal/postgres/backfill_test.go:89-91`, which skips on missing
+`POSTGRES_URL`. `internal/postgres/writer_integration_test.go` is behind
+`//go:build integration` and is **not** enabled — it contains the known-failing
+`TestPostgresWriter_DrainOnClose_Integration` from #111, which would turn CI red.
+Enabling the integration tag is deliberately left to #111.
+
+With this in place, the Postgres fractional round-trip test is worth adding —
+`internal/postgres/backfill_test.go` currently seeds only integral values
+(`f(3)`, `f(25)`, `f(35)`), so it would not catch a regression on the Postgres
+side of the conformance this design establishes.
+
+**Check for interference:** `internal/config/database_test.go` reads and writes
+`POSTGRES_URL` via `t.Setenv`, which overrides the ambient value per-test and
+restores it, so a globally-set `POSTGRES_URL` should not disturb it. Verify by
+running the suite with the variable set.
+
 ### Not touched
 
 - `internal/postgres/schema.go` and `writer.go` — the three columns are already
@@ -236,10 +272,14 @@ These compile-break or, worse, keep passing while asserting nothing:
 | `schema_test.go:43,50` | `assertSchemaVersion` 2 → 1 |
 | existing `idx_obs_time` assertion | unchanged — proves the fold did not drop the index |
 
-**Known gap:** #107 asks for a fractional round-trip "through both stores." The
-Postgres round-trip is not covered here — `internal/postgres/backfill_test.go`
-seeds only integral values, and those tests skip without `POSTGRES_URL`, so CI
-proves nothing there either. Stated rather than silently omitted.
+| new: Postgres fractional round-trip | `internal/postgres/backfill_test.go` — closes #107's "through both stores" criterion. Real coverage now that CI sets `POSTGRES_URL` |
+
+**Gap closed.** An earlier revision listed the Postgres round-trip as a known
+omission because those tests skip without `POSTGRES_URL`. The CI service
+container above removes that excuse, so the test is in scope.
+
+**Still not covered:** anything behind `//go:build integration`, by decision —
+see #111.
 
 **TDD note.** The genuine red state is the reworked `backfill_test.go` assertion
 and the new fractional-`SUM` test. Compile errors do not count as a failing test
@@ -298,5 +338,6 @@ so the many compile breaks above are mechanical fixes, not evidence.
   for `precip_type`, by design.
 - "The SQLite rebuild migration preserves existing rows" — moot under the scope
   decision; there is no rebuild migration.
-- "A fractional API value round-trips losslessly through both stores" — SQLite
-  covered, Postgres gap stated above.
+- "A fractional API value round-trips losslessly through both stores" — satisfied
+  for both, and the Postgres half is now genuinely exercised in CI rather than
+  skipped.
