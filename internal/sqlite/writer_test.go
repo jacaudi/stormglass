@@ -73,14 +73,14 @@ func TestWriter_InsertsObservation(t *testing.T) {
 			serial                                     string
 			ts                                         int64
 			windLull, windAvg, windGust, windDirection float64
-			windSampleInterval                         int64
+			windSampleInterval                         float64
 			pressure, tempAir, tempWetbulb, humidity   float64
 			illuminance, uvIndex, irradiance, rainRate float64
 			precipType                                 int64
 			lightningDistance                          float64
-			lightningStrikeCount                       int64
+			lightningStrikeCount                       float64
 			battery                                    float64
-			reportInterval                             int64
+			reportInterval                             float64
 		)
 		row := w.db.QueryRowContext(ctx, `SELECT
 			id, serial_number, timestamp,
@@ -196,9 +196,10 @@ func TestWriter_InsertsObservation(t *testing.T) {
 		}
 
 		var (
-			windSampleInterval                               int64
-			precipType, lightningStrikeCount, reportInterval sql.NullInt64
-			lightningDistance, battery                       sql.NullFloat64
+			windSampleInterval                   float64
+			precipType                           sql.NullInt64
+			lightningStrikeCount, reportInterval sql.NullFloat64
+			lightningDistance, battery           sql.NullFloat64
 		)
 		row := w.db.QueryRowContext(ctx, `SELECT
 			wind_sample_interval, precip_type, lightning_distance, lightning_strike_count,
@@ -214,7 +215,7 @@ func TestWriter_InsertsObservation(t *testing.T) {
 		// wind_sample_interval (index 5) IS present at the minimum valid
 		// length of 13 -> must NOT be NULL.
 		if windSampleInterval != 1 {
-			t.Errorf("wind_sample_interval = %d, want 1 (present at len=13)", windSampleInterval)
+			t.Errorf("wind_sample_interval = %v, want 1 (present at len=13)", windSampleInterval)
 		}
 		if precipType.Valid {
 			t.Errorf("precip_type should be NULL, got %v", precipType.Int64)
@@ -223,15 +224,65 @@ func TestWriter_InsertsObservation(t *testing.T) {
 			t.Errorf("lightning_distance should be NULL, got %v", lightningDistance.Float64)
 		}
 		if lightningStrikeCount.Valid {
-			t.Errorf("lightning_strike_count should be NULL, got %v", lightningStrikeCount.Int64)
+			t.Errorf("lightning_strike_count should be NULL, got %v", lightningStrikeCount.Float64)
 		}
 		if battery.Valid {
 			t.Errorf("battery should be NULL, got %v", battery.Float64)
 		}
 		if reportInterval.Valid {
-			t.Errorf("report_interval should be NULL, got %v", reportInterval.Int64)
+			t.Errorf("report_interval should be NULL, got %v", reportInterval.Float64)
 		}
 	})
+}
+
+// TestWriter_PreservesFractionalMeasurements is the UDP-path counterpart to
+// internal/sqlite's TestInsertObservationsPreservesFractionalMeasurements.
+// obs_st indices: 0 epoch, 5 wind sample interval, 13 precip type, 15
+// lightning strike count, 17 report interval. The three measurements must
+// survive fractionally; precip_type must still truncate.
+func TestWriter_PreservesFractionalMeasurements(t *testing.T) {
+	w := newTestWriter(t)
+	ctx := t.Context()
+
+	report := &tempestudp.TempestObservationReport{
+		SerialNumber: "ST-FRAC",
+		Obs: [][]float64{
+			//  0           1    2    3    4    5     6        7     8     9      10  11   12   13   14   15   16   17
+			{1700000100, 1.5, 2.0, 2.5, 180, 1.5, 1013.25, 20.5, 55.0, 50000, 3, 500, 0.5, 1.9, 2.1, 2.5, 3.6, 5.9},
+		},
+	}
+
+	if err := w.WriteReport(ctx, report); err != nil {
+		t.Fatalf("WriteReport: %v", err)
+	}
+	if err := w.Flush(ctx); err != nil {
+		t.Fatalf("Flush: %v", err)
+	}
+
+	var (
+		windSampleInterval, lightningStrikeCount, reportInterval float64
+		precipType                                               int64
+	)
+	err := w.db.QueryRowContext(ctx, `
+		SELECT wind_sample_interval, precip_type, lightning_strike_count, report_interval
+		FROM tempest_observations WHERE serial_number = ?`, "ST-FRAC",
+	).Scan(&windSampleInterval, &precipType, &lightningStrikeCount, &reportInterval)
+	if err != nil {
+		t.Fatalf("scan observation row: %v", err)
+	}
+
+	if windSampleInterval != 1.5 {
+		t.Errorf("wind_sample_interval = %v, want 1.5", windSampleInterval)
+	}
+	if lightningStrikeCount != 2.5 {
+		t.Errorf("lightning_strike_count = %v, want 2.5", lightningStrikeCount)
+	}
+	if reportInterval != 5.9 {
+		t.Errorf("report_interval = %v, want 5.9", reportInterval)
+	}
+	if precipType != 1 {
+		t.Errorf("precip_type = %d, want 1 (categorical enum: truncated by design)", precipType)
+	}
 }
 
 // TestWriter_OnConflictIdempotent proves writing the same (serial_number,

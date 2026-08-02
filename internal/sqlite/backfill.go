@@ -149,7 +149,7 @@ func DistinctSerials(ctx context.Context, db *sql.DB) ([]string, error) {
 // The count is what makes the permanent-hole tradeoff visible: if the station
 // was genuinely offline, the API has no data either, and inserted stays 0
 // across runs. ON CONFLICT (serial_number, timestamp) DO NOTHING is backed by
-// a real UNIQUE constraint (migrations/0001_init.sql:13), and per-row
+// a real UNIQUE constraint (migrations/0002_init.sql:22), and per-row
 // RowsAffected returns 0 for a skipped conflict and 1 for an insert.
 //
 // The count is returned only after a successful Commit — execBatch rolls the
@@ -170,11 +170,11 @@ func InsertObservations(ctx context.Context, db *sql.DB, obs []weather.Observati
 	err := execBatch(ctx, db, insertObservationSQL, obs, func(stmt *sql.Stmt, o weather.Observation) error {
 		res, err := stmt.ExecContext(ctx,
 			uuid.Must(uuid.NewV7()).String(), o.SerialNumber, o.Timestamp.Unix(),
-			o.WindLull, o.WindAvg, o.WindGust, o.WindDirection, asInt64(o.WindSampleInterval),
+			o.WindLull, o.WindAvg, o.WindGust, o.WindDirection, o.WindSampleInterval,
 			o.Pressure, o.TempAir, wetBulb(o), o.Humidity,
-			o.Illuminance, o.UVIndex, o.Irradiance, o.RainRate, asInt64(o.PrecipType),
-			o.LightningDistance, asInt64(o.LightningStrikeCount),
-			o.Battery, asInt64(o.ReportInterval))
+			o.Illuminance, o.UVIndex, o.Irradiance, o.RainRate, asPrecipType(o.PrecipType),
+			o.LightningDistance, o.LightningStrikeCount,
+			o.Battery, o.ReportInterval)
 		if err != nil {
 			return err
 		}
@@ -191,15 +191,14 @@ func InsertObservations(ctx context.Context, db *sql.DB, obs []weather.Observati
 	return inserted, nil
 }
 
-// asInt64 converts a possibly-nil *float64 into a possibly-nil *int64,
-// matching how the UDP path stores wind_sample_interval, precip_type,
-// lightning_strike_count, and report_interval (writer.go:436-457, fix
-// B-LOW): the SQLite DDL declares these columns INTEGER, and the read model
-// scans them into *int64. Binding one of these fields as *float64 with a
-// fractional value stores it with REAL affinity, which then fails a *int64
-// scan for the whole row. int64(...) truncation, not rounding, mirrors the
-// UDP path exactly. Nil maps to SQL NULL.
-func asInt64(p *float64) *int64 {
+// asPrecipType converts a possibly-nil *float64 into a possibly-nil *int64
+// for precip_type, which is INTEGER in both stores. Unlike the three
+// measurement columns, precip_type is a categorical enum (0 none, 1 rain,
+// 2 hail, 3 rain + hail), so a fractional value is corrupt input and
+// int64(...) truncation -- matching the UDP path at writer.go's
+// handleObservationReport -- is the intended coercion, not data loss. Nil
+// maps to SQL NULL.
+func asPrecipType(p *float64) *int64 {
 	if p == nil {
 		return nil
 	}

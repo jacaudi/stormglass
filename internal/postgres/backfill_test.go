@@ -413,3 +413,73 @@ func TestBackfillPostgresIntegration(t *testing.T) {
 		t.Errorf("did not find the %s hole [%v, %v]; got %+v", serialA, base, base.Add(time.Hour), gaps)
 	}
 }
+
+// TestInsertObservationsPreservesFractionalMeasurements is the Postgres half
+// of the cross-store conformance pinned on the SQLite side by
+// TestInsertObservationsPreservesFractionalMeasurements in internal/sqlite.
+// The three measurement columns are DOUBLE PRECISION here and REAL there, so
+// a fractional API value must survive both. precip_type is INTEGER in both
+// and truncates in both.
+func TestInsertObservationsPreservesFractionalMeasurements(t *testing.T) {
+	dsn := os.Getenv("POSTGRES_URL")
+	if dsn == "" {
+		t.Skip("POSTGRES_URL not set; skipping Postgres integration test")
+	}
+
+	ctx := t.Context()
+	pool, err := OpenPool(ctx, dsn)
+	if err != nil {
+		t.Fatalf("OpenPool: %v", err)
+	}
+	t.Cleanup(pool.Close)
+	if err := CreateSchema(ctx, pool); err != nil {
+		t.Fatalf("CreateSchema: %v", err)
+	}
+
+	serial := "ST-FRAC"
+	stamp := time.Unix(1_900_000_000, 0).UTC()
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(),
+			`DELETE FROM tempest_observations WHERE serial_number = $1`, serial)
+	})
+	if _, err := pool.Exec(ctx,
+		`DELETE FROM tempest_observations WHERE serial_number = $1`, serial); err != nil {
+		t.Fatalf("clean: %v", err)
+	}
+
+	obs := []weather.Observation{{
+		SerialNumber:         serial,
+		Timestamp:            stamp,
+		WindSampleInterval:   f(1.5),
+		PrecipType:           f(1.9),
+		LightningStrikeCount: f(2.5),
+		ReportInterval:       f(5.9),
+	}}
+	if _, err := InsertObservations(ctx, pool, obs); err != nil {
+		t.Fatalf("InsertObservations: %v", err)
+	}
+
+	var windSampleInterval, lightningStrikeCount, reportInterval float64
+	var precipType int
+	err = pool.QueryRow(ctx, `
+		SELECT wind_sample_interval, precip_type, lightning_strike_count, report_interval
+		FROM tempest_observations WHERE serial_number = $1 AND timestamp = $2`,
+		serial, stamp,
+	).Scan(&windSampleInterval, &precipType, &lightningStrikeCount, &reportInterval)
+	if err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+
+	if windSampleInterval != 1.5 {
+		t.Errorf("wind_sample_interval = %v, want 1.5", windSampleInterval)
+	}
+	if lightningStrikeCount != 2.5 {
+		t.Errorf("lightning_strike_count = %v, want 2.5", lightningStrikeCount)
+	}
+	if reportInterval != 5.9 {
+		t.Errorf("report_interval = %v, want 5.9", reportInterval)
+	}
+	if precipType != 1 {
+		t.Errorf("precip_type = %d, want 1 (categorical enum: truncated by design)", precipType)
+	}
+}

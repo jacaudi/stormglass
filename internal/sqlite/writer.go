@@ -87,12 +87,11 @@ type rowEnvelope struct {
 // observationRow mirrors tempest_observations. Nullable columns (the "if
 // len(ob) >= N" fields in the UDP report) use pointers so a nil is stored as
 // SQL NULL rather than a zero value — see internal/postgres/writer.go's
-// observationRow, which this mirrors field-for-field except that the
-// INTEGER-typed columns here (wind_sample_interval, precip_type,
-// lightning_strike_count, report_interval) are *int64, not *float64 (fix
-// B-LOW: the SQLite DDL declares these INTEGER), and timestamp is a raw
-// unix-epoch int64 rather than time.Time (design §12: SQLite stores epoch
-// integers, not TIMESTAMPTZ).
+// observationRow, which this mirrors field-for-field except that
+// precip_type here is *int64 rather than *float64 -- it is a categorical
+// enum, INTEGER in both stores -- and timestamp is a raw unix-epoch int64
+// rather than time.Time (design §12: SQLite stores epoch integers, not
+// TIMESTAMPTZ). The three measurement columns match Postgres exactly.
 type observationRow struct {
 	id                   uuid.UUID
 	serialNumber         string
@@ -101,7 +100,7 @@ type observationRow struct {
 	windAvg              float64
 	windGust             float64
 	windDirection        float64
-	windSampleInterval   *int64
+	windSampleInterval   *float64
 	pressure             float64
 	tempAir              float64
 	tempWetbulb          *float64 // nil (SQL NULL) when WetBulbTemperatureC is non-convergent (NaN)
@@ -112,9 +111,9 @@ type observationRow struct {
 	rainRate             float64
 	precipType           *int64
 	lightningDistance    *float64
-	lightningStrikeCount *int64
+	lightningStrikeCount *float64
 	battery              *float64
-	reportInterval       *int64
+	reportInterval       *float64
 }
 
 type rapidWindRow struct {
@@ -398,9 +397,9 @@ func (w *Writer) WriteReport(ctx context.Context, report tempestudp.Report) erro
 
 // handleObservationReport mirrors internal/postgres/writer.go's
 // handleObservationReport field-for-field (see that file's comment at
-// handleObservationReport for the field-index table), except INTEGER-typed
-// columns are converted to int64 (fix B-LOW) and timestamp is stored as a
-// raw unix-epoch int64 (design §12).
+// handleObservationReport for the field-index table), except precip_type is
+// converted to int64 (categorical enum, INTEGER in both stores) and timestamp
+// is stored as a raw unix-epoch int64 (design §12).
 func (w *Writer) handleObservationReport(ctx context.Context, r *tempestudp.TempestObservationReport) error {
 	for _, ob := range r.Obs {
 		if len(ob) < 13 {
@@ -434,7 +433,7 @@ func (w *Writer) handleObservationReport(ctx context.Context, r *tempestudp.Temp
 		}
 
 		if len(ob) >= 6 {
-			interval := int64(ob[5])
+			interval := ob[5]
 			row.windSampleInterval = &interval
 		}
 		if len(ob) >= 14 {
@@ -443,7 +442,7 @@ func (w *Writer) handleObservationReport(ctx context.Context, r *tempestudp.Temp
 		}
 		if len(ob) >= 16 {
 			distance := ob[14]
-			count := int64(ob[15])
+			count := ob[15]
 			row.lightningDistance = &distance
 			row.lightningStrikeCount = &count
 		}
@@ -452,7 +451,7 @@ func (w *Writer) handleObservationReport(ctx context.Context, r *tempestudp.Temp
 			row.battery = &battery
 		}
 		if len(ob) >= 18 {
-			interval := int64(ob[17])
+			interval := ob[17]
 			row.reportInterval = &interval
 		}
 
@@ -717,7 +716,7 @@ type Observation struct {
 	WindAvg              float64
 	WindGust             float64
 	WindDirection        float64
-	WindSampleInterval   *int64
+	WindSampleInterval   *float64
 	Pressure             float64
 	TempAir              float64
 	TempWetbulb          *float64
@@ -728,9 +727,9 @@ type Observation struct {
 	RainRate             float64
 	PrecipType           *int64
 	LightningDistance    *float64
-	LightningStrikeCount *int64
+	LightningStrikeCount *float64
 	Battery              *float64
-	ReportInterval       *int64
+	ReportInterval       *float64
 }
 
 const selectLatestObservationSQL = `
@@ -756,10 +755,10 @@ const selectLatestObservationSQL = `
 // that shared knowledge is exactly what this extraction single-sources.
 func scanObservation(row *sql.Row) (Observation, error) {
 	var (
-		obs                                     Observation
-		windSampleInterval, precipType          sql.NullInt64
-		lightningStrikeCount, reportInterval    sql.NullInt64
-		tempWetbulb, lightningDistance, battery sql.NullFloat64
+		obs                                                      Observation
+		precipType                                               sql.NullInt64
+		windSampleInterval, lightningStrikeCount, reportInterval sql.NullFloat64
+		tempWetbulb, lightningDistance, battery                  sql.NullFloat64
 	)
 
 	err := row.Scan(
@@ -775,7 +774,7 @@ func scanObservation(row *sql.Row) (Observation, error) {
 	}
 
 	if windSampleInterval.Valid {
-		obs.WindSampleInterval = &windSampleInterval.Int64
+		obs.WindSampleInterval = &windSampleInterval.Float64
 	}
 	if tempWetbulb.Valid {
 		obs.TempWetbulb = &tempWetbulb.Float64
@@ -787,13 +786,13 @@ func scanObservation(row *sql.Row) (Observation, error) {
 		obs.LightningDistance = &lightningDistance.Float64
 	}
 	if lightningStrikeCount.Valid {
-		obs.LightningStrikeCount = &lightningStrikeCount.Int64
+		obs.LightningStrikeCount = &lightningStrikeCount.Float64
 	}
 	if battery.Valid {
 		obs.Battery = &battery.Float64
 	}
 	if reportInterval.Valid {
-		obs.ReportInterval = &reportInterval.Int64
+		obs.ReportInterval = &reportInterval.Float64
 	}
 
 	return obs, nil
@@ -945,7 +944,7 @@ type Summary struct {
 	WindMax        sql.NullFloat64
 	GustMax        sql.NullFloat64
 	RainTotal      sql.NullFloat64
-	LightningTotal sql.NullInt64
+	LightningTotal sql.NullFloat64
 }
 
 const summarizeObservationsSQL = `

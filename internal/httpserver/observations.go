@@ -67,7 +67,7 @@ type currentObservation struct {
 	WindAvg                    float64 `json:"windAvg"`
 	WindGust                   float64 `json:"windGust"`
 	WindDirection              float64 `json:"windDirection"`
-	WindSampleInterval         int64   `json:"windSampleInterval"`
+	WindSampleInterval         float64 `json:"windSampleInterval"`
 	StationPressure            float64 `json:"stationPressure"`
 	AirTemperature             float64 `json:"airTemperature"`
 	RelativeHumidity           float64 `json:"relativeHumidity"`
@@ -77,9 +77,9 @@ type currentObservation struct {
 	RainAccumulated            float64 `json:"rainAccumulated"`
 	PrecipitationType          int64   `json:"precipitationType"`
 	LightningStrikeAvgDistance float64 `json:"lightningStrikeAvgDistance"`
-	LightningStrikeCount       int64   `json:"lightningStrikeCount"`
+	LightningStrikeCount       float64 `json:"lightningStrikeCount"`
 	Battery                    float64 `json:"battery"`
-	ReportInterval             int64   `json:"reportInterval"`
+	ReportInterval             float64 `json:"reportInterval"`
 	LocalDayRainAccumulation   float64 `json:"localDayRainAccumulation"`
 	FeelsLike                  float64 `json:"feelsLike"`
 	DewPoint                   float64 `json:"dewPoint"`
@@ -127,7 +127,7 @@ type summaryResponse struct {
 	WindMax        *float64      `json:"windMax"`
 	GustMax        *float64      `json:"gustMax"`
 	RainTotal      *float64      `json:"rainTotal"`
-	LightningTotal *int64        `json:"lightningTotal"`
+	LightningTotal *float64      `json:"lightningTotal"`
 }
 
 // summaryQueryTimeout bounds handleSummary's SummarizeObservations call so a
@@ -277,7 +277,7 @@ func handleSummary(w http.ResponseWriter, r *http.Request, reader ObservationRea
 		WindMax:        f64(s.WindMax),
 		GustMax:        f64(s.GustMax),
 		RainTotal:      f64(s.RainTotal),
-		LightningTotal: i64(s.LightningTotal),
+		LightningTotal: f64(s.LightningTotal),
 	})
 }
 

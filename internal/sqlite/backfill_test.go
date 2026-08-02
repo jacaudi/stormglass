@@ -245,12 +245,11 @@ func TestInsertObservationsEmptyIsNoop(t *testing.T) {
 // column value and fails this test by name, rather than leaving the whole
 // suite green.
 //
-// wind_sample_interval, precip_type, lightning_strike_count, and
-// report_interval are declared INTEGER in migrations/0001_init.sql, so this
-// test keeps those four fields integral — this test's job is pinning bind
-// ORDER, not the *float64-into-INTEGER-column conversion, which is asInt64's
-// job and TestInsertObservationsStoresIntegerColumnsAsIntegers's coverage
-// (a FRACTIONAL value for these four, round-tripped through a *int64 scan).
+// wind_sample_interval, lightning_strike_count, and report_interval are REAL
+// in migrations/0002_init.sql and preserve fractional values; precip_type is
+// INTEGER and still truncates. This test keeps all four integral anyway —
+// its job is pinning bind ORDER, not value fidelity, which is
+// TestInsertObservationsPreservesFractionalMeasurements's coverage.
 func TestInsertObservationsRoundTripsAllColumns(t *testing.T) {
 	db := newTestDB(t)
 	o := weather.Observation{
@@ -260,7 +259,7 @@ func TestInsertObservationsRoundTripsAllColumns(t *testing.T) {
 		WindAvg:              f(3.5),
 		WindGust:             f(6.5),
 		WindDirection:        f(180),
-		WindSampleInterval:   f(3), // INTEGER column: kept integral
+		WindSampleInterval:   f(3), // REAL column: integral here; fidelity is pinned elsewhere
 		Pressure:             f(1013.25),
 		TempAir:              f(22.5),
 		Humidity:             f(65),
@@ -270,9 +269,9 @@ func TestInsertObservationsRoundTripsAllColumns(t *testing.T) {
 		RainRate:             f(0.5),
 		PrecipType:           f(1), // INTEGER column: kept integral
 		LightningDistance:    f(12.5),
-		LightningStrikeCount: f(2), // INTEGER column: kept integral
+		LightningStrikeCount: f(2), // REAL column: integral here; fidelity is pinned elsewhere
 		Battery:              f(2.85),
-		ReportInterval:       f(5), // INTEGER column: kept integral
+		ReportInterval:       f(5), // REAL column: integral here; fidelity is pinned elsewhere
 	}
 
 	if _, err := InsertObservations(t.Context(), db, []weather.Observation{o}); err != nil {
@@ -347,18 +346,15 @@ func TestInsertObservationsRoundTripsAllColumns(t *testing.T) {
 	}
 }
 
-// TestInsertObservationsStoresIntegerColumnsAsIntegers pins the fix for the
-// *float64-into-INTEGER-column hazard: wind_sample_interval, precip_type,
-// lightning_strike_count, and report_interval are declared INTEGER in
-// migrations/0001_init.sql, and the UDP read model (writer.go, fix B-LOW)
-// scans them into *int64. Binding a *float64 with a FRACTIONAL value stores
-// it with SQLite REAL affinity, which then fails a *int64 scan for the WHOLE
-// ROW it is part of — not just that column. InsertObservations must convert
-// these four fields to an integral bind exactly the way the UDP path does
-// (writer.go handleObservationReport, fix B-LOW: int64(...) truncation)
-// before binding, so a fractional API value is stored — and reads back — as
-// an integer, indistinguishable from a live UDP-ingested row.
-func TestInsertObservationsStoresIntegerColumnsAsIntegers(t *testing.T) {
+// TestInsertObservationsPreservesFractionalMeasurements pins the cross-store
+// conformance fix: wind_sample_interval, lightning_strike_count, and
+// report_interval are REAL in SQLite and DOUBLE PRECISION in Postgres, so a
+// fractional API value must survive the SQLite write path unchanged rather
+// than being truncated in Go. precip_type is the deliberate exception -- a
+// categorical enum (0 none, 1 rain, 2 hail, 3 rain+hail), INTEGER in both
+// stores, where a fractional value is corrupt input and truncation is the
+// intended coercion.
+func TestInsertObservationsPreservesFractionalMeasurements(t *testing.T) {
 	db := newTestDB(t)
 	obs := []weather.Observation{
 		{
@@ -374,38 +370,40 @@ func TestInsertObservationsStoresIntegerColumnsAsIntegers(t *testing.T) {
 		t.Fatalf("insert: %v", err)
 	}
 
-	// Scan into *int64 — the read model's declared type for these columns.
-	// This is the exact scan that fails with "converting driver.Value type
-	// float64 (...) to a int64: invalid syntax" when a fractional value was
-	// bound as *float64 instead of converted to *int64 first.
-	var windSampleInterval, precipType, lightningStrikeCount, reportInterval sql.NullInt64
+	var windSampleInterval, lightningStrikeCount, reportInterval sql.NullFloat64
+	var precipType sql.NullInt64
 	row := db.QueryRowContext(t.Context(), `
 		SELECT wind_sample_interval, precip_type, lightning_strike_count, report_interval
 		FROM tempest_observations WHERE serial_number = ? AND timestamp = ?`,
 		"ST-A", ts(1000).Unix())
 	if err := row.Scan(&windSampleInterval, &precipType, &lightningStrikeCount, &reportInterval); err != nil {
-		t.Fatalf("scan into *int64 (the read model's declared type): %v", err)
+		t.Fatalf("scan: %v", err)
 	}
 
-	cases := []struct {
+	measurements := []struct {
 		column string
-		got    sql.NullInt64
-		want   int64
+		got    sql.NullFloat64
+		want   float64
 	}{
-		{"wind_sample_interval", windSampleInterval, 1},
-		{"precip_type", precipType, 1},
-		{"lightning_strike_count", lightningStrikeCount, 2},
-		{"report_interval", reportInterval, 5},
+		{"wind_sample_interval", windSampleInterval, 1.5},
+		{"lightning_strike_count", lightningStrikeCount, 2.5},
+		{"report_interval", reportInterval, 5.9},
 	}
-	for _, c := range cases {
+	for _, c := range measurements {
 		if !c.got.Valid {
-			t.Errorf("%s = NULL, want %d", c.column, c.want)
+			t.Errorf("%s = NULL, want %v", c.column, c.want)
 			continue
 		}
-		if c.got.Int64 != c.want {
-			t.Errorf("%s = %d, want %d (truncated from the fractional API value, matching "+
-				"the UDP path's int64(...) conversion)", c.column, c.got.Int64, c.want)
+		if c.got.Float64 != c.want {
+			t.Errorf("%s = %v, want %v (fractional API value must not be truncated)", c.column, c.got.Float64, c.want)
 		}
+	}
+
+	if !precipType.Valid {
+		t.Fatal("precip_type = NULL, want 1")
+	}
+	if precipType.Int64 != 1 {
+		t.Errorf("precip_type = %d, want 1 (categorical enum: still truncated by design)", precipType.Int64)
 	}
 }
 

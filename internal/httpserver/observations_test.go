@@ -64,12 +64,12 @@ func testDepsWithObservations(reader ObservationReader) Deps {
 // one derived (server-computed) field, and 404s with the sentinel error.
 func TestAPI_CurrentObservation(t *testing.T) {
 	t.Run("returns_contract_c_shape", func(t *testing.T) {
-		windSample := int64(3)
+		windSample := 3.0
 		precip := int64(1)
 		lightningDist := 2.1
-		lightningCount := int64(4)
+		lightningCount := 4.0
 		battery := 3.6
-		reportInterval := int64(5)
+		reportInterval := 5.0
 
 		reader := &fakeObservationReader{
 			obs: sqlite.Observation{
@@ -160,6 +160,61 @@ func TestAPI_CurrentObservation(t *testing.T) {
 		// was actually computed, not just echoed).
 		if got["dewPoint"] == got["airTemperature"] {
 			t.Errorf("dewPoint = %v, expected a computed value distinct from airTemperature", got["dewPoint"])
+		}
+	})
+
+	// TestAPI_CurrentObservation/fractional_measurements_survive_to_json pins
+	// the schema-conformance fix (SGE fix wave, Fix 2): WindSampleInterval,
+	// LightningStrikeCount, and ReportInterval are float64 on the wire, not
+	// int64. A regression that narrows any of them at the mapping site (the
+	// exact bug this branch removed at the SQLite/Postgres boundary) would
+	// leave TestAPI_CurrentObservation/returns_contract_c_shape green,
+	// because that subtest's fixtures are integral and it only asserts key
+	// presence for these fields. precipitationType stays an int on the wire
+	// (categorical enum) and is asserted unchanged alongside the three
+	// floats.
+	t.Run("fractional_measurements_survive_to_json", func(t *testing.T) {
+		windSample := 1.5
+		precip := int64(1)
+		lightningCount := 2.5
+		reportInterval := 5.9
+
+		reader := &fakeObservationReader{
+			obs: sqlite.Observation{
+				SerialNumber:         "ST-00001",
+				Timestamp:            1700000000,
+				WindSampleInterval:   &windSample,
+				PrecipType:           &precip,
+				LightningStrikeCount: &lightningCount,
+				ReportInterval:       &reportInterval,
+			},
+		}
+
+		srv := New(testDepsWithObservations(reader))
+		req := httptest.NewRequest(http.MethodGet, "/api/observations/current", nil)
+		rec := httptest.NewRecorder()
+		srv.Handler.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("GET /api/observations/current = %d, want 200, body: %s", rec.Code, rec.Body.String())
+		}
+
+		var got map[string]any
+		if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+			t.Fatalf("unmarshal response: %v (body: %s)", err, rec.Body.String())
+		}
+
+		if got["windSampleInterval"] != 1.5 {
+			t.Errorf("windSampleInterval = %v, want 1.5", got["windSampleInterval"])
+		}
+		if got["lightningStrikeCount"] != 2.5 {
+			t.Errorf("lightningStrikeCount = %v, want 2.5", got["lightningStrikeCount"])
+		}
+		if got["reportInterval"] != 5.9 {
+			t.Errorf("reportInterval = %v, want 5.9", got["reportInterval"])
+		}
+		if got["precipitationType"] != float64(1) {
+			t.Errorf("precipitationType = %v, want 1", got["precipitationType"])
 		}
 	})
 
@@ -322,7 +377,7 @@ func TestHandleSummary_OK(t *testing.T) {
 		WindMax:        sql.NullFloat64{Float64: 8, Valid: true},
 		GustMax:        sql.NullFloat64{Float64: 12, Valid: true},
 		RainTotal:      sql.NullFloat64{Float64: 3.5, Valid: true},
-		LightningTotal: sql.NullInt64{Int64: 4, Valid: true},
+		LightningTotal: sql.NullFloat64{Float64: 4, Valid: true},
 	}}
 
 	srv := New(testDepsWithObservations(reader))

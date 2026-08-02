@@ -2,6 +2,15 @@
 name: Tests
 description: Runs the full Go quality gate — format, build, vet, lint, and race-enabled tests
 
+inputs:
+  postgres-url:
+    description: >-
+      Connection string for a Postgres instance the test suite can use. When
+      empty, internal/postgres's integration tests skip themselves, which is
+      the correct behaviour for a local run without a database.
+    required: false
+    default: ""
+
 runs:
   using: composite
   steps:
@@ -83,6 +92,8 @@ runs:
     - name: Run all Tests
       shell: bash
       working-directory: ${{ github.workspace }}
+      env:
+        POSTGRES_URL: ${{ inputs.postgres-url }}
       run: |
         go version
         START_TIME=$(date +%s)

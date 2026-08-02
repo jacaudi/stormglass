@@ -44,10 +44,10 @@ func queryAllObservations(t *testing.T, db *sql.DB) []Observation {
 	var got []Observation
 	for rows.Next() {
 		var (
-			obs                                     Observation
-			windSampleInterval, precipType          sql.NullInt64
-			lightningStrikeCount, reportInterval    sql.NullInt64
-			tempWetbulb, lightningDistance, battery sql.NullFloat64
+			obs                                                      Observation
+			precipType                                               sql.NullInt64
+			windSampleInterval, lightningStrikeCount, reportInterval sql.NullFloat64
+			tempWetbulb, lightningDistance, battery                  sql.NullFloat64
 		)
 		if err := rows.Scan(
 			&obs.ID, &obs.SerialNumber, &obs.Timestamp,
@@ -60,7 +60,7 @@ func queryAllObservations(t *testing.T, db *sql.DB) []Observation {
 			t.Fatalf("scan observation row: %v", err)
 		}
 		if windSampleInterval.Valid {
-			obs.WindSampleInterval = &windSampleInterval.Int64
+			obs.WindSampleInterval = &windSampleInterval.Float64
 		}
 		if tempWetbulb.Valid {
 			obs.TempWetbulb = &tempWetbulb.Float64
@@ -72,13 +72,13 @@ func queryAllObservations(t *testing.T, db *sql.DB) []Observation {
 			obs.LightningDistance = &lightningDistance.Float64
 		}
 		if lightningStrikeCount.Valid {
-			obs.LightningStrikeCount = &lightningStrikeCount.Int64
+			obs.LightningStrikeCount = &lightningStrikeCount.Float64
 		}
 		if battery.Valid {
 			obs.Battery = &battery.Float64
 		}
 		if reportInterval.Valid {
-			obs.ReportInterval = &reportInterval.Int64
+			obs.ReportInterval = &reportInterval.Float64
 		}
 		got = append(got, obs)
 	}
