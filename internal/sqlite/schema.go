@@ -31,22 +31,47 @@ func Migrate(ctx context.Context, db *sql.DB) error {
 		return fmt.Errorf("determine current schema version: %w", err)
 	}
 
+	type migration struct {
+		name    string
+		version int
+	}
+	migrations := make([]migration, 0, len(entries))
+	highest := 0
 	for _, entry := range entries {
 		version, err := migrationVersion(entry.Name())
 		if err != nil {
 			return fmt.Errorf("parse migration version from %q: %w", entry.Name(), err)
 		}
-		if version <= current {
+		migrations = append(migrations, migration{name: entry.Name(), version: version})
+		if version > highest {
+			highest = version
+		}
+	}
+
+	// A database newer than this binary must fail loudly. The loop below
+	// skips any migration whose version is <= current, so an older binary
+	// pointed at a newer database would apply nothing and report success --
+	// and would go on silently skipping every future migration numbered at
+	// or below the version the database already records.
+	if current > highest {
+		return fmt.Errorf(
+			"database schema version %d is newer than the highest bundled migration (%d): "+
+				"this binary is older than the database it was pointed at",
+			current, highest)
+	}
+
+	for _, m := range migrations {
+		if m.version <= current {
 			continue
 		}
 
-		content, err := migrationsFS.ReadFile(migrationsDir + "/" + entry.Name())
+		content, err := migrationsFS.ReadFile(migrationsDir + "/" + m.name)
 		if err != nil {
-			return fmt.Errorf("read migration %q: %w", entry.Name(), err)
+			return fmt.Errorf("read migration %q: %w", m.name, err)
 		}
 
-		if err := applyMigration(ctx, db, version, string(content)); err != nil {
-			return fmt.Errorf("apply migration %q: %w", entry.Name(), err)
+		if err := applyMigration(ctx, db, m.version, string(content)); err != nil {
+			return fmt.Errorf("apply migration %q: %w", m.name, err)
 		}
 	}
 
