@@ -717,7 +717,7 @@ type Observation struct {
 	WindAvg              float64
 	WindGust             float64
 	WindDirection        float64
-	WindSampleInterval   *int64
+	WindSampleInterval   *float64
 	Pressure             float64
 	TempAir              float64
 	TempWetbulb          *float64
@@ -728,9 +728,9 @@ type Observation struct {
 	RainRate             float64
 	PrecipType           *int64
 	LightningDistance    *float64
-	LightningStrikeCount *int64
+	LightningStrikeCount *float64
 	Battery              *float64
-	ReportInterval       *int64
+	ReportInterval       *float64
 }
 
 const selectLatestObservationSQL = `
@@ -756,10 +756,10 @@ const selectLatestObservationSQL = `
 // that shared knowledge is exactly what this extraction single-sources.
 func scanObservation(row *sql.Row) (Observation, error) {
 	var (
-		obs                                     Observation
-		windSampleInterval, precipType          sql.NullInt64
-		lightningStrikeCount, reportInterval    sql.NullInt64
-		tempWetbulb, lightningDistance, battery sql.NullFloat64
+		obs                                                      Observation
+		precipType                                               sql.NullInt64
+		windSampleInterval, lightningStrikeCount, reportInterval sql.NullFloat64
+		tempWetbulb, lightningDistance, battery                  sql.NullFloat64
 	)
 
 	err := row.Scan(
@@ -775,7 +775,7 @@ func scanObservation(row *sql.Row) (Observation, error) {
 	}
 
 	if windSampleInterval.Valid {
-		obs.WindSampleInterval = &windSampleInterval.Int64
+		obs.WindSampleInterval = &windSampleInterval.Float64
 	}
 	if tempWetbulb.Valid {
 		obs.TempWetbulb = &tempWetbulb.Float64
@@ -787,13 +787,13 @@ func scanObservation(row *sql.Row) (Observation, error) {
 		obs.LightningDistance = &lightningDistance.Float64
 	}
 	if lightningStrikeCount.Valid {
-		obs.LightningStrikeCount = &lightningStrikeCount.Int64
+		obs.LightningStrikeCount = &lightningStrikeCount.Float64
 	}
 	if battery.Valid {
 		obs.Battery = &battery.Float64
 	}
 	if reportInterval.Valid {
-		obs.ReportInterval = &reportInterval.Int64
+		obs.ReportInterval = &reportInterval.Float64
 	}
 
 	return obs, nil
@@ -945,7 +945,7 @@ type Summary struct {
 	WindMax        sql.NullFloat64
 	GustMax        sql.NullFloat64
 	RainTotal      sql.NullFloat64
-	LightningTotal sql.NullInt64
+	LightningTotal sql.NullFloat64
 }
 
 const summarizeObservationsSQL = `

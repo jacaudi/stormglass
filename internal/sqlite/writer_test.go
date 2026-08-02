@@ -73,14 +73,14 @@ func TestWriter_InsertsObservation(t *testing.T) {
 			serial                                     string
 			ts                                         int64
 			windLull, windAvg, windGust, windDirection float64
-			windSampleInterval                         int64
+			windSampleInterval                         float64
 			pressure, tempAir, tempWetbulb, humidity   float64
 			illuminance, uvIndex, irradiance, rainRate float64
 			precipType                                 int64
 			lightningDistance                          float64
-			lightningStrikeCount                       int64
+			lightningStrikeCount                       float64
 			battery                                    float64
-			reportInterval                             int64
+			reportInterval                             float64
 		)
 		row := w.db.QueryRowContext(ctx, `SELECT
 			id, serial_number, timestamp,
@@ -196,9 +196,10 @@ func TestWriter_InsertsObservation(t *testing.T) {
 		}
 
 		var (
-			windSampleInterval                               int64
-			precipType, lightningStrikeCount, reportInterval sql.NullInt64
-			lightningDistance, battery                       sql.NullFloat64
+			windSampleInterval                   float64
+			precipType                           sql.NullInt64
+			lightningStrikeCount, reportInterval sql.NullFloat64
+			lightningDistance, battery           sql.NullFloat64
 		)
 		row := w.db.QueryRowContext(ctx, `SELECT
 			wind_sample_interval, precip_type, lightning_distance, lightning_strike_count,
@@ -214,7 +215,7 @@ func TestWriter_InsertsObservation(t *testing.T) {
 		// wind_sample_interval (index 5) IS present at the minimum valid
 		// length of 13 -> must NOT be NULL.
 		if windSampleInterval != 1 {
-			t.Errorf("wind_sample_interval = %d, want 1 (present at len=13)", windSampleInterval)
+			t.Errorf("wind_sample_interval = %v, want 1 (present at len=13)", windSampleInterval)
 		}
 		if precipType.Valid {
 			t.Errorf("precip_type should be NULL, got %v", precipType.Int64)
@@ -223,13 +224,13 @@ func TestWriter_InsertsObservation(t *testing.T) {
 			t.Errorf("lightning_distance should be NULL, got %v", lightningDistance.Float64)
 		}
 		if lightningStrikeCount.Valid {
-			t.Errorf("lightning_strike_count should be NULL, got %v", lightningStrikeCount.Int64)
+			t.Errorf("lightning_strike_count should be NULL, got %v", lightningStrikeCount.Float64)
 		}
 		if battery.Valid {
 			t.Errorf("battery should be NULL, got %v", battery.Float64)
 		}
 		if reportInterval.Valid {
-			t.Errorf("report_interval should be NULL, got %v", reportInterval.Int64)
+			t.Errorf("report_interval should be NULL, got %v", reportInterval.Float64)
 		}
 	})
 }

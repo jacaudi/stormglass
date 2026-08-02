@@ -64,12 +64,12 @@ func testDepsWithObservations(reader ObservationReader) Deps {
 // one derived (server-computed) field, and 404s with the sentinel error.
 func TestAPI_CurrentObservation(t *testing.T) {
 	t.Run("returns_contract_c_shape", func(t *testing.T) {
-		windSample := int64(3)
+		windSample := 3.0
 		precip := int64(1)
 		lightningDist := 2.1
-		lightningCount := int64(4)
+		lightningCount := 4.0
 		battery := 3.6
-		reportInterval := int64(5)
+		reportInterval := 5.0
 
 		reader := &fakeObservationReader{
 			obs: sqlite.Observation{
@@ -322,7 +322,7 @@ func TestHandleSummary_OK(t *testing.T) {
 		WindMax:        sql.NullFloat64{Float64: 8, Valid: true},
 		GustMax:        sql.NullFloat64{Float64: 12, Valid: true},
 		RainTotal:      sql.NullFloat64{Float64: 3.5, Valid: true},
-		LightningTotal: sql.NullInt64{Int64: 4, Valid: true},
+		LightningTotal: sql.NullFloat64{Float64: 4, Valid: true},
 	}}
 
 	srv := New(testDepsWithObservations(reader))
