@@ -438,6 +438,10 @@ func TestInsertObservationsPreservesFractionalMeasurements(t *testing.T) {
 
 	serial := "ST-FRAC"
 	stamp := time.Unix(1_900_000_000, 0).UTC()
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(),
+			`DELETE FROM tempest_observations WHERE serial_number = $1`, serial)
+	})
 	if _, err := pool.Exec(ctx,
 		`DELETE FROM tempest_observations WHERE serial_number = $1`, serial); err != nil {
 		t.Fatalf("clean: %v", err)

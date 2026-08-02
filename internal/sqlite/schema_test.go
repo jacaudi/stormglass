@@ -41,14 +41,14 @@ func TestMigrate_CreatesTablesAndVersion(t *testing.T) {
 	// instead of a full table scan + sort -- idx_obs_serial_time can't serve
 	// either query since it leads with serial_number (SGE review I1).
 	assertIndexExists(t, db, "idx_obs_time")
-	assertSchemaVersion(t, db, 1)
+	assertSchemaVersion(t, db, 2)
 
 	// Idempotent: running Migrate again must not fail and must leave the
 	// schema at the same version.
 	if err := Migrate(ctx, db); err != nil {
 		t.Fatalf("second Migrate() error = %v", err)
 	}
-	assertSchemaVersion(t, db, 1)
+	assertSchemaVersion(t, db, 2)
 }
 
 func TestMigrateDeclaresMeasurementColumnsAsREAL(t *testing.T) {

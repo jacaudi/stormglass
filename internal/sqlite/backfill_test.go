@@ -246,7 +246,7 @@ func TestInsertObservationsEmptyIsNoop(t *testing.T) {
 // suite green.
 //
 // wind_sample_interval, lightning_strike_count, and report_interval are REAL
-// in migrations/0001_init.sql and preserve fractional values; precip_type is
+// in migrations/0002_init.sql and preserve fractional values; precip_type is
 // INTEGER and still truncates. This test keeps all four integral anyway —
 // its job is pinning bind ORDER, not value fidelity, which is
 // TestInsertObservationsPreservesFractionalMeasurements's coverage.

@@ -1,3 +1,12 @@
+-- This file starts at 0002, not 0001: released v3.0.0/v3.1.0 already shipped
+-- 0001_init.sql AND 0002_add_timestamp_index.sql, so every database they ever
+-- created is at schema_version = 2. A migration numbered 0001 here would be
+-- skipped outright on any of those databases (Migrate applies only versions
+-- > current). This file folds both of those migrations together and keeps
+-- their combined version number so it is still applied as version 2 on a
+-- fresh install, matching what every released binary already reaches. The
+-- next migration after this one MUST be numbered 0003.
+--
 -- All timestamps stored as INTEGER unix-epoch seconds (UTC). UUIDv7 text PKs generated in Go.
 CREATE TABLE IF NOT EXISTS tempest_observations (
   id TEXT PRIMARY KEY,                 -- UUIDv7

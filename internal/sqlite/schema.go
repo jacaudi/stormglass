@@ -55,8 +55,9 @@ func Migrate(ctx context.Context, db *sql.DB) error {
 	// or below the version the database already records.
 	if current > highest {
 		return fmt.Errorf(
-			"database schema version %d is newer than the highest bundled migration (%d): "+
-				"this binary is older than the database it was pointed at",
+			"database schema version %d exceeds the highest migration bundled in this binary (%d): "+
+				"the database was written by a newer build, so this one cannot safely open it — "+
+				"upgrade the binary rather than downgrading the database",
 			current, highest)
 	}
 
@@ -143,7 +144,7 @@ func splitStatements(content string) []string {
 }
 
 // migrationVersion parses the numeric version prefix from a migration
-// filename (e.g. "0001_init.sql" -> 1). Version prefixes must be
+// filename (e.g. "0002_init.sql" -> 2). Version prefixes must be
 // zero-padded consistently so that lexicographic filename ordering (used by
 // fs.ReadDir) matches numeric version ordering.
 func migrationVersion(filename string) (int, error) {
