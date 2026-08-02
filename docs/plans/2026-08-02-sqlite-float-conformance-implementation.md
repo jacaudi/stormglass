@@ -53,13 +53,74 @@ stores these as `DOUBLE PRECISION` with `*float64` end to end and needs no schem
 - The branch point is `a1b07f1`. For branch-wide diffs use `a1b07f1..HEAD`, **never** `main...HEAD` —
   local `main` is stale at `8990b88` and reports 27 unrelated `.go` files.
 - `timeout` does not exist on macOS (it is `gtimeout`). Use the tool's own timeout.
-- The full gate is `go build ./...` (with `CGO_ENABLED=0`), `go vet ./...`, `gofmt -l .`,
-  `go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 run ./...`, `go test -race ./...`.
-- **Known conflict:** PR #117 (`worktree-release-binaries`) also modifies
-  `.github/workflows/on-push-main.yml` and `on-release.yml`. It removes `latest:` / `tag-strategy:`
-  from the `docker` step; Task 4 adds a `services:` block to the `tests` job. Different jobs, so a
-  clean auto-merge is expected — but if #117 merges first, rebase before Task 4 and do **not**
-  re-add the lines it deleted.
+- **THE GATE.** Every task ends with this exact block. Copy it verbatim; do not simplify it.
+
+  ```bash
+cd /Users/acaudill/Projects/github/tempestwx-exporter/.claude/worktrees/schema-conformance
+  cd /Users/acaudill/Projects/github/tempestwx-exporter/.claude/worktrees/schema-conformance
+  CGO_ENABLED=0 go build ./... || exit 1
+  go vet ./... || exit 1
+  unformatted=$(gofmt -l .); if [ -n "$unformatted" ]; then echo "UNFORMATTED: $unformatted"; exit 1; fi
+  GOLANGCI_LINT_CACHE=/tmp/golangci-schema-conformance \
+    go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 run ./... || exit 1
+  go test -race ./... 2>&1 | tail -20
+  ```
+
+  Two things in it are load-bearing and were wrong in an earlier revision:
+
+  - **`GOLANGCI_LINT_CACHE` must be set.** golangci-lint's default cache is keyed such that it
+    collides across sibling git worktrees of the same module. Without this, running the linter here
+    reports three issues in `../api-backfill/main.go` — a **different worktree** — on a completely
+    unmodified tree, because `//nolint` directives resolve against the wrong file. Verified: with an
+    isolated cache the same command reports `0 issues`. If you see findings in a path containing
+    `api-backfill`, `p1-fixes`, `records-summary`, `release-binaries`, or `w5-ux-polish`, that is
+    this bug — **do not edit those files**, set the cache variable.
+  - **`gofmt -l .` exits 0 even when it lists files.** Verified. Chaining it with `&&` therefore
+    enforces nothing; the `if [ -n "$unformatted" ]` form is what actually fails, and it mirrors
+    what CI does at `.github/actions/tests/action.yml:43-52`.
+
+  `|| exit 1` per step rather than one `&&` chain, so a failure names the step that failed instead
+  of silently skipping everything after it.
+- **Every shell block in this plan begins with `cd` to the worktree.** The shell's cwd resets
+  between tool calls. A `git add`/`git commit` run from the parent repo commits to the wrong
+  branch. If a block below is missing its `cd`, add it — that is a defect in this document, not a
+  signal that the block is special.
+- **PR #117 overlap — assume it has NOT merged.** PR #117 (`worktree-release-binaries`) also
+  modifies `.github/workflows/on-push-main.yml` and `on-release.yml`, removing `latest:` /
+  `tag-strategy:` from the `docker` step. Task 4 adds a `services:` block to the `tests` job in the
+  same files — a different job, so the two do not overlap textually.
+
+  Execute this plan against the branch as it stands. **Do not attempt a rebase.** Before Task 4,
+  run `cd <worktree> && git log --oneline -1 origin/main` — if it is not `a1b07f1`, `origin/main`
+  has moved, so STOP and report rather than guessing what changed. Merge-order reconciliation is
+  the human's call, not an unattended one.
+
+## If a task fails partway
+
+Each task is one commit. Nothing is pushed, so recovery is always local.
+
+- **Before that task's commit lands:** discard the whole task and start it over.
+  ```bash
+  cd /Users/acaudill/Projects/github/tempestwx-exporter/.claude/worktrees/schema-conformance
+  git reset -q HEAD && git checkout -- . && git status --porcelain
+  ```
+  `git status --porcelain` must come back empty. This is safe because every task's edits are
+  confined to tracked files, and any new test file you added is discarded with them — re-add it
+  when you retry.
+
+  **Task 1 needs this most.** Step 4 runs `git rm`, so between Steps 4 and 6 the tree is in a state
+  where `assertSchemaVersion(t, db, 2)` is false and the suite cannot pass. A failure in that window
+  leaves a staged deletion; the reset above clears it.
+
+- **After that task's commit lands:** the previous commit is a safe stopping point. Use
+  `git checkout -- .` to drop only the uncommitted work, and report. **Do not `git reset` past a
+  commit this plan created**, and do not improvise a partial commit.
+
+- **Never use bare `git stash` / `git stash pop`.** The stash stack is shared across worktrees. The
+  single sanctioned exception is the tagged, apply-by-SHA probe in Task 3 Step 9.
+
+- **Whatever the failure, report it rather than working around it.** A step that cannot be completed
+  as written is a defect in this document; inventing a substitute hides it.
 
 ## Background an implementer needs
 
@@ -348,6 +409,7 @@ that assertion is what proves the fold did not drop the index.
 - [ ] **Step 7: Run the tests and watch them pass**
 
 ```bash
+cd /Users/acaudill/Projects/github/tempestwx-exporter/.claude/worktrees/schema-conformance
 go test ./internal/sqlite/ -run 'TestMigrate' -v 2>&1 | tail -30
 ```
 
@@ -356,7 +418,13 @@ Expected: PASS for both new tests and the existing migration tests.
 - [ ] **Step 8: Run the full gate**
 
 ```bash
-CGO_ENABLED=0 go build ./... && go vet ./... && gofmt -l . && go test -race ./... 2>&1 | tail -20
+cd /Users/acaudill/Projects/github/tempestwx-exporter/.claude/worktrees/schema-conformance
+CGO_ENABLED=0 go build ./... || exit 1
+go vet ./... || exit 1
+unformatted=$(gofmt -l .); if [ -n "$unformatted" ]; then echo "UNFORMATTED: $unformatted"; exit 1; fi
+GOLANGCI_LINT_CACHE=/tmp/golangci-schema-conformance \
+  go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 run ./... || exit 1
+go test -race ./... 2>&1 | tail -20
 ```
 
 Expected: `gofmt -l .` prints nothing; everything passes. **Every existing test still passes** —
@@ -365,6 +433,7 @@ integral values scan into `sql.NullInt64` from a `REAL` column without error. Th
 - [ ] **Step 9: Commit**
 
 ```bash
+cd /Users/acaudill/Projects/github/tempestwx-exporter/.claude/worktrees/schema-conformance
 git add internal/sqlite/migrations internal/sqlite/schema.go internal/sqlite/schema_test.go
 git status --porcelain
 git commit -m "fix(sqlite): declare the three measurement columns REAL; fold 0002 into 0001
@@ -454,26 +523,38 @@ func TestSummarizeObservationsPreservesFractionalLightningTotal(t *testing.T) {
 	if !s.LightningTotal.Valid {
 		t.Fatal("LightningTotal is NULL, want 5.5")
 	}
-	if s.LightningTotal.Float64 != 5.5 {
-		t.Errorf("LightningTotal = %v, want 5.5", s.LightningTotal.Float64)
-	}
 }
 ```
+
+**Note what this test deliberately does NOT do yet: it never reads `.Float64`.** That is what keeps
+it compiling against today's `sql.NullInt64` field, so its red state is a genuine runtime failure
+rather than a compile error. The value assertion is added in Step 8, after the type changes.
 
 `newTestWriter` is defined in `internal/sqlite/writer_test.go:35` and is available to every test in
 the package; it migrates the database and leaves the flush ticker dormant. `w.db` is the package's
 own field, reachable from an in-package test. If `summary_test.go` does not already import
 `github.com/google/uuid`, add it.
 
-- [ ] **Step 2: Run it and watch it fail**
+- [ ] **Step 2: Run it and watch it fail at RUNTIME**
 
 ```bash
+cd /Users/acaudill/Projects/github/tempestwx-exporter/.claude/worktrees/schema-conformance
 go test ./internal/sqlite/ -run TestSummarizeObservationsPreservesFractionalLightningTotal -v 2>&1 | tail -20
 ```
 
-Expected: FAIL with a compile error on `s.LightningTotal.Float64` (the field is `sql.NullInt64`).
-A compile failure is acceptable as the red state **only for this step**, because the type itself is
-what the test is asserting. Confirm the message names `Float64` / `NullInt64`.
+Expected: FAIL — **not** a compile error — with a message containing:
+
+```
+SummarizeObservations: ... converting driver.Value type float64 ("5.5") to a int64: invalid syntax
+```
+
+`SummarizeObservations` (`internal/sqlite/writer.go:970-981`) wraps the scan error, so the
+fractional `SUM` surfaces as a returned error and `t.Fatalf` fires. That is a real red state.
+
+If instead you get a compile error, the test was written with a `.Float64` reference — remove it and
+re-run. **A compile failure does not count as a TDD red state in this project**
+(`docs/designs/2026-07-28-api-backfill-tool-design.md:449`), which is exactly why this test is
+staged in two parts.
 
 - [ ] **Step 3: Widen the read model in `internal/sqlite/writer.go`**
 
@@ -543,8 +624,47 @@ columns as plain `int64` and raw-scan them, and the seeded values `3,4,5` still 
 			reportInterval                             float64
 ```
 
-Leave `precipType int64`. Adjust any `%d` verbs for those three to `%v`, and any integer literal
-comparisons remain valid (`3 == 3.0`).
+Leave `precipType int64`. Integer literal comparisons remain valid (`3 == 3.0`). The `%d` verbs in
+this subtest are already `%v` at `:131,161,167` — nothing to change there.
+
+**There is a SECOND silent survivor of the same kind in the same file**, in the
+`nullable_fields_absent` subtest. `:198` declares:
+
+```go
+			windSampleInterval                               int64
+```
+
+change it to:
+
+```go
+			windSampleInterval                               float64
+```
+
+and at `:217` replace:
+
+```go
+			t.Errorf("wind_sample_interval = %d, want 1 (present at len=13)", windSampleInterval)
+```
+
+with:
+
+```go
+			t.Errorf("wind_sample_interval = %v, want 1 (present at len=13)", windSampleInterval)
+```
+
+The `precipType, lightningStrikeCount, reportInterval sql.NullInt64` line at `:199` also needs
+splitting — `precipType` stays `sql.NullInt64`, the other two become `sql.NullFloat64`:
+
+```go
+			precipType                               sql.NullInt64
+			lightningStrikeCount, reportInterval     sql.NullFloat64
+```
+
+and their `.Int64` reads later in the subtest become `.Float64`. Run `gofmt -w
+internal/sqlite/writer_test.go` after — the `var` block alignment changes.
+
+This subtest keeps passing either way (value `1` scans fine from a `REAL` column), which is exactly
+why it has to be fixed deliberately rather than waiting for a compiler error.
 
 `internal/sqlite/litestream_test.go:46-50` — change the declaration block:
 
@@ -597,35 +717,65 @@ over an `INTEGER` column.
 
 - [ ] **Step 7: Fix the httpserver test fixtures**
 
-`internal/httpserver/observations_test.go:70,72,82,92,94` construct `int64` locals and assign them
-into `sqlite.Observation`. Change those three to `float64` — e.g. `lightningCount := 4.0`,
-`reportInterval := 5.0`. `:325` has a `sql.NullInt64{...}` literal for `LightningTotal`; change it
-to `sql.NullFloat64{Float64: <same value>, Valid: true}`.
+Four exact find-and-replace edits in `internal/httpserver/observations_test.go`. **`:68` (`precip`)
+and `:318-319` (`CoveredFrom`/`CoveredTo`) are deliberately NOT in this list** — they stay `int64`.
 
-Read the surrounding lines before editing: match whatever the existing values are rather than
-assuming, and leave any `precipType` fixture as `int64`.
+| Line | Replace | With |
+|---|---|---|
+| `:67` | `windSample := int64(3)` | `windSample := 3.0` |
+| `:70` | `lightningCount := int64(4)` | `lightningCount := 4.0` |
+| `:72` | `reportInterval := int64(5)` | `reportInterval := 5.0` |
+| `:325` | `LightningTotal: sql.NullInt64{Int64: 4, Valid: true},` | `LightningTotal: sql.NullFloat64{Float64: 4, Valid: true},` |
 
-- [ ] **Step 8: Run the tests and watch them pass**
+The `&windSample` / `&lightningCount` / `&reportInterval` assignments at `:82,92,94` need **no
+edit** — they take the address of the retyped locals.
+
+An earlier revision listed the declarations as `:70,72,82,92,94` and said to "change those three."
+Wrong twice: it omitted `:67`, whose absence produces
+`cannot use &windSample (variable of type *int64) as *float64`, and three of the five lines it
+named are `&x` assignments where retyping means nothing.
+
+- [ ] **Step 8: Complete the fractional-`SUM` test with its value assertion**
+
+Now that `Summary.LightningTotal` is `sql.NullFloat64`, add the assertion deferred from Step 1. In
+`TestSummarizeObservationsPreservesFractionalLightningTotal`, after the `if !s.LightningTotal.Valid`
+block, add:
+
+```go
+	if s.LightningTotal.Float64 != 5.5 {
+		t.Errorf("LightningTotal = %v, want 5.5", s.LightningTotal.Float64)
+	}
+```
+
+Without this, the test only proves the scan stopped erroring — not that the value is right.
+
+- [ ] **Step 9: Run the tests and watch them pass**
 
 ```bash
+cd /Users/acaudill/Projects/github/tempestwx-exporter/.claude/worktrees/schema-conformance
 go test ./internal/sqlite/ ./internal/httpserver/ 2>&1 | tail -20
 ```
 
 Expected: all pass, including the new fractional-`SUM` test.
 
-- [ ] **Step 9: Run the full gate**
+- [ ] **Step 10: Run the full gate**
 
 ```bash
-CGO_ENABLED=0 go build ./... && go vet ./... && gofmt -l . && \
-  go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 run ./... && \
-  go test -race ./... 2>&1 | tail -20
+cd /Users/acaudill/Projects/github/tempestwx-exporter/.claude/worktrees/schema-conformance
+CGO_ENABLED=0 go build ./... || exit 1
+go vet ./... || exit 1
+unformatted=$(gofmt -l .); if [ -n "$unformatted" ]; then echo "UNFORMATTED: $unformatted"; exit 1; fi
+GOLANGCI_LINT_CACHE=/tmp/golangci-schema-conformance \
+  go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 run ./... || exit 1
+go test -race ./... 2>&1 | tail -20
 ```
 
 Expected: `gofmt -l .` prints nothing; lint clean; all tests pass.
 
-- [ ] **Step 10: Commit**
+- [ ] **Step 11: Commit**
 
 ```bash
+cd /Users/acaudill/Projects/github/tempestwx-exporter/.claude/worktrees/schema-conformance
 git add internal/sqlite internal/httpserver
 git status --porcelain
 git commit -m "fix(sqlite): read the three measurement columns as float64
@@ -737,6 +887,7 @@ func TestInsertObservationsPreservesFractionalMeasurements(t *testing.T) {
 - [ ] **Step 2: Run it and watch it fail**
 
 ```bash
+cd /Users/acaudill/Projects/github/tempestwx-exporter/.claude/worktrees/schema-conformance
 go test ./internal/sqlite/ -run TestInsertObservationsPreservesFractionalMeasurements -v 2>&1 | tail -20
 ```
 
@@ -865,20 +1016,45 @@ JSON null to `0.0` — is still true and correct (`writer.go:100-103` are unchan
 
 - [ ] **Step 7: Update the stale comments in `internal/sqlite/backfill_test.go`**
 
-`:241-253` and the inline notes at `:263,271,273,275` describe these as INTEGER columns. Read them
-and correct the wording: the three measurement columns are `REAL` and preserve fractional values;
-`precip_type` is `INTEGER` and still truncates. Do not change any assertion values in those tests
-unless the change makes one false — if it does, report which and why before editing.
+**No assertion value changes in this step.** All four `f(...)` seeds stay exactly as they are —
+`TestInsertObservationsRoundTripsAllColumns` scans into `sql.NullFloat64`, and `3 == 3.0`, so every
+existing assertion remains true against `REAL` columns. This step is comment text only.
+
+Replace the doc-comment paragraph at `:248-253` — the whole of it, from `// wind_sample_interval,`
+through `// (a FRACTIONAL value for these four, round-tripped through a *int64 scan).`:
+
+```go
+// wind_sample_interval, lightning_strike_count, and report_interval are REAL
+// in migrations/0001_init.sql and preserve fractional values; precip_type is
+// INTEGER and still truncates. This test keeps all four integral anyway —
+// its job is pinning bind ORDER, not value fidelity, which is
+// TestInsertObservationsPreservesFractionalMeasurements's coverage.
+```
+
+That replacement is also what satisfies Final Verification #2: the old text names `asInt64`, a
+function this task deletes, and `TestInsertObservationsStoresIntegerColumnsAsIntegers`, a test
+Step 1 renamed. Leaving it makes `git grep 'asInt64' -- ':!docs/'` non-empty and leaves a comment
+pointing at a function that no longer exists.
+
+Then the four inline notes. Each currently reads `// INTEGER column: kept integral`:
+
+| Line | Replace with |
+|---|---|
+| `:263` (`WindSampleInterval: f(3),`) | `// REAL column: integral here; fidelity is pinned elsewhere` |
+| `:271` (`PrecipType: f(1),`) | `// INTEGER column: kept integral` — **unchanged** |
+| `:273` (`LightningStrikeCount: f(2),`) | `// REAL column: integral here; fidelity is pinned elsewhere` |
+| `:275` (`ReportInterval: f(5),`) | `// REAL column: integral here; fidelity is pinned elsewhere` |
 
 - [ ] **Step 8: Run the tests and watch them pass**
 
 ```bash
+cd /Users/acaudill/Projects/github/tempestwx-exporter/.claude/worktrees/schema-conformance
 go test ./internal/sqlite/ -v 2>&1 | tail -30
 ```
 
 Expected: all pass, including `TestInsertObservationsPreservesFractionalMeasurements`.
 
-- [ ] **Step 9: Add a UDP-path round-trip test**
+- [ ] **Step 9: Add a UDP-path round-trip test — and prove it bites**
 
 The REST path is now covered; the UDP path is not. Add to `internal/sqlite/writer_test.go`:
 
@@ -941,24 +1117,46 @@ changed to fractional values. `tempestudp` and `uuid` are already imported by th
 Run it and watch it pass:
 
 ```bash
+cd /Users/acaudill/Projects/github/tempestwx-exporter/.claude/worktrees/schema-conformance
 go test ./internal/sqlite/ -run TestWriter_PreservesFractionalMeasurements -v 2>&1 | tail -20
 ```
 
-If you run this **before** Steps 3–5, it fails with `wind_sample_interval = 1, want 1.5` — that is
-the same red state Step 2 already demonstrated for the REST path, and running it early is a
-legitimate way to prove this test bites too.
+**You MUST prove this test bites.** It is written after the implementation, so on its own it is a
+characterization test with no red state — and a per-task reviewer will reject a report that shows
+none. Demonstrate it by reverting the write path, running the test, and restoring:
+
+```bash
+cd /Users/acaudill/Projects/github/tempestwx-exporter/.claude/worktrees/schema-conformance
+git stash push -u -m "udp-red-probe-$(date +%s)" -- internal/sqlite/writer.go internal/sqlite/backfill.go
+STASH=$(git stash list --format='%H %gs' | grep udp-red-probe | head -1 | cut -d' ' -f1)
+go test ./internal/sqlite/ -run TestWriter_PreservesFractionalMeasurements 2>&1 | tail -8
+git stash apply "$STASH"
+git stash drop "$(git stash list --format='%gd %gs' | grep udp-red-probe | head -1 | cut -d' ' -f1)"
+```
+
+Expected during the probe: FAIL with `wind_sample_interval = 1, want 1.5`. Then confirm the
+restore left the tree correct by re-running the test — it must PASS.
+
+Note this is the ONE sanctioned use of `git stash` in this plan, it is tagged and applied by SHA
+(never `git stash pop`), and it is scoped to two files. Record the probe's failing output in your
+task report as the red-state evidence.
 
 - [ ] **Step 10: Run the full gate**
 
 ```bash
-CGO_ENABLED=0 go build ./... && go vet ./... && gofmt -l . && \
-  go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 run ./... && \
-  go test -race ./... 2>&1 | tail -20
+cd /Users/acaudill/Projects/github/tempestwx-exporter/.claude/worktrees/schema-conformance
+CGO_ENABLED=0 go build ./... || exit 1
+go vet ./... || exit 1
+unformatted=$(gofmt -l .); if [ -n "$unformatted" ]; then echo "UNFORMATTED: $unformatted"; exit 1; fi
+GOLANGCI_LINT_CACHE=/tmp/golangci-schema-conformance \
+  go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 run ./... || exit 1
+go test -race ./... 2>&1 | tail -20
 ```
 
 - [ ] **Step 11: Commit**
 
 ```bash
+cd /Users/acaudill/Projects/github/tempestwx-exporter/.claude/worktrees/schema-conformance
 git add internal/sqlite
 git status --porcelain
 git commit -m "fix(sqlite): stop truncating measurement columns on the write path
@@ -1029,6 +1227,10 @@ Replace the `tests` job (currently `:15-22`) with:
       # standard untagged suite runs -- `-tags integration` is deliberately not
       # enabled, because it holds the known-failing drain-on-close test (#111).
       postgres:
+        # Floating tag, deliberately: every action in this repo is SHA-pinned,
+        # but a test-only service container is not a supply-chain surface the
+        # way an action that runs with repo credentials is, and Renovate keeps
+        # the three copies of this block in step by matching the tag string.
         image: postgres:16
         env:
           POSTGRES_PASSWORD: postgres
@@ -1089,6 +1291,7 @@ unchanged:
 - [ ] **Step 5: Verify the workflows are valid**
 
 ```bash
+cd /Users/acaudill/Projects/github/tempestwx-exporter/.claude/worktrees/schema-conformance
 go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12; echo "exit=$?"
 ```
 
@@ -1099,6 +1302,7 @@ actions.
 - [ ] **Step 6: Verify the tests actually run with a database**
 
 ```bash
+cd /Users/acaudill/Projects/github/tempestwx-exporter/.claude/worktrees/schema-conformance
 docker run --rm -d --name pg-conformance -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=weather -p 55432:5432 postgres:16
 until docker exec pg-conformance pg_isready -U postgres; do sleep 1; done
 POSTGRES_URL='postgres://postgres:postgres@localhost:55432/weather?sslmode=disable' \
@@ -1106,16 +1310,33 @@ POSTGRES_URL='postgres://postgres:postgres@localhost:55432/weather?sslmode=disab
 docker rm -f pg-conformance
 ```
 
-Expected: `TestBackfillPostgresIntegration` runs and PASSes rather than skipping. `internal/config`
-is included deliberately: its tests read and write `POSTGRES_URL` via `t.Setenv`, and this confirms
-a globally-set value does not disturb them. If any `internal/config` test fails only when
-`POSTGRES_URL` is set, stop and report — that is a real interaction the design flagged as needing
-verification.
+Expected: `TestBackfillPostgresIntegration` runs and PASSes rather than skipping.
+
+Then run the **whole** suite with the variable set — the root package's `backfill_cmd_test.go:234`
+sets `ENABLE_POSTGRES=true` without touching `POSTGRES_URL`, and `internal/config`'s tests read and
+write it via `t.Setenv`, so a globally-set value could disturb either:
+
+```bash
+cd /Users/acaudill/Projects/github/tempestwx-exporter/.claude/worktrees/schema-conformance
+POSTGRES_URL='postgres://postgres:postgres@localhost:55432/weather?sslmode=disable' \
+  go test -race ./... -count=1 2>&1 | tail -10
+docker rm -f pg-conformance
+```
+
+Expected: **390 passed** — one more than the 389 that pass without `POSTGRES_URL`, the extra being
+`TestBackfillPostgresIntegration` no longer skipping. If any test fails ONLY when `POSTGRES_URL` is
+set, stop and report; that is a real interaction, not a flake.
 
 - [ ] **Step 7: Run the full gate and commit**
 
 ```bash
-CGO_ENABLED=0 go build ./... && go vet ./... && gofmt -l . && go test -race ./... 2>&1 | tail -10
+cd /Users/acaudill/Projects/github/tempestwx-exporter/.claude/worktrees/schema-conformance
+CGO_ENABLED=0 go build ./... || exit 1
+go vet ./... || exit 1
+unformatted=$(gofmt -l .); if [ -n "$unformatted" ]; then echo "UNFORMATTED: $unformatted"; exit 1; fi
+GOLANGCI_LINT_CACHE=/tmp/golangci-schema-conformance \
+  go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 run ./... || exit 1
+go test -race ./... 2>&1 | tail -20
 git add .github
 git status --porcelain
 git commit -m "ci: run the Postgres suite against a real database
@@ -1235,6 +1456,7 @@ above.
 - [ ] **Step 2: Run it against a real database and watch the result**
 
 ```bash
+cd /Users/acaudill/Projects/github/tempestwx-exporter/.claude/worktrees/schema-conformance
 docker run --rm -d --name pg-conformance -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=weather -p 55432:5432 postgres:16
 until docker exec pg-conformance pg_isready -U postgres; do sleep 1; done
 POSTGRES_URL='postgres://postgres:postgres@localhost:55432/weather?sslmode=disable' \
@@ -1279,6 +1501,7 @@ Then change the bind at `:159`:
 - [ ] **Step 4: Re-run and confirm the behaviour is unchanged**
 
 ```bash
+cd /Users/acaudill/Projects/github/tempestwx-exporter/.claude/worktrees/schema-conformance
 POSTGRES_URL='postgres://postgres:postgres@localhost:55432/weather?sslmode=disable' \
   go test ./internal/postgres/ -count=1 2>&1 | tail -20
 docker rm -f pg-conformance
@@ -1289,9 +1512,13 @@ Expected: still PASS, with the same `precip_type = 1`. A behaviour change here i
 - [ ] **Step 5: Run the full gate and commit**
 
 ```bash
-CGO_ENABLED=0 go build ./... && go vet ./... && gofmt -l . && \
-  go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 run ./... && \
-  go test -race ./... 2>&1 | tail -10
+cd /Users/acaudill/Projects/github/tempestwx-exporter/.claude/worktrees/schema-conformance
+CGO_ENABLED=0 go build ./... || exit 1
+go vet ./... || exit 1
+unformatted=$(gofmt -l .); if [ -n "$unformatted" ]; then echo "UNFORMATTED: $unformatted"; exit 1; fi
+GOLANGCI_LINT_CACHE=/tmp/golangci-schema-conformance \
+  go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 run ./... || exit 1
+go test -race ./... 2>&1 | tail -20
 git add internal/postgres
 git status --porcelain
 git commit -m "refactor(postgres): make the precip_type truncation explicit
@@ -1322,7 +1549,10 @@ cd /Users/acaudill/Projects/github/tempestwx-exporter/.claude/worktrees/schema-c
 # 1. The three columns are REAL; precip_type is not
 go test ./internal/sqlite/ -run TestMigrateDeclaresMeasurementColumnsAsREAL -v 2>&1 | tail -5
 
-# 2. No truncating helper survives under its old name
+# 2. No truncating helper survives under its old name.
+# Satisfied by Task 3 Step 6 (deletes the function) AND Task 3 Step 7 (rewrites the
+# backfill_test.go:248-253 doc comment that names it). If this returns a hit in a
+# comment, Step 7 was skipped.
 git grep -n 'asInt64' -- ':!docs/'; echo "exit=$?"          # expect exit=1, no output
 
 # 3. The folded migration is gone and only 0001 remains
@@ -1335,9 +1565,13 @@ git grep -n '0002_add_timestamp_index' -- ':!docs/'; echo "exit=$?"   # expect e
 go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12; echo "exit=$?"   # expect exit=0
 
 # 6. Full gate, no database
-CGO_ENABLED=0 go build ./... && go vet ./... && gofmt -l . && \
-  go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 run ./... && \
-  go test -race ./...
+cd /Users/acaudill/Projects/github/tempestwx-exporter/.claude/worktrees/schema-conformance
+CGO_ENABLED=0 go build ./... || exit 1
+go vet ./... || exit 1
+unformatted=$(gofmt -l .); if [ -n "$unformatted" ]; then echo "UNFORMATTED: $unformatted"; exit 1; fi
+GOLANGCI_LINT_CACHE=/tmp/golangci-schema-conformance \
+  go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 run ./... || exit 1
+go test -race ./... 2>&1 | tail -20
 
 # 7. Full gate, with a database -- the Postgres tests must RUN, not skip
 docker run --rm -d --name pg-final -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=weather -p 55432:5432 postgres:16

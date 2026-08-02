@@ -253,7 +253,7 @@ These compile-break or, worse, keep passing while asserting nothing:
 | Site | Nature |
 |---|---|
 | `internal/sqlite/writer_test.go:76,81,83,95,98,99` | **silent survivor** — declares the three as plain `int64` and raw-scans them; seeded `3,4,5` still scan fine from a `REAL` column, so the test stays green while proving nothing. Must move to `float64` |
-| `internal/sqlite/litestream_test.go:48,49,63,75,81` | `sql.NullInt64` scans, `&x.Int64` assignment. Live, not skipped — `litestream` is on PATH and CI installs it |
+| `internal/sqlite/litestream_test.go:48,49,63,75,81` | `sql.NullInt64` scans, `&x.Int64` assignment. **Correction:** an earlier revision said "CI installs litestream" — it does not (`grep -rn -i litestream .github/` returns nothing), so this test SKIPS in CI and runs only where litestream is on PATH locally. It still must be fixed; it just is not gated |
 | `internal/sqlite/summary_test.go:22,31,32,33,51,52` | compile break on `.Int64` / `%d` |
 | `internal/httpserver/observations_test.go:70,72,82,92,94,325` | `int64(...)` locals assigned into `sqlite.Observation`; `sql.NullInt64{}` literal |
 | `internal/sqlite/backfill_test.go:381,392` | compile break |
