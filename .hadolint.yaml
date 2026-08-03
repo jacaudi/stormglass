@@ -11,6 +11,12 @@ trustedRegistries:
   - gcr.io
   - registry.k8s.io
   - quay.io
+  # Per-repo addition to the fleet list. The final stage is
+  # cgr.dev/chainguard/static, chosen deliberately: it is what keeps the image
+  # static and non-root, the same constraint that makes CGO_ENABLED=0 and the
+  # pure-Go SQLite driver load-bearing. Digest-pinned at the FROM, so the
+  # :latest tag there is not an unpinned reference.
+  - cgr.dev
 
 override:
   error:

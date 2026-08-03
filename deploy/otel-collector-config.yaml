@@ -27,6 +27,8 @@ exporters:
 
 service:
   pipelines:
-    metrics: { receivers: [otlp], processors: [batch], exporters: [prometheus] }
-    traces:  { receivers: [otlp], processors: [batch], exporters: [debug] }   # swap to [debug, otlp/tempo] to store traces
-    logs:    { receivers: [otlp], processors: [batch], exporters: [debug] }   # swap to [debug, otlphttp/loki] to store logs
+    metrics: {receivers: [otlp], processors: [batch], exporters: [prometheus]}
+    # swap to [debug, otlp/tempo] to store traces
+    traces: {receivers: [otlp], processors: [batch], exporters: [debug]}
+    # swap to [debug, otlphttp/loki] to store logs
+    logs: {receivers: [otlp], processors: [batch], exporters: [debug]}
