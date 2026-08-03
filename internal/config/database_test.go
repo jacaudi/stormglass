@@ -9,14 +9,14 @@ func TestGetDatabaseConfig_FullURL(t *testing.T) {
 	// Set full connection string
 	t.Setenv("POSTGRES_URL", "postgresql://user:pass@localhost:5432/testdb")
 
-	url, err := GetDatabaseConfig()
+	dsn, err := GetDatabaseConfig()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	expected := "postgresql://user:pass@localhost:5432/testdb" //nolint:gosec // test fixture value, not a real credential
-	if url != expected {
-		t.Errorf("got %q, want %q", url, expected)
+	expected := "postgresql://user:pass@localhost:5432/testdb"
+	if dsn != expected {
+		t.Errorf("got %q, want %q", dsn, expected)
 	}
 }
 
@@ -32,14 +32,14 @@ func TestGetDatabaseConfig_Components(t *testing.T) {
 	t.Setenv("POSTGRES_NAME", "weather")
 	t.Setenv("POSTGRES_SSLMODE", "require")
 
-	url, err := GetDatabaseConfig()
+	dsn, err := GetDatabaseConfig()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	expected := "postgresql://tempest:secret@postgres:5433/weather?sslmode=require" //nolint:gosec // test fixture value, not a real credential
-	if url != expected {
-		t.Errorf("got %q, want %q", url, expected)
+	expected := "postgresql://tempest:secret@postgres:5433/weather?sslmode=require"
+	if dsn != expected {
+		t.Errorf("got %q, want %q", dsn, expected)
 	}
 }
 
@@ -51,21 +51,21 @@ func TestGetDatabaseConfig_ComponentDefaults(t *testing.T) {
 	t.Setenv("POSTGRES_NAME", "db")
 	// Don't set PORT or SSLMODE - should use defaults
 
-	url, err := GetDatabaseConfig()
+	dsn, err := GetDatabaseConfig()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	expected := "postgresql://user:pass@postgres:5432/db?sslmode=disable" //nolint:gosec // test fixture value, not a real credential
-	if url != expected {
-		t.Errorf("got %q, want %q", url, expected)
+	expected := "postgresql://user:pass@postgres:5432/db?sslmode=disable"
+	if dsn != expected {
+		t.Errorf("got %q, want %q", dsn, expected)
 	}
 }
 
 func TestGetDatabaseConfig_EscapesCredentials(t *testing.T) {
 	t.Setenv("POSTGRES_URL", "")
 
-	const specialPassword = "p@ss:w/o?r#d&1" //nolint:gosec // test fixture value, not a real credential
+	const specialPassword = "p@ss:w/o?r#d&1"
 
 	t.Setenv("POSTGRES_HOST", "postgres")
 	t.Setenv("POSTGRES_USERNAME", "tempest")
@@ -95,13 +95,13 @@ func TestGetDatabaseConfig_NoConfig(t *testing.T) {
 	t.Setenv("POSTGRES_URL", "")
 	t.Setenv("POSTGRES_HOST", "")
 
-	url, err := GetDatabaseConfig()
+	dsn, err := GetDatabaseConfig()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if url != "" {
-		t.Errorf("expected empty string when no config, got %q", url)
+	if dsn != "" {
+		t.Errorf("expected empty string when no config, got %q", dsn)
 	}
 }
 

@@ -13,10 +13,18 @@ import (
 
 // Docs: https://weatherflow.github.io/Tempest/api/udp/v143/
 
+// Report is a decoded Tempest broadcast (UDP or REST). Metrics converts it
+// to the prometheus.Metric values the exporter emits; several report types
+// (RainStartReport, DeviceStatusReport) return nil because their fields
+// have no corresponding Prometheus metric today.
 type Report interface {
 	Metrics() []prometheus.Metric
 }
 
+// ParseReport decodes bytes into the concrete Report type its "type" field
+// selects (see the switch below), returning an error for any message type
+// this exporter doesn't understand. It is the single decode path shared by
+// the UDP listener and the REST API client's GetObservations.
 func ParseReport(bytes []byte) (Report, error) {
 	var typ struct {
 		Type string `json:"type"`
@@ -45,11 +53,12 @@ func ParseReport(bytes []byte) (Report, error) {
 
 	if err := json.Unmarshal(bytes, data); err != nil {
 		return nil, err
-	} else {
-		return data, nil
 	}
+	return data, nil
 }
 
+// RainStartReport is the "evt_precip" broadcast, fired once when a hub
+// detects the start of rain.
 type RainStartReport struct {
 	SerialNumber string `json:"serial_number"`
 
@@ -62,10 +71,14 @@ type RainStartReport struct {
 	Evt []float64 `json:"evt"`
 }
 
+// Metrics always returns nil: rain-start events have no corresponding
+// Prometheus metric today.
 func (r RainStartReport) Metrics() []prometheus.Metric {
 	return nil
 }
 
+// LightningStrikeReport is the "evt_strike" broadcast, fired once per
+// lightning strike a hub detects.
 type LightningStrikeReport struct {
 	SerialNumber string `json:"serial_number"`
 
@@ -80,10 +93,16 @@ type LightningStrikeReport struct {
 	Evt []float64 `json:"evt"`
 }
 
+// Metrics always returns nil: this discrete event has no corresponding
+// Prometheus metric today. Lightning distance/count are instead recovered
+// from the aggregate fields on TempestObservationReport.Metrics.
 func (r LightningStrikeReport) Metrics() []prometheus.Metric {
 	return nil
 }
 
+// RapidWindReport is the "rapid_wind" broadcast, sent roughly every three
+// seconds with a single wind-speed/direction sample — much higher frequency
+// than TempestObservationReport's per-minute report.
 type RapidWindReport struct {
 	SerialNumber string `json:"serial_number"`
 
@@ -94,6 +113,8 @@ type RapidWindReport struct {
 	Ob    []float64 `json:"ob"`
 }
 
+// Metrics returns the wind speed/direction pair from Ob, or nil if Ob isn't
+// the expected 3-element [epoch, speed, direction] shape.
 func (r RapidWindReport) Metrics() []prometheus.Metric {
 	if len(r.Ob) != 3 {
 		return nil
@@ -106,6 +127,11 @@ func (r RapidWindReport) Metrics() []prometheus.Metric {
 	})
 }
 
+// TempestObservationReport is the "obs_st" broadcast, sent about once a
+// minute (per Obs field 17: Report Interval), carrying the full
+// weather-field set. Per the WeatherFlow wire format, Obs is an array of
+// samples rather than a single one; Metrics ranges over every sample
+// present rather than assuming exactly one.
 type TempestObservationReport struct {
 	SerialNumber string `json:"serial_number"`
 
@@ -137,6 +163,10 @@ type TempestObservationReport struct {
 	FirmwareRevision int `json:"firmware_revision"`
 }
 
+// Metrics converts every sample in Obs to its Prometheus metrics, skipping
+// samples too short to contain the required fields (index 0-12) and gating
+// the wetbulb, lightning, battery, and report-interval metrics on the
+// sample actually carrying those optional trailing fields.
 func (r TempestObservationReport) Metrics() []prometheus.Metric {
 	var out []prometheus.Metric
 
@@ -198,6 +228,9 @@ func (r TempestObservationReport) Metrics() []prometheus.Metric {
 	return out
 }
 
+// DeviceStatusReport is the "device_status" broadcast, sent roughly once a
+// minute with the sensor's own health (voltage, RSSI, firmware, sensor
+// fault bits) — distinct from HubStatusReport, which covers the hub itself.
 type DeviceStatusReport struct {
 	SerialNumber string `json:"serial_number"`
 
@@ -231,10 +264,17 @@ type DeviceStatusReport struct {
 	Debug int `json:"debug"`
 }
 
+// Metrics always returns nil: device health has no corresponding
+// Prometheus metric today — HubStatusReport.Metrics covers the hub's
+// analogous fields (uptime, RSSI, reboots, bus errors) instead.
 func (r DeviceStatusReport) Metrics() []prometheus.Metric {
 	return nil
 }
 
+// HubStatusReport is the "hub_status" broadcast, sent roughly once a minute
+// with the hub's own health (uptime, RSSI, reboot/bus-error counts via
+// RadioStats) — distinct from DeviceStatusReport, which covers an
+// individual sensor.
 type HubStatusReport struct {
 	SerialNumber string `json:"serial_number"`
 
@@ -268,6 +308,9 @@ type HubStatusReport struct {
 	MqttStats []int `json:"mqtt_stats"`
 }
 
+// Metrics returns uptime and RSSI unconditionally, plus reboot/bus-error
+// counts when RadioStats carries at least indices 0-2 (a malformed or
+// short array must not panic — see the guard below).
 func (r HubStatusReport) Metrics() []prometheus.Metric {
 	metrics := []prometheus.Metric{
 		prometheus.MustNewConstMetric(tempest.Uptime, prometheus.CounterValue, r.Uptime, r.SerialNumber),

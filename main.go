@@ -209,34 +209,289 @@ usage:
 run "tempestwx-utilities backfill --help" for the backfill flags
 `
 
-func main() {
+// dispatchSubcommand checks for a "backfill" or "healthcheck" subcommand as
+// the first CLI argument and, if present, runs it and exits the process
+// (never returning). If no subcommand is present -- no args, or the first
+// arg looks like a flag -- it returns immediately and main continues into
+// daemon mode. (Equivalent to main's original `if len(os.Args) > 1 &&
+// !strings.HasPrefix(os.Args[1], "-") { ... }` guard, inverted into an
+// early-return form.)
+func dispatchSubcommand() {
+	if len(os.Args) <= 1 || strings.HasPrefix(os.Args[1], "-") {
+		return
+	}
 	// A non-flag first argument is a subcommand. An unknown one is a usage
 	// error, never a silent fallthrough to daemon mode.
-	if len(os.Args) > 1 && !strings.HasPrefix(os.Args[1], "-") {
-		if !isKnownSubcommand(os.Args[1]) {
-			fmt.Fprintf(os.Stderr, "unknown subcommand %q\n\n%s", os.Args[1], usageText)
-			os.Exit(2)
-		}
-		switch os.Args[1] {
-		case "healthcheck":
-			os.Exit(runHealthcheck())
-		case "backfill":
-			// runBackfill owns all of its cleanup via internal defers and
-			// wires its own signal context.
-			os.Exit(runBackfill(context.Background(), os.Args[2:]))
-		default:
-			// Unreachable while this switch and isKnownSubcommand agree — but
-			// the subcommand name is duplicated across the two, so they CAN
-			// desync. Without this arm a desync falls through to daemon mode
-			// and silently starts the UDP listener, which is precisely the
-			// bug the isKnownSubcommand check above exists to prevent.
-			// Fail loudly instead.
-			fmt.Fprintf(os.Stderr,
-				"internal error: %q passed isKnownSubcommand but has no dispatch case\n\n%s",
-				os.Args[1], usageText)
-			os.Exit(2)
+	if !isKnownSubcommand(os.Args[1]) {
+		fmt.Fprintf(os.Stderr, "unknown subcommand %q\n\n%s", os.Args[1], usageText)
+		os.Exit(2)
+	}
+	switch os.Args[1] {
+	case "healthcheck":
+		os.Exit(runHealthcheck())
+	case "backfill":
+		// runBackfill owns all of its cleanup via internal defers and
+		// wires its own signal context.
+		os.Exit(runBackfill(context.Background(), os.Args[2:]))
+	default:
+		// Unreachable while this switch and isKnownSubcommand agree — but
+		// the subcommand name is duplicated across the two, so they CAN
+		// desync. Without this arm a desync falls through to daemon mode
+		// and silently starts the UDP listener, which is precisely the
+		// bug the isKnownSubcommand check above exists to prevent.
+		// Fail loudly instead.
+		fmt.Fprintf(os.Stderr,
+			"internal error: %q passed isKnownSubcommand but has no dispatch case\n\n%s",
+			os.Args[1], usageText)
+		os.Exit(2)
+	}
+}
+
+// cleanupResources runs main's shutdown sequence, in order: the HTTP server
+// (so the API stops accepting reads before the writers it reads from start
+// draining), the metrics sink (draining every registered writer), sqlite's
+// read and write handles (after the sink has drained the sqlite writer),
+// and finally the OTel providers (last, so any data emitted by the earlier
+// Close calls still has a chance to flush before the providers shut down).
+// Extracted verbatim from main's deferred cleanup closure; called from a
+// zero-branch wrapper closure so main still reads srv/sqliteRDB/sqliteDB/
+// otelShutdown at defer-EXECUTION time (their final values), not at the
+// point the defer statement is registered (when they're all still nil).
+func cleanupResources(srv *http.Server, metricsSink *sink.MetricsSink, sqliteRDB, sqliteDB *sql.DB, otelShutdown func(context.Context) error) {
+	cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if srv != nil {
+		if err := srv.Shutdown(cleanupCtx); err != nil {
+			slog.Error("http server shutdown", "err", err)
 		}
 	}
+	if err := metricsSink.Close(cleanupCtx); err != nil {
+		slog.Error("sink close", "err", err)
+	}
+	if sqliteRDB != nil {
+		if err := sqliteRDB.Close(); err != nil {
+			slog.Error("sqlite read db close", "err", err)
+		}
+	}
+	if sqliteDB != nil {
+		if err := sqliteDB.Close(); err != nil {
+			slog.Error("sqlite db close", "err", err)
+		}
+	}
+	if otelShutdown != nil {
+		if err := otelShutdown(cleanupCtx); err != nil {
+			slog.Error("otel shutdown", "err", err)
+		}
+	}
+}
+
+// resolveStoreChoice reads ENABLE_POSTGRES and SQLITE_PATH and returns which
+// store(s) main should configure (R2: sqlite default, postgres opt-in; see
+// selectStore).
+func resolveStoreChoice() storeChoice {
+	enablePostgres, err := config.ParseBoolEnv("ENABLE_POSTGRES")
+	if err != nil {
+		log.Fatal(err)
+	}
+	return selectStore(enablePostgres, os.Getenv("SQLITE_PATH"))
+}
+
+// configurePrometheusWriters registers the Prometheus push-gateway and/or
+// scrape-endpoint writers on metricsSink, if enabled via
+// ENABLE_PROMETHEUS_PUSHGATEWAY / ENABLE_PROMETHEUS_METRICS. Called by main
+// only in UDP mode (token == "").
+func configurePrometheusWriters(metricsSink *sink.MetricsSink) {
+	enablePushgateway, err := config.ParseBoolEnv("ENABLE_PROMETHEUS_PUSHGATEWAY")
+	if err != nil {
+		log.Fatal(err)
+	}
+	if enablePushgateway {
+		pushURL := os.Getenv("PROMETHEUS_PUSHGATEWAY_URL")
+		if pushURL == "" {
+			log.Fatal("PROMETHEUS_PUSHGATEWAY_URL is required when ENABLE_PROMETHEUS_PUSHGATEWAY is true")
+		}
+		jobName := os.Getenv("JOB_NAME")
+		if jobName == "" {
+			jobName = "tempest"
+		}
+		promWriter := prometheus.NewPrometheusWriter(pushURL, jobName)
+		metricsSink.AddWriter(promWriter)
+	}
+
+	// Configure Prometheus metrics server (scrape endpoint)
+	enableMetrics, err := config.ParseBoolEnv("ENABLE_PROMETHEUS_METRICS")
+	if err != nil {
+		log.Fatal(err)
+	}
+	if enableMetrics {
+		port := os.Getenv("PROMETHEUS_METRICS_PORT")
+		if port == "" {
+			port = "9000"
+		}
+		metricsServer := prometheus.NewMetricsServer(port)
+		if err := metricsServer.Start(); err != nil {
+			log.Fatalf("failed to start metrics server: %v", err)
+		}
+		metricsSink.AddWriter(metricsServer)
+	}
+}
+
+// configureSQLiteWriter opens the sqlite write and read-only handles and
+// registers the writer on metricsSink, if choice.sqlite is set. Called by
+// main only in UDP mode: SQLite.WriteMetrics is a no-op (design §10 /
+// operational-modes table routes API-export to Postgres/gz, not sqlite), so
+// registering it in API-export mode would spuriously satisfy requireWriters
+// while silently writing nothing. selectStore itself stays mode-agnostic;
+// only this registration is UDP-gated by main's caller.
+func configureSQLiteWriter(ctx context.Context, metricsSink *sink.MetricsSink, choice storeChoice) (db, rdb *sql.DB, sw *sqlite.Writer) {
+	if !choice.sqlite {
+		return nil, nil, nil
+	}
+	sqliteCfg := sqlite.LoadConfig(os.Getenv)
+	db, err := sqlite.Open(ctx, choice.sqlitePath, sqliteCfg)
+	if err != nil {
+		log.Fatalf("failed to open sqlite: %v", err)
+	}
+	rdb, err = sqlite.OpenReadOnly(ctx, choice.sqlitePath, sqliteCfg)
+	if err != nil {
+		log.Fatalf("failed to open sqlite read handle: %v", err)
+	}
+	sw = sqlite.NewWriter(ctx, db, sqliteCfg, sqlite.WithReadDB(rdb))
+	metricsSink.AddWriter(sw)
+	return db, rdb, sw
+}
+
+// configurePostgresWriter opens the Postgres pool and registers the writer
+// on metricsSink, if choice.postgres is set. Called by main in both modes.
+func configurePostgresWriter(ctx context.Context, metricsSink *sink.MetricsSink, choice storeChoice) {
+	if !choice.postgres {
+		return
+	}
+	dbConfig, err := config.GetDatabaseConfig()
+	if err != nil {
+		log.Fatalf("database configuration error: %v", err)
+	}
+	if dbConfig == "" {
+		log.Fatal("POSTGRES_URL or POSTGRES_HOST is required when ENABLE_POSTGRES is true")
+	}
+	pgWriter, err := postgres.NewPostgresWriter(ctx, dbConfig)
+	if err != nil {
+		log.Fatalf("failed to initialize postgres: %v", err)
+	}
+	metricsSink.AddWriter(pgWriter)
+}
+
+// configureOTel sets up OTel (called by main in both modes), if ENABLE_OTEL
+// is set: Setup registers the meter/tracer/logger providers as OTel
+// globals, the sink metrics writer is registered like any other writer, and
+// slog's default logger is redirected to the OTel log bridge (Task 6.4) so
+// internal/sink's slog calls flow to OTel too. Returns the shutdown func
+// Setup returned, or nil if OTel is disabled.
+func configureOTel(ctx context.Context, metricsSink *sink.MetricsSink) func(context.Context) error {
+	enableOTEL, err := config.ParseBoolEnv("ENABLE_OTEL")
+	if err != nil {
+		log.Fatal(err)
+	}
+	if !enableOTEL {
+		return nil
+	}
+	endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+	if endpoint == "" {
+		log.Fatal("OTEL_EXPORTER_OTLP_ENDPOINT is required when ENABLE_OTEL is true")
+	}
+	otelCfg := otel.Config{
+		Endpoint:       endpoint,
+		ServiceVersion: version,
+		Serial:         os.Getenv("TEMPEST_SERIAL"),
+	}
+	shutdown, err := otel.Setup(ctx, otelCfg)
+	if err != nil {
+		log.Fatalf("failed to initialize otel: %v", err)
+	}
+
+	otelWriter, err := otel.NewWriter(otelapi.GetMeterProvider())
+	if err != nil {
+		log.Fatalf("failed to create otel writer: %v", err)
+	}
+	metricsSink.AddWriter(otelWriter)
+
+	// slog.SetDefault redirects stdlib log's own default output (see
+	// teeHandler's doc comment) — so the default handler fans out to
+	// BOTH the OTel bridge and a plain stderr handler, preserving the
+	// existing log.Printf/log.Fatal container-log visibility instead of
+	// silently replacing it with OTel-only export.
+	otelHandler := otel.NewSlogHandler(otellogglobal.GetLoggerProvider())
+	stderrHandler := slog.NewTextHandler(os.Stderr, nil)
+	slog.SetDefault(slog.New(newTeeHandler(otelHandler, stderrHandler)))
+
+	return shutdown
+}
+
+// resolveModeAndValidate determines the operational mode from token and
+// validates that at least one writer is configured (relaxed for gzip-only
+// API-export mode; see requireWriters), exiting fatally if not.
+func resolveModeAndValidate(token string, writerCount int) Mode {
+	mode := ModeUDP
+	if token != "" {
+		mode = ModeAPIExport
+	}
+	keepFiles, err := config.ParseBoolEnv("KEEP_EXPORT_FILES")
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err := requireWriters(mode, writerCount, keepFiles); err != nil {
+		log.Fatal(err)
+	}
+	return mode
+}
+
+// startAPIServer starts the UI/JSON-API HTTP server for UDP mode and
+// returns it; it returns nil when mode is not ModeUDP. API-export mode is a
+// batch job that runs to completion and exits (exportWithSink), so a
+// long-running server has no place there. deps.Observations is left nil
+// when sqlite is disabled (postgres-only edge case) -- assigning sw
+// directly would wrap a nil *sqlite.Writer in a non-nil ObservationReader
+// interface, defeating the handlers' nil guard, so it is only set when sw
+// is actually non-nil.
+//
+// TOKEN-in-UDP-mode limitation (flagged, not fixed here): token is always
+// empty when mode is ModeUDP (a non-empty TOKEN switches to ModeAPIExport),
+// so the WeatherFlow proxy (/api/forecast|almanac|station) has no
+// credential to authenticate with and degrades to an upstream 401. Wiring
+// a separate token source for UDP mode is a design decision for a
+// follow-up task, not this one -- see the task report.
+func startAPIServer(mode Mode, token string, sw *sqlite.Writer) *http.Server {
+	if mode != ModeUDP {
+		return nil
+	}
+	deps := httpserver.Deps{
+		StaticFS:    web.DistFS(),
+		WeatherFlow: tempestapi.NewClient(token),
+	}
+	if sw != nil {
+		deps.Observations = sw
+	}
+	enableRadar, err := config.ParseBoolEnv("ENABLE_RADAR")
+	if err != nil {
+		log.Fatal(err)
+	}
+	if enableRadar {
+		sidecarURL := cmp.Or(os.Getenv("RADAR_SIDECAR_URL"), "http://radar-sidecar:8081")
+		deps.Radar = radar.NewProxy(sidecarURL)
+	}
+	srv := httpserver.New(deps)
+	srv.Addr = cmp.Or(os.Getenv("HTTP_ADDR"), ":8080")
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			slog.Error("http server", "err", err)
+		}
+	}()
+	slog.Info("http server listening", "addr", srv.Addr)
+	return srv
+}
+
+func main() {
+	dispatchSubcommand()
 
 	ctx, done := signalContext(context.Background(), signal.NotifyContext)
 	defer done()
@@ -272,209 +527,31 @@ func main() {
 	// to flush before the providers shut down.
 	var otelShutdown func(context.Context) error
 	defer func() {
-		cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		if srv != nil {
-			if err := srv.Shutdown(cleanupCtx); err != nil {
-				slog.Error("http server shutdown", "err", err)
-			}
-		}
-		if err := metricsSink.Close(cleanupCtx); err != nil {
-			slog.Error("sink close", "err", err)
-		}
-		if sqliteRDB != nil {
-			if err := sqliteRDB.Close(); err != nil {
-				slog.Error("sqlite read db close", "err", err)
-			}
-		}
-		if sqliteDB != nil {
-			if err := sqliteDB.Close(); err != nil {
-				slog.Error("sqlite db close", "err", err)
-			}
-		}
-		if otelShutdown != nil {
-			if err := otelShutdown(cleanupCtx); err != nil {
-				slog.Error("otel shutdown", "err", err)
-			}
-		}
+		cleanupResources(srv, metricsSink, sqliteRDB, sqliteDB, otelShutdown)
 	}()
 
 	// Configure Postgres opt-in and select the store(s) (R2: sqlite default,
 	// postgres opt-in; see selectStore).
-	enablePostgres, err := config.ParseBoolEnv("ENABLE_POSTGRES")
-	if err != nil {
-		log.Fatal(err) //nolint:gocritic // log.Fatal on a startup config error exits before any writer buffers data, so the skipped deferred sink Close is harmless
-	}
-	choice := selectStore(enablePostgres, os.Getenv("SQLITE_PATH"))
+	choice := resolveStoreChoice()
 
 	// Configure Prometheus + SQLite writers (UDP mode only)
 	token := os.Getenv("TOKEN")
 	if token == "" {
-		enablePushgateway, err := config.ParseBoolEnv("ENABLE_PROMETHEUS_PUSHGATEWAY")
-		if err != nil {
-			log.Fatal(err) //nolint:gocritic // log.Fatal on a startup config error exits before any writer buffers data, so the skipped deferred sink Close is harmless
-		}
-		if enablePushgateway {
-			pushURL := os.Getenv("PROMETHEUS_PUSHGATEWAY_URL")
-			if pushURL == "" {
-				log.Fatal("PROMETHEUS_PUSHGATEWAY_URL is required when ENABLE_PROMETHEUS_PUSHGATEWAY is true") //nolint:gocritic // log.Fatal on a startup config error exits before any writer buffers data, so the skipped deferred sink Close is harmless
-			}
-			jobName := os.Getenv("JOB_NAME")
-			if jobName == "" {
-				jobName = "tempest"
-			}
-			promWriter := prometheus.NewPrometheusWriter(pushURL, jobName)
-			metricsSink.AddWriter(promWriter)
-		}
-
-		// Configure Prometheus metrics server (scrape endpoint)
-		enableMetrics, err := config.ParseBoolEnv("ENABLE_PROMETHEUS_METRICS")
-		if err != nil {
-			log.Fatal(err)
-		}
-		if enableMetrics {
-			port := os.Getenv("PROMETHEUS_METRICS_PORT")
-			if port == "" {
-				port = "9000"
-			}
-			metricsServer := prometheus.NewMetricsServer(port)
-			if err := metricsServer.Start(); err != nil {
-				log.Fatalf("failed to start metrics server: %v", err)
-			}
-			metricsSink.AddWriter(metricsServer)
-		}
-
-		// Configure SQLite writer. UDP-mode only: SQLite.WriteMetrics is a
-		// no-op (design §10 / operational-modes table routes API-export to
-		// Postgres/gz, not sqlite), so registering it in API-export mode
-		// would spuriously satisfy requireWriters while silently writing
-		// nothing. selectStore itself stays mode-agnostic; only this
-		// registration is UDP-gated.
-		if choice.sqlite {
-			sqliteCfg := sqlite.LoadConfig(os.Getenv)
-			db, err := sqlite.Open(ctx, choice.sqlitePath, sqliteCfg)
-			if err != nil {
-				log.Fatalf("failed to open sqlite: %v", err)
-			}
-			sqliteDB = db
-			rdb, err := sqlite.OpenReadOnly(ctx, choice.sqlitePath, sqliteCfg)
-			if err != nil {
-				log.Fatalf("failed to open sqlite read handle: %v", err)
-			}
-			sqliteRDB = rdb
-			sw = sqlite.NewWriter(ctx, db, sqliteCfg, sqlite.WithReadDB(rdb))
-			metricsSink.AddWriter(sw)
-		}
+		configurePrometheusWriters(metricsSink)
+		sqliteDB, sqliteRDB, sw = configureSQLiteWriter(ctx, metricsSink, choice)
 	}
 
 	// Configure Postgres writer (both modes)
-	if choice.postgres {
-		dbConfig, err := config.GetDatabaseConfig()
-		if err != nil {
-			log.Fatalf("database configuration error: %v", err)
-		}
-		if dbConfig == "" {
-			log.Fatal("POSTGRES_URL or POSTGRES_HOST is required when ENABLE_POSTGRES is true")
-		}
-		pgWriter, err := postgres.NewPostgresWriter(ctx, dbConfig)
-		if err != nil {
-			log.Fatalf("failed to initialize postgres: %v", err)
-		}
-		metricsSink.AddWriter(pgWriter)
-	}
+	configurePostgresWriter(ctx, metricsSink, choice)
 
-	// Configure OTel (both modes): Setup registers the meter/tracer/logger
-	// providers as OTel globals, the sink metrics writer is registered like
-	// any other writer, and slog's default logger is redirected to the OTel
-	// log bridge (Task 6.4) so internal/sink's slog calls flow to OTel too.
-	enableOTEL, err := config.ParseBoolEnv("ENABLE_OTEL")
-	if err != nil {
-		log.Fatal(err)
-	}
-	if enableOTEL {
-		endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
-		if endpoint == "" {
-			log.Fatal("OTEL_EXPORTER_OTLP_ENDPOINT is required when ENABLE_OTEL is true")
-		}
-		otelCfg := otel.Config{
-			Endpoint:       endpoint,
-			ServiceVersion: version,
-			Serial:         os.Getenv("TEMPEST_SERIAL"),
-		}
-		shutdown, err := otel.Setup(ctx, otelCfg)
-		if err != nil {
-			log.Fatalf("failed to initialize otel: %v", err)
-		}
-		otelShutdown = shutdown
-
-		otelWriter, err := otel.NewWriter(otelapi.GetMeterProvider())
-		if err != nil {
-			log.Fatalf("failed to create otel writer: %v", err)
-		}
-		metricsSink.AddWriter(otelWriter)
-
-		// slog.SetDefault redirects stdlib log's own default output (see
-		// teeHandler's doc comment) — so the default handler fans out to
-		// BOTH the OTel bridge and a plain stderr handler, preserving the
-		// existing log.Printf/log.Fatal container-log visibility instead of
-		// silently replacing it with OTel-only export.
-		otelHandler := otel.NewSlogHandler(otellogglobal.GetLoggerProvider())
-		stderrHandler := slog.NewTextHandler(os.Stderr, nil)
-		slog.SetDefault(slog.New(newTeeHandler(otelHandler, stderrHandler)))
-	}
+	// Configure OTel (both modes)
+	otelShutdown = configureOTel(ctx, metricsSink)
 
 	// Require at least one writer (relaxed for gzip-only API-export mode; see requireWriters)
-	mode := ModeUDP
-	if token != "" {
-		mode = ModeAPIExport
-	}
-	keepFiles, err := config.ParseBoolEnv("KEEP_EXPORT_FILES")
-	if err != nil {
-		log.Fatal(err)
-	}
-	if err := requireWriters(mode, metricsSink.WriterCount(), keepFiles); err != nil {
-		log.Fatal(err)
-	}
+	mode := resolveModeAndValidate(token, metricsSink.WriterCount())
 
-	// Start the UI/JSON-API HTTP server (UDP mode only): API-export mode is a
-	// batch job that runs to completion and exits (exportWithSink, below), so
-	// a long-running server has no place there. deps.Observations is left nil
-	// when sqlite is disabled (postgres-only edge case) -- assigning sw
-	// directly would wrap a nil *sqlite.Writer in a non-nil ObservationReader
-	// interface, defeating the handlers' nil guard, so it is only set when sw
-	// is actually non-nil.
-	//
-	// TOKEN-in-UDP-mode limitation (flagged, not fixed here): token is always
-	// empty in this branch (a non-empty TOKEN switches to ModeAPIExport
-	// above), so the WeatherFlow proxy (/api/forecast|almanac|station) has no
-	// credential to authenticate with and degrades to an upstream 401. Wiring
-	// a separate token source for UDP mode is a design decision for a
-	// follow-up task, not this one -- see the task report.
-	if mode == ModeUDP {
-		deps := httpserver.Deps{
-			StaticFS:    web.DistFS(),
-			WeatherFlow: tempestapi.NewClient(token),
-		}
-		if sw != nil {
-			deps.Observations = sw
-		}
-		enableRadar, err := config.ParseBoolEnv("ENABLE_RADAR")
-		if err != nil {
-			log.Fatal(err)
-		}
-		if enableRadar {
-			sidecarURL := cmp.Or(os.Getenv("RADAR_SIDECAR_URL"), "http://radar-sidecar:8081")
-			deps.Radar = radar.NewProxy(sidecarURL)
-		}
-		srv = httpserver.New(deps)
-		srv.Addr = cmp.Or(os.Getenv("HTTP_ADDR"), ":8080")
-		go func() {
-			if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-				slog.Error("http server", "err", err)
-			}
-		}()
-		slog.Info("http server listening", "addr", srv.Addr)
-	}
+	// Start the UI/JSON-API HTTP server (UDP mode only)
+	srv = startAPIServer(mode, token, sw)
 
 	// Choose operational mode
 	if token != "" {
@@ -554,8 +631,12 @@ func listen(ctx context.Context, rx func([]byte, *net.UDPAddr) error) error {
 	}
 }
 
-func exportWithSink(ctx context.Context, token string, metricsSink *sink.MetricsSink) {
-	client := tempestapi.NewClient(token)
+// fetchStationsAndStartTime lists the account's stations (fatal if the call
+// fails or none are found, matching exportWithSink's original inline
+// behavior) and computes the earliest export start time: the latest
+// CreatedAt across all stations, i.e. the newest station's creation date,
+// exactly as the original loop computed startAt.
+func fetchStationsAndStartTime(ctx context.Context, client *tempestapi.Client) ([]tempestapi.Station, time.Time) {
 	stations, err := client.ListStations(ctx)
 	if err != nil {
 		log.Fatalf("error listing stations: %v", err)
@@ -573,6 +654,51 @@ func exportWithSink(ctx context.Context, token string, metricsSink *sink.Metrics
 			startAt = station.CreatedAt
 		}
 	}
+	return stations, startAt
+}
+
+// fetchDailyBatch accumulates observations across day-sized [cur, next)
+// windows starting at cur, one window per station per iteration, until
+// either the window catches up to time.Now() or 200,000 metrics have been
+// collected. It returns the accumulated metrics and the cur value to resume
+// from on the next call -- the same value the original inner for-loop's
+// `cur = next` post-statement would have left cur at when the loop exited.
+func fetchDailyBatch(ctx context.Context, client *tempestapi.Client, stations []tempestapi.Station, cur time.Time) ([]promclient.Metric, time.Time) {
+	var metrics []promclient.Metric
+	var next time.Time
+
+	for ; cur.Before(time.Now()) && len(metrics) < 200_000; cur = next {
+		next = cur.AddDate(0, 0, 1)
+
+		for _, station := range stations {
+			// station.Name originates from the WeatherFlow API (see the
+			// slog.ErrorContext comment a few lines below for the same
+			// provenance) -- unchanged from the original inline loop this
+			// line was extracted from verbatim, which gosec's taint analysis
+			// did not flag; the same text flags G706 only once it crosses
+			// this function's parameter boundary. Not user input reachable
+			// from outside the operator's own WeatherFlow account.
+			log.Printf("fetching %s starting %s", station.Name, cur.Format(time.RFC3339)) //nolint:gosec // G706: log injection false positive, see comment above
+			stationMetrics, err := client.GetObservations(ctx, station, cur, next)
+			if err != nil {
+				// station and err are derived from the WeatherFlow API response and
+				// are passed as slog attribute values (not interpolated into the
+				// format string) so the handler's quoting/escaping neutralizes any
+				// embedded control characters. Exit behavior matches log.Fatalf
+				// (log, then os.Exit(1); neither runs deferred functions).
+				slog.ErrorContext(ctx, "error fetching observations", "station", station, "start_unix", cur.Unix(), "end_unix", next.Unix(), "err", err)
+				os.Exit(1)
+			}
+			metrics = append(metrics, stationMetrics...)
+		}
+	}
+
+	return metrics, cur
+}
+
+func exportWithSink(ctx context.Context, token string, metricsSink *sink.MetricsSink) {
+	client := tempestapi.NewClient(token)
+	stations, startAt := fetchStationsAndStartTime(ctx, client)
 
 	keepFiles, err := config.ParseBoolEnv("KEEP_EXPORT_FILES")
 	if err != nil {
@@ -580,29 +706,10 @@ func exportWithSink(ctx context.Context, token string, metricsSink *sink.Metrics
 	}
 	fileNum := 1
 
-	var next time.Time
 	cur := startAt
 	for {
 		var metrics []promclient.Metric
-
-		for ; cur.Before(time.Now()) && len(metrics) < 200_000; cur = next {
-			next = cur.AddDate(0, 0, 1)
-
-			for _, station := range stations {
-				log.Printf("fetching %s starting %s", station.Name, cur.Format(time.RFC3339))
-				stationMetrics, err := client.GetObservations(ctx, station, cur, next)
-				if err != nil {
-					// station and err are derived from the WeatherFlow API response and
-					// are passed as slog attribute values (not interpolated into the
-					// format string) so the handler's quoting/escaping neutralizes any
-					// embedded control characters. Exit behavior matches log.Fatalf
-					// (log, then os.Exit(1); neither runs deferred functions).
-					slog.ErrorContext(ctx, "error fetching observations", "station", station, "start_unix", cur.Unix(), "end_unix", next.Unix(), "err", err)
-					os.Exit(1)
-				}
-				metrics = append(metrics, stationMetrics...)
-			}
-		}
+		metrics, cur = fetchDailyBatch(ctx, client, stations, cur)
 
 		if len(metrics) == 0 {
 			break

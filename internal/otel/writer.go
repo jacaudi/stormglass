@@ -1,9 +1,9 @@
-// Package otel's Writer implements sink.MetricsWriter by recording each
-// Tempest weather field onto a pre-registered OTel instrument. The
-// instrument names are Contract B: chosen so the Collector's OTLP→Prometheus
-// translation reproduces the exact existing tempest_* metric names that
-// WS4's PromQL depends on. See the instrument-name constants below for the
-// full table.
+// Package otel bridges Tempest observations into OpenTelemetry. Its Writer
+// implements sink.MetricsWriter by recording each Tempest weather field onto
+// a pre-registered OTel instrument. The instrument names are Contract B:
+// chosen so the Collector's OTLP→Prometheus translation reproduces the exact
+// existing tempest_* metric names that WS4's PromQL depends on. See the
+// instrument-name constants below for the full table.
 package otel
 
 import (
@@ -312,6 +312,73 @@ func (w *Writer) counter(ctx context.Context, c metric.Float64Counter, value flo
 	c.Add(ctx, value, metric.WithAttributes(serialAttrs(serial, extra...)...))
 }
 
+// writeMetricsHandlers maps each old internal/tempest Prometheus descriptor
+// pointer to the Contract B instrument WriteMetrics records it onto — the
+// exact case-by-case mapping the switch below used to encode directly, now
+// as a lookup table so WriteMetrics itself stays a flat dispatch loop. Being
+// a package-level var, its handler closures sit outside any function body,
+// so they carry no complexity cost for WriteMetrics (verified against the
+// project's actual gocyclo tool before adopting this shape).
+//
+// tempest.Reboots and tempest.BusErrors have no entry: API-export (client.go's
+// type switch) only ever produces *TempestObservationReport, never
+// *HubStatusReport, so this path never carries a reboots/bus_errors metric to
+// translate. Also, reboots/busErrors are now ObservableCounters (see
+// handleHubStatusReport), which have no synchronous Add to call from here.
+// tempest.ReportInterval (dropped in Contract B) and tempest.RainTotal
+// (never emitted by any Report.Metrics() implementation) likewise have no
+// entry and are silently skipped, matching the original switch's implicit
+// default.
+var writeMetricsHandlers = map[*prometheus.Desc]func(w *Writer, ctx context.Context, value float64, serial, kind string){
+	tempest.Wind: func(w *Writer, ctx context.Context, value float64, serial, kind string) {
+		w.gauge(ctx, w.windMetersPerSecond, value, serial, attribute.String("kind", kind))
+	},
+	tempest.WindDirection: func(w *Writer, ctx context.Context, value float64, serial, _ string) {
+		w.gauge(ctx, w.windDirectionDegrees, value, serial)
+	},
+	tempest.Pressure: func(w *Writer, ctx context.Context, value float64, serial, _ string) {
+		w.gauge(ctx, w.pressureMb, value, serial)
+	},
+	tempest.Temperature: func(w *Writer, ctx context.Context, value float64, serial, kind string) {
+		switch kind {
+		case "air":
+			w.gauge(ctx, w.temperatureC, value, serial, attribute.String("kind", "air"))
+		case "wetbulb":
+			w.gauge(ctx, w.wetBulbC, value, serial)
+		}
+	},
+	tempest.Humidity: func(w *Writer, ctx context.Context, value float64, serial, _ string) {
+		w.gauge(ctx, w.humidityPercent, value, serial)
+	},
+	tempest.Illuminance: func(w *Writer, ctx context.Context, value float64, serial, _ string) {
+		w.gauge(ctx, w.illuminanceLux, value, serial)
+	},
+	tempest.UV: func(w *Writer, ctx context.Context, value float64, serial, _ string) {
+		w.gauge(ctx, w.uvIndex, value, serial)
+	},
+	tempest.Irradiance: func(w *Writer, ctx context.Context, value float64, serial, _ string) {
+		w.gauge(ctx, w.irradianceWM2, value, serial)
+	},
+	tempest.RainRate: func(w *Writer, ctx context.Context, value float64, serial, _ string) {
+		w.gauge(ctx, w.rainRateMmMin, value, serial)
+	},
+	tempest.LightningDistance: func(w *Writer, ctx context.Context, value float64, serial, _ string) {
+		w.gauge(ctx, w.lightningDistanceKm, value, serial)
+	},
+	tempest.LightningStrikeCount: func(w *Writer, ctx context.Context, value float64, serial, _ string) {
+		w.counter(ctx, w.lightningStrikeCount, value, serial)
+	},
+	tempest.Battery: func(w *Writer, ctx context.Context, value float64, serial, _ string) {
+		w.gauge(ctx, w.batteryVolts, value, serial)
+	},
+	tempest.Uptime: func(w *Writer, ctx context.Context, value float64, serial, _ string) {
+		w.gauge(ctx, w.uptimeSeconds, value, serial)
+	},
+	tempest.Rssi: func(w *Writer, ctx context.Context, value float64, serial, _ string) {
+		w.gauge(ctx, w.rssiDbm, value, serial)
+	},
+}
+
 // WriteMetrics implements sink.MetricsWriter for API-export mode: it
 // translates each incoming Prometheus metric (built against the OLD
 // internal/tempest descriptors) to its Contract B instrument by matching on
@@ -319,9 +386,8 @@ func (w *Writer) counter(ctx context.Context, c metric.Float64Counter, value flo
 // etc. are package-level vars, so m.Desc() is the same pointer that
 // Report.Metrics() used to build m) and reading its label/value via
 // m.Write(&dto.Metric{}). The "instance" label value becomes the "serial"
-// attribute. Metrics with no Contract B counterpart (tempest.ReportInterval,
-// dropped in Contract B; tempest.RainTotal, never emitted by any
-// Report.Metrics() implementation) are skipped via the default case.
+// attribute. See writeMetricsHandlers for the full per-descriptor mapping,
+// including the metrics with no Contract B counterpart that are skipped.
 //
 // Known gap: tempest.dewpoint.c and tempest.heat_index.c are never
 // populated via this path. Deriving them requires the SAME observation's
@@ -342,46 +408,8 @@ func (w *Writer) WriteMetrics(ctx context.Context, metrics []prometheus.Metric) 
 		kind := labelValue(&d, "kind")
 		value := metricValue(&d)
 
-		switch m.Desc() {
-		case tempest.Wind:
-			w.gauge(ctx, w.windMetersPerSecond, value, serial, attribute.String("kind", kind))
-		case tempest.WindDirection:
-			w.gauge(ctx, w.windDirectionDegrees, value, serial)
-		case tempest.Pressure:
-			w.gauge(ctx, w.pressureMb, value, serial)
-		case tempest.Temperature:
-			switch kind {
-			case "air":
-				w.gauge(ctx, w.temperatureC, value, serial, attribute.String("kind", "air"))
-			case "wetbulb":
-				w.gauge(ctx, w.wetBulbC, value, serial)
-			}
-		case tempest.Humidity:
-			w.gauge(ctx, w.humidityPercent, value, serial)
-		case tempest.Illuminance:
-			w.gauge(ctx, w.illuminanceLux, value, serial)
-		case tempest.UV:
-			w.gauge(ctx, w.uvIndex, value, serial)
-		case tempest.Irradiance:
-			w.gauge(ctx, w.irradianceWM2, value, serial)
-		case tempest.RainRate:
-			w.gauge(ctx, w.rainRateMmMin, value, serial)
-		case tempest.LightningDistance:
-			w.gauge(ctx, w.lightningDistanceKm, value, serial)
-		case tempest.LightningStrikeCount:
-			w.counter(ctx, w.lightningStrikeCount, value, serial)
-		case tempest.Battery:
-			w.gauge(ctx, w.batteryVolts, value, serial)
-		case tempest.Uptime:
-			w.gauge(ctx, w.uptimeSeconds, value, serial)
-		case tempest.Rssi:
-			w.gauge(ctx, w.rssiDbm, value, serial)
-			// tempest.Reboots and tempest.BusErrors have no case here:
-			// API-export (client.go's type switch) only ever produces
-			// *TempestObservationReport, never *HubStatusReport, so this path
-			// never carries a reboots/bus_errors metric to translate. Also,
-			// reboots/busErrors are now ObservableCounters (see handleHubStatusReport),
-			// which have no synchronous Add to call from here.
+		if handler, ok := writeMetricsHandlers[m.Desc()]; ok {
+			handler(w, ctx, value, serial, kind)
 		}
 	}
 	return nil

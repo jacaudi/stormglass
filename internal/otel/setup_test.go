@@ -1,6 +1,7 @@
 package otel
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -42,7 +43,7 @@ func TestSetup_ReturnsShutdown(t *testing.T) {
 	if elapsed := time.Since(start); elapsed > 2*time.Second {
 		t.Fatalf("second shutdown(ctx) call took %s; want near-instant (idempotent, no re-flush)", elapsed)
 	}
-	if secondErr != firstErr {
+	if !errors.Is(secondErr, firstErr) {
 		t.Fatalf("second shutdown(ctx) call returned %v, want the cached first-call result %v", secondErr, firstErr)
 	}
 }

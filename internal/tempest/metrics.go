@@ -1,9 +1,18 @@
+// Package tempest holds the Prometheus metric descriptors shared by the UDP
+// listener and API-export paths: one *prometheus.Desc per field a Tempest
+// station reports, registered once in init() and collected into All for
+// callers (e.g. the OTel bridge) that need to enumerate every descriptor
+// rather than reference one by name.
 package tempest
 
 import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+// Uptime through LightningStrikeCount are the descriptors for every metric
+// this exporter emits, split by init() below into device-health (Uptime,
+// Rssi, Reboots, BusErrors) and weather-observation groups. See All for the
+// flattened slice form.
 var (
 	Uptime    *prometheus.Desc
 	Rssi      *prometheus.Desc
@@ -26,6 +35,9 @@ var (
 	LightningStrikeCount *prometheus.Desc
 )
 
+// All is every descriptor above, flattened into one slice and populated by
+// init() after each Desc is constructed. Used where a caller needs to
+// register or enumerate the full metric set rather than a single field.
 var All []*prometheus.Desc
 
 func init() {

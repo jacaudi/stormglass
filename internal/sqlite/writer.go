@@ -231,6 +231,35 @@ func NewWriter(ctx context.Context, db *sql.DB, cfg Config, opts ...WriterOption
 	return w
 }
 
+// flushBatches sends whichever of the four batches are non-empty to their
+// table-specific insert helper, then resets each to length 0 (retaining
+// capacity, so the caller's slice doesn't need reallocating on the next
+// accumulation). Batches are passed by pointer since this resets the
+// caller's own slice variables in place — the same effect as the local
+// closure it replaces, extracted to a named method so its branches count
+// against flushBatches's own complexity instead of run's.
+func (w *Writer) flushBatches(
+	fctx context.Context,
+	obsBatch *[]observationRow, windBatch *[]rapidWindRow, hubBatch *[]hubStatusRow, evtBatch *[]eventRow,
+) {
+	if len(*obsBatch) > 0 {
+		w.insertObservations(fctx, *obsBatch)
+		*obsBatch = (*obsBatch)[:0]
+	}
+	if len(*windBatch) > 0 {
+		w.insertRapidWind(fctx, *windBatch)
+		*windBatch = (*windBatch)[:0]
+	}
+	if len(*hubBatch) > 0 {
+		w.insertHubStatus(fctx, *hubBatch)
+		*hubBatch = (*hubBatch)[:0]
+	}
+	if len(*evtBatch) > 0 {
+		w.insertEvents(fctx, *evtBatch)
+		*evtBatch = (*evtBatch)[:0]
+	}
+}
+
 // run is the single writer goroutine: it owns all local batch state and is
 // the only goroutine that ever touches db.
 func (w *Writer) run(ctx context.Context) {
@@ -244,22 +273,7 @@ func (w *Writer) run(ctx context.Context) {
 	)
 
 	flush := func(fctx context.Context) {
-		if len(obsBatch) > 0 {
-			w.insertObservations(fctx, obsBatch)
-			obsBatch = obsBatch[:0]
-		}
-		if len(windBatch) > 0 {
-			w.insertRapidWind(fctx, windBatch)
-			windBatch = windBatch[:0]
-		}
-		if len(hubBatch) > 0 {
-			w.insertHubStatus(fctx, hubBatch)
-			hubBatch = hubBatch[:0]
-		}
-		if len(evtBatch) > 0 {
-			w.insertEvents(fctx, evtBatch)
-			evtBatch = evtBatch[:0]
-		}
+		w.flushBatches(fctx, &obsBatch, &windBatch, &hubBatch, &evtBatch)
 	}
 
 	ticker := time.NewTicker(w.flushInterval)
@@ -890,7 +904,7 @@ func (w *Writer) HistoryPoints(ctx context.Context, field string, from, to int64
 		return nil, fmt.Errorf("sqlite: unknown history field %q", field)
 	}
 
-	query := fmt.Sprintf( //nolint:gosec // column comes from historyFieldColumns' value, never the raw field argument
+	query := fmt.Sprintf(
 		`SELECT timestamp, %s FROM tempest_observations WHERE timestamp BETWEEN ? AND ? ORDER BY timestamp LIMIT %d`,
 		column, maxHistoryPoints,
 	)

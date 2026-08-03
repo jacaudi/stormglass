@@ -1,3 +1,10 @@
+// Package tempestudp decodes raw Tempest UDP broadcast JSON into typed
+// Report values (report.go) and converts them to Prometheus metrics, plus
+// the derived-quantity calculations (dew point here, wet bulb in
+// wetbulb.go) the UDP payload doesn't carry directly. It is the shared
+// decode path for both the live UDP listener and the REST API's historical
+// observations (see tempestapi.Client.GetObservations), so backfilled and
+// live rows go through identical parsing.
 package tempestudp
 
 import "math"

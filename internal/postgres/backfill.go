@@ -1,3 +1,9 @@
+// Package postgres is the PostgreSQL backend: schema management and
+// connection pooling (pool.go, schema.go), batched writes with retry logic
+// (writer.go), and gap detection/backfill for tempest_observations (this
+// file). It is one of two store implementations alongside internal/sqlite;
+// see the comment below for why the two are deliberately not unified behind
+// a shared abstraction.
 package postgres
 
 import (

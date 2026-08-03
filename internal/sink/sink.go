@@ -1,3 +1,8 @@
+// Package sink fans a single stream of Tempest reports/metrics out to
+// however many MetricsWriter backends are registered (Prometheus, SQLite,
+// PostgreSQL, OTel), concurrently, with per-writer panic recovery and
+// error aggregation so one degraded backend never blocks or crashes
+// delivery to the others.
 package sink
 
 import (

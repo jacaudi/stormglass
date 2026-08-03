@@ -193,7 +193,7 @@ func TestLitestreamRestore_FileReplica(t *testing.T) {
 	// below has something deterministic to restore from without waiting on
 	// a background daemon's sync interval.
 	replicaURL := "file://" + replicaDir
-	replicateOut, err := exec.CommandContext(ctx, "litestream", "replicate", //nolint:gosec // G204: fixed binary name; args are test-generated t.TempDir() paths, not attacker input
+	replicateOut, err := exec.CommandContext(ctx, "litestream", "replicate",
 		"-once", "-force-snapshot",
 		dbPath, replicaURL,
 	).CombinedOutput()
@@ -202,7 +202,7 @@ func TestLitestreamRestore_FileReplica(t *testing.T) {
 	}
 
 	restoredPath := filepath.Join(t.TempDir(), "restored.db")
-	restoreOut, err := exec.CommandContext(ctx, "litestream", "restore", //nolint:gosec // G204: fixed binary name; args are test-generated t.TempDir() paths, not attacker input
+	restoreOut, err := exec.CommandContext(ctx, "litestream", "restore",
 		"-o", restoredPath,
 		replicaURL,
 	).CombinedOutput()

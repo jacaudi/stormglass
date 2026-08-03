@@ -189,7 +189,7 @@ func (p *Proxy) fetch(ctx context.Context, site, product string) (json.RawMessag
 	if resp.StatusCode != http.StatusOK {
 		var envelope sidecarErrorEnvelope
 		if err := json.Unmarshal(body, &envelope); err != nil {
-			return nil, Metadata{}, fmt.Errorf("%w: decode error envelope (status %d): %v", ErrInternal, resp.StatusCode, err)
+			return nil, Metadata{}, fmt.Errorf("%w: decode error envelope (status %d): %w", ErrInternal, resp.StatusCode, err)
 		}
 		return nil, Metadata{}, mapSidecarError(envelope.Error, resp.StatusCode)
 	}
