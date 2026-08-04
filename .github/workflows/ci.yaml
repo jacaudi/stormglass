@@ -59,15 +59,29 @@ jobs:
   test:
     uses: ./.github/workflows/ci-test.yml
 
+  # The GHCR jobs (build/smoke and their release twins) deliberately do NOT
+  # receive APP_ID/APP_PRIVATE_KEY, so they authenticate with GITHUB_TOKEN.
+  #
+  # ci-build documents these as "required only to push outside this repo's own
+  # GHCR namespace", and this repo only ever pushes ghcr.io/jacaudi/
+  # tempestwx-utilities -- its own. Passing them is not merely redundant here,
+  # it FAILS: ci-build logs in with the App token whenever APP_ID is non-empty,
+  # and this App installation has no package-write grant, so the push dies with
+  #   denied: permission_denied: installation not allowed to Write organization package
+  # GITHUB_TOKEN plus the job-level `packages: write` below is what the old
+  # pipeline used and is sufficient.
+  #
+  # `release` still gets the App, which is where it genuinely earns its keep:
+  # GITHUB_TOKEN cannot trigger downstream workflows, and the App also owns
+  # release-PR attribution. Revisit if this repo ever publishes a chart to the
+  # shared ghcr.io/<owner>/charts namespace -- that is a cross-namespace push
+  # and would need the App grant fixed rather than bypassed.
   build:
     needs: [context, test]
     if: ${{ needs.context.outputs.build == 'true' }}
     permissions:
       contents: read
       packages: write
-    secrets:
-      APP_ID: ${{ secrets.APP_ID }}
-      APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
     uses: ./.github/workflows/ci-build.yml
 
   smoke:
@@ -75,9 +89,6 @@ jobs:
     permissions:
       contents: read
       packages: read
-    secrets:
-      APP_ID: ${{ secrets.APP_ID }}
-      APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
     uses: ./.github/workflows/ci-smoke.yml
     with:
       image: ${{ needs.build.outputs.image }}
@@ -93,15 +104,13 @@ jobs:
       APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
     uses: ./.github/workflows/ci-release.yml
 
+  # No App secrets here either -- same own-namespace reasoning as `build`.
   release-image:
     needs: [release]
     if: ${{ needs.release.outputs.release_created == 'true' }}
     permissions:
       contents: read
       packages: write
-    secrets:
-      APP_ID: ${{ secrets.APP_ID }}
-      APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
     uses: ./.github/workflows/ci-build.yml
     with:
       version: ${{ needs.release.outputs.tag_name }}
@@ -112,9 +121,6 @@ jobs:
     permissions:
       contents: read
       packages: read
-    secrets:
-      APP_ID: ${{ secrets.APP_ID }}
-      APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
     uses: ./.github/workflows/ci-smoke.yml
     with:
       image: ${{ needs.release-image.outputs.image }}
