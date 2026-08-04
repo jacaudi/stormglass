@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react';
+import { memo } from 'react';
 import type { CurrentObservation, RainUnit } from '../types/weather';
 import { PrecipitationType } from '../types/weather';
 import { formatRain } from '../hooks/useUnits';
@@ -17,6 +17,17 @@ interface RaindropStyle {
   animationDuration: string;
 }
 
+// Randomised once at module load rather than inside a useMemo. Math.random()
+// is impure and a useMemo callback runs during render, which is exactly what
+// react-hooks/purity forbids. Hoisting also serves the original intent better:
+// the positions must not reshuffle on every 3s data tick (P2.13), and module
+// scope fixes them for the lifetime of the page rather than merely per mount.
+const RAINDROP_STYLES: RaindropStyle[] = Array.from({ length: RAINDROP_COUNT }, () => ({
+  left: `${8 + Math.random() * 84}%`,
+  animationDelay: `${Math.random() * 1}s`,
+  animationDuration: `${0.5 + Math.random() * 0.5}s`,
+}));
+
 function precipLabel(type: PrecipitationType): string {
   switch (type) {
     case PrecipitationType.Rain: return 'Rain';
@@ -28,18 +39,6 @@ function precipLabel(type: PrecipitationType): string {
 
 function RainCardImpl({ current, unit }: RainCardProps) {
   const isRaining = current.precipitationType !== PrecipitationType.None;
-
-  // Computed once per mount (empty deps) so positions don't reshuffle on
-  // every 3s data tick re-render (P2.13).
-  const raindropStyles = useMemo<RaindropStyle[]>(
-    () =>
-      Array.from({ length: RAINDROP_COUNT }, () => ({
-        left: `${8 + Math.random() * 84}%`,
-        animationDelay: `${Math.random() * 1}s`,
-        animationDuration: `${0.5 + Math.random() * 0.5}s`,
-      })),
-    []
-  );
 
   return (
     <GlassCard className="rain-card">
@@ -68,7 +67,7 @@ function RainCardImpl({ current, unit }: RainCardProps) {
 
       {isRaining && (
         <div className="rain-animation">
-          {raindropStyles.map((style, i) => (
+          {RAINDROP_STYLES.map((style, i) => (
             <div key={i} className="raindrop" style={style} />
           ))}
         </div>
