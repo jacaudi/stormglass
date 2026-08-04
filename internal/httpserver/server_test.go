@@ -192,6 +192,13 @@ func TestServer_Timeouts(t *testing.T) {
 // injected TracerProvider (tracetest.SpanRecorder) rather than touching OTel
 // globals, so the test is hermetic and can run in parallel with the rest of
 // the suite.
+//
+// The span is named "GET /healthz", not the "http.server" operation string
+// passed to otelhttp.NewHandler. As of otelhttp v0.69.0 the span name follows
+// the HTTP semantic conventions ("{method} {route}") and the operation
+// argument no longer sets it. Asserting the semconv name here is deliberate:
+// per-route names are what make server spans useful, so this test would fail
+// if someone reinstated the old constant name via a WithSpanNameFormatter.
 func TestServer_EmitsHTTPSpan(t *testing.T) {
 	recorder := tracetest.NewSpanRecorder()
 	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
@@ -208,8 +215,8 @@ func TestServer_EmitsHTTPSpan(t *testing.T) {
 	if len(ended) != 1 {
 		t.Fatalf("got %d ended spans, want 1", len(ended))
 	}
-	if got := ended[0].Name(); got != "http.server" {
-		t.Fatalf("span name = %q, want %q", got, "http.server")
+	if got := ended[0].Name(); got != "GET /healthz" {
+		t.Fatalf("span name = %q, want %q", got, "GET /healthz")
 	}
 }
 

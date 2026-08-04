@@ -86,6 +86,10 @@ func New(deps Deps) *http.Server {
 	registerRadar(mux, deps)
 	registerStatic(mux, deps)
 
+	// The "http.server" operation argument no longer names the span: since
+	// otelhttp v0.69.0 the default span name formatter discards it and uses the
+	// HTTP semantic convention "{method} {route}" instead, so spans arrive as
+	// "GET /healthz". The argument is still required by NewHandler.
 	handler := otelhttp.NewHandler(securityHeaders(mux), "http.server", otelhttp.WithTracerProvider(deps.TracerProvider))
 
 	return &http.Server{
