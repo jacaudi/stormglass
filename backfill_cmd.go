@@ -1,3 +1,11 @@
+// Package main runs the tempestwx-utilities binary. With no subcommand it
+// operates in one of two modes selected by environment: a UDP listener that
+// writes live observations to SQLite/PostgreSQL/Prometheus (default), or a
+// one-shot historical API export when TOKEN is set. Two explicit
+// subcommands bypass that mode selection entirely: "backfill" (this file)
+// repairs gaps in stored history via the REST API, and "healthcheck" probes
+// a running instance's /healthz endpoint. See CLAUDE.md for the full
+// operational-mode matrix.
 package main
 
 import (
@@ -180,6 +188,75 @@ func (s postgresStore) InsertObservations(ctx context.Context, obs []weather.Obs
 	return postgres.InsertObservations(ctx, s.pool, obs)
 }
 
+// openBackfillStore opens the write handle for target ("postgres" or
+// "sqlite"), creating the schema first for postgres, and returns a cleanup
+// func the caller must defer to release it. cleanup is returned rather than
+// deferred here: opening the handle and releasing it happen in different
+// stack frames (this function returns long before runBackfill is done using
+// the store), so the release must run at runBackfill's return, not this
+// function's.
+//
+// On failure the specific error is already logged via slog.Error before
+// returning, matching runBackfill's original inline error handling exactly
+// — callers only need to check err != nil and return the exit code.
+func openBackfillStore(ctx context.Context, target string, choice storeChoice) (backfill.Store, func(), error) {
+	switch target {
+	case "postgres":
+		dbConfig, err := config.GetDatabaseConfig()
+		if err != nil {
+			slog.Error("backfill: database configuration", "error", err)
+			return nil, func() {}, err
+		}
+		if dbConfig == "" {
+			err := errors.New("backfill: POSTGRES_URL or POSTGRES_HOST is required when ENABLE_POSTGRES is true")
+			slog.Error(err.Error())
+			return nil, func() {}, err
+		}
+		// Backfill opens the WRITE path: it must create the schema and
+		// insert. OpenPool starts no batch-worker goroutines, unlike
+		// NewPostgresWriter's four (pgxpool.NewWithConfig itself starts its
+		// own internal goroutine for idle-connection maintenance regardless
+		// of caller — that's pgx's concern, not the contrast being drawn
+		// here).
+		pool, err := postgres.OpenPool(ctx, dbConfig)
+		if err != nil {
+			slog.Error("backfill: open postgres", "error", err)
+			return nil, func() {}, err
+		}
+		if err := postgres.CreateSchema(ctx, pool); err != nil {
+			slog.Error("backfill: create postgres schema", "error", err)
+			// pool was opened successfully, so it must still be released on
+			// this failure path — matches the original's `defer pool.Close()`
+			// (registered right after OpenPool succeeded) still firing when
+			// CreateSchema fails and runBackfill returns.
+			pool.Close()
+			return nil, func() {}, err
+		}
+		return postgresStore{pool: pool}, pool.Close, nil
+	case "sqlite":
+		// The write handle, not OpenReadOnly: read-only fails when the file
+		// does not exist and cannot migrate, and its ingest-contention
+		// rationale does not apply to a separate one-shot process.
+		db, err := sqlite.Open(ctx, choice.sqlitePath, sqlite.LoadConfig(os.Getenv))
+		if err != nil {
+			slog.Error("backfill: open sqlite", "path", choice.sqlitePath, "error", err)
+			return nil, func() {}, err
+		}
+		cleanup := func() {
+			if err := db.Close(); err != nil {
+				slog.Error("backfill: close sqlite", "error", err)
+			}
+		}
+		return sqliteStore{db: db}, cleanup, nil
+	default:
+		// Unreachable today — resolveStore returns only "sqlite" or
+		// "postgres" — but a nil Store interface would panic deep inside Run,
+		// far from the cause.
+		slog.Error("backfill: unknown store target", "target", target)
+		return nil, func() {}, fmt.Errorf("unknown store target %q", target)
+	}
+}
+
 // runBackfill is the backfill subcommand's shell: parse, read env, open
 // handles, wire dependencies, return an exit code.
 //
@@ -235,57 +312,13 @@ func runBackfill(ctx context.Context, args []string) int {
 		return 2
 	}
 
-	var store backfill.Store
-	switch target {
-	case "postgres":
-		dbConfig, err := config.GetDatabaseConfig()
-		if err != nil {
-			slog.Error("backfill: database configuration", "error", err)
-			return 1
-		}
-		if dbConfig == "" {
-			slog.Error("backfill: POSTGRES_URL or POSTGRES_HOST is required when ENABLE_POSTGRES is true")
-			return 1
-		}
-		// Backfill opens the WRITE path: it must create the schema and
-		// insert. OpenPool starts no batch-worker goroutines, unlike
-		// NewPostgresWriter's four (pgxpool.NewWithConfig itself starts its
-		// own internal goroutine for idle-connection maintenance regardless
-		// of caller — that's pgx's concern, not the contrast being drawn
-		// here).
-		pool, err := postgres.OpenPool(ctx, dbConfig)
-		if err != nil {
-			slog.Error("backfill: open postgres", "error", err)
-			return 1
-		}
-		defer pool.Close()
-		if err := postgres.CreateSchema(ctx, pool); err != nil {
-			slog.Error("backfill: create postgres schema", "error", err)
-			return 1
-		}
-		store = postgresStore{pool: pool}
-	case "sqlite":
-		// The write handle, not OpenReadOnly: read-only fails when the file
-		// does not exist and cannot migrate, and its ingest-contention
-		// rationale does not apply to a separate one-shot process.
-		db, err := sqlite.Open(ctx, choice.sqlitePath, sqlite.LoadConfig(os.Getenv))
-		if err != nil {
-			slog.Error("backfill: open sqlite", "path", choice.sqlitePath, "error", err)
-			return 1
-		}
-		defer func() {
-			if err := db.Close(); err != nil {
-				slog.Error("backfill: close sqlite", "error", err)
-			}
-		}()
-		store = sqliteStore{db: db}
-	default:
-		// Unreachable today — resolveStore returns only "sqlite" or
-		// "postgres" — but a nil Store interface would panic deep inside Run,
-		// far from the cause.
-		slog.Error("backfill: unknown store target", "target", target)
+	store, cleanupStore, err := openBackfillStore(ctx, target, choice)
+	if err != nil {
+		// openBackfillStore has already logged the specific cause via
+		// slog.Error before returning.
 		return 1
 	}
+	defer cleanupStore()
 	slog.Info("backfill: store selected", "store", target)
 
 	client := tempestapi.NewClient(token)

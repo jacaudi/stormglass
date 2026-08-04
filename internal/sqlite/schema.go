@@ -133,7 +133,7 @@ func applyMigration(ctx context.Context, db *sql.DB, version int, content string
 // or comments, so a literal split is sufficient.
 func splitStatements(content string) []string {
 	var stmts []string
-	for _, raw := range strings.Split(content, ";") {
+	for raw := range strings.SplitSeq(content, ";") {
 		stmt := strings.TrimSpace(raw)
 		if stmt == "" {
 			continue

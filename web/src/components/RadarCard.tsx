@@ -156,6 +156,14 @@ export function RadarCard({ station, site }: RadarCardProps) {
       // MapLibre/WebGL init failure (e.g. no GL context available) --
       // degrade to the same unavailable state as any other radar failure
       // rather than crashing the card.
+      //
+      // Constructing the map is textbook external-system synchronisation: it
+      // needs the DOM node, so it can only happen in an effect, and its
+      // failure has nowhere to go but state. The rule targets cascading
+      // renders; this runs once, on a terminal error path. The sibling
+      // setStatus calls below are not flagged because they sit in async
+      // callbacks -- the only difference is this one throws synchronously.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- see above
       setStatus('unavailable');
       return;
     }

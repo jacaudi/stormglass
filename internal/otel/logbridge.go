@@ -2,6 +2,7 @@
 // this one function) so a bump of the still-experimental
 // go.opentelemetry.io/contrib/bridges/otelslog API is a one-file change,
 // matching setup.go's isolation of the experimental log signal.
+
 package otel
 
 import (

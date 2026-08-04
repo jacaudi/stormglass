@@ -1,60 +1,92 @@
-# Git
+# --- managed by github-actions-align: regenerated on apply; add your own BELOW the end marker ---
+# Goes at the BUILD CONTEXT root, not beside the Dockerfile. Rationale: github-actions-align/templates/README.md#dockerignore
+
+# Version control — biggest context bloat and a real leak risk
 .git
 .gitignore
+.gitattributes
+.github
 
-# Documentation
-README.md
+# Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Dependencies and build output — rebuilt inside the image
+node_modules
+vendor
+target
+__pycache__
+.venv
+venv
+bin
+dist
+coverage
+
+# Tooling and CI config the image never needs
+.golangci.yml
+.yamllint.yml
+.hadolint.yaml
+ruff.toml
+eslint.config.mjs
+taskfile.yml
+.taskfiles
+Makefile
+renovate.json
+release-please-config.json
+.release-please-manifest.json
+
+# Docs and local junk
+docs
 *.md
-docs/
+!README.md
+.DS_Store
+Thumbs.db
+*.swp
+.worktrees
+.idea
+.vscode
 
-# CI/CD
-.github/
-.gitlab-ci.yml
-.travis.yml
+# Test fixtures.
+# NOTE: this repo's Dockerfile runs `go mod download`, NOT `go mod tidy`, so the
+# template's caution about stripping *_test.go does not apply here — tidy is
+# what would resolve requirements from test files, and it never runs in-image.
+**/testdata
+**/*_test.go
+# --- end managed ---
+# Repo-specific entries below this line are preserved across regeneration.
 
-# Local build artifacts / agent tooling
+# LOAD-BEARING — do not delete. The Dockerfile's builder stage overlays
+# `COPY --from=ui /app/web/dist ./web/dist` so web/embed.go's `//go:embed
+# all:dist` embeds freshly built assets rather than the tracked .gitkeep
+# placeholder. A stale local web/dist leaking into the context would be copied
+# in first and then shadowed — or worse, survive if the ui stage were skipped.
+# The managed block's bare `dist` matches only a TOP-LEVEL dist, not web/dist.
+# The Dockerfile's own comment points here.
+web/dist
+
+# The managed block's bare `node_modules` likewise matches only the top level;
+# this repo's lives at web/node_modules.
+**/node_modules
+
+# Local build artifact — `go build .` writes the binary to the repo root
 /tempestwx-utilities
+
+# Agent scaffolding
 .superpowers/
 .claude/
 
-# UI build artifacts / deps -- the Dockerfile's "ui" stage rebuilds these
-# fresh from web/package.json + web/src, then overlays the result into the
-# builder stage; a stale local web/dist or web/node_modules must never leak
-# into the build context.
-**/node_modules
-web/dist
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Build artifacts
-*.exe
-*.dll
-*.so
-*.dylib
-
-# Test coverage
-*.out
-coverage.txt
-
-# Dependencies (if using vendor)
-# vendor/
-
-# Docker
+# Docker build definitions — the image never needs its own recipe
 Dockerfile*
 docker-compose*
 docker-bake.hcl
 .dockerignore
 
-# Temporary files
+# Coverage formats and temporaries beyond the managed block
+coverage.txt
+*.out
 *.tmp
 *.temp
 /tmp/

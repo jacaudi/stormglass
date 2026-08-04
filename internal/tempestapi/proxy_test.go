@@ -62,9 +62,9 @@ func TestClient_WithBaseURL_Proxy(t *testing.T) {
 // pattern) is the only way to hand Proxy a response with no Content-Type.
 func TestClient_Proxy_DefaultsContentType(t *testing.T) {
 	client := NewClient("tok")
-	client.http.Transport = &mockRoundTripper{
-		response: mockResponse(http.StatusOK, `{}`),
-	}
+	resp := mockResponse(http.StatusOK, `{}`)
+	defer func() { _ = resp.Body.Close() }()
+	client.http.Transport = &mockRoundTripper{response: resp}
 
 	_, contentType, _, err := client.Proxy(t.Context(), "/stations", nil)
 	if err != nil {

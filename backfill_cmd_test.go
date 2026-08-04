@@ -280,14 +280,13 @@ func TestKnownSubcommands(t *testing.T) {
 // failure here shows up as a timeout, not just a bad exit code.
 func TestUnknownSubcommandExitsTwoWithoutStartingDaemon(t *testing.T) {
 	bin := filepath.Join(t.TempDir(), "twx")
-	//nolint:gosec // G204: test-only; builds this package's own binary into t.TempDir()
+
 	build := exec.CommandContext(t.Context(), "go", "build", "-o", bin, ".")
 	build.Env = append(os.Environ(), "CGO_ENABLED=0")
 	if out, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build: %v\n%s", err, out)
 	}
 
-	//nolint:gosec // G204: test-only; runs the binary this test just built
 	cmd := exec.CommandContext(t.Context(), bin, "backfil")
 	out, err := cmd.CombinedOutput()
 
@@ -312,7 +311,7 @@ func TestUnknownSubcommandExitsTwoWithoutStartingDaemon(t *testing.T) {
 // a one-line edit. Only a re-exec catches it.
 func TestBackfillSubcommandReachesRunBackfill(t *testing.T) {
 	bin := filepath.Join(t.TempDir(), "twx")
-	//nolint:gosec // G204: test-only; builds this package's own binary into t.TempDir()
+
 	build := exec.CommandContext(t.Context(), "go", "build", "-o", bin, ".")
 	build.Env = append(os.Environ(), "CGO_ENABLED=0")
 	if out, err := build.CombinedOutput(); err != nil {
@@ -321,7 +320,7 @@ func TestBackfillSubcommandReachesRunBackfill(t *testing.T) {
 
 	// --help exits 0 and prints the backfill flag set. The daemon prints
 	// nothing resembling this, so it discriminates cleanly.
-	//nolint:gosec // G204: test-only; runs the binary this test just built
+
 	cmd := exec.CommandContext(t.Context(), bin, "backfill", "--help")
 	out, err := cmd.CombinedOutput()
 	if err != nil {

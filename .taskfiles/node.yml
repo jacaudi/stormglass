@@ -1,0 +1,61 @@
+# JS/TS project — include with `dir:` (the JS always lives in a subdirectory). Rationale: github-actions-align/templates/README.md#nodeyml
+version: '3'
+
+tasks:
+  ci:
+    desc: All JS/TS checks
+    cmds:
+      - task: install
+      - task: lint
+      - task: typecheck
+      - task: test
+
+  install:
+    desc: Install dependencies from the lockfile
+    cmds:
+      - npm ci   # not `install` — fails on a stale lockfile instead of rewriting it
+
+  lint:
+    desc: eslint, warnings are errors
+    cmds:
+      # One pass, not two. This used to run again under a `fmt:check` target that
+      # did not check formatting — eslint has no formatter here (style is the
+      # formatter's job and none is configured), so a separate target was a
+      # duplicate lint wearing the wrong name.
+      - npx eslint --max-warnings 0 .
+
+  fmt:
+    desc: Apply eslint autofixes
+    cmds:
+      - npx eslint --fix .
+
+  typecheck:
+    desc: TypeScript check without emitting
+    cmds:
+      # `tsc -b`, NOT a plain `tsc --noEmit`. web/tsconfig.json is solution-style
+      # ("files": [] plus references to tsconfig.app.json / tsconfig.node.json),
+      # so a plain --noEmit compiles ZERO files and passes unconditionally.
+      # Verified by mutation: a deliberate `const x: number = "str"` in
+      # src/types/weather.ts is SILENT under `tsc --noEmit` and caught under
+      # `tsc -b --noEmit` (TS2322). Build mode is what follows the references.
+      - |
+        set -eu
+        [ -f tsconfig.json ] || { echo "no tsconfig.json — skipping typecheck"; exit 0; }
+        npx tsc -b --noEmit
+
+  test:
+    desc: Run tests
+    cmds:
+      # `npm pkg get` is stable API; parsing `npm run` output is not.
+      - |
+        set -eu
+        if [ "$(npm pkg get scripts.test)" != "{}" ]; then
+          npm test
+        else
+          echo "::warning::no npm test script defined — no JS tests are running"
+        fi
+
+  build:
+    desc: Production build
+    cmds:
+      - npm run build

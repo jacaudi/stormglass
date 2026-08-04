@@ -72,9 +72,9 @@ func TestListStations_Success_SingleStation(t *testing.T) {
 	}`
 
 	client := NewClient("test-token")
-	client.http.Transport = &mockRoundTripper{
-		response: mockResponse(http.StatusOK, mockBody),
-	}
+	resp := mockResponse(http.StatusOK, mockBody)
+	defer func() { _ = resp.Body.Close() }()
+	client.http.Transport = &mockRoundTripper{response: resp}
 
 	stations, err := client.ListStations(context.Background())
 
@@ -141,9 +141,9 @@ func TestListStations_Success_MultipleStations(t *testing.T) {
 	}`
 
 	client := NewClient("test-token")
-	client.http.Transport = &mockRoundTripper{
-		response: mockResponse(http.StatusOK, mockBody),
-	}
+	resp := mockResponse(http.StatusOK, mockBody)
+	defer func() { _ = resp.Body.Close() }()
+	client.http.Transport = &mockRoundTripper{response: resp}
 
 	stations, err := client.ListStations(context.Background())
 
@@ -205,9 +205,9 @@ func TestListStations_Success_MultipleDevicesPerStation(t *testing.T) {
 	}`
 
 	client := NewClient("test-token")
-	client.http.Transport = &mockRoundTripper{
-		response: mockResponse(http.StatusOK, mockBody),
-	}
+	resp := mockResponse(http.StatusOK, mockBody)
+	defer func() { _ = resp.Body.Close() }()
+	client.http.Transport = &mockRoundTripper{response: resp}
 
 	stations, err := client.ListStations(context.Background())
 
@@ -252,9 +252,9 @@ func TestListStations_NoSTDevice(t *testing.T) {
 	}`
 
 	client := NewClient("test-token")
-	client.http.Transport = &mockRoundTripper{
-		response: mockResponse(http.StatusOK, mockBody),
-	}
+	resp := mockResponse(http.StatusOK, mockBody)
+	defer func() { _ = resp.Body.Close() }()
+	client.http.Transport = &mockRoundTripper{response: resp}
 
 	stations, err := client.ListStations(context.Background())
 
@@ -278,9 +278,9 @@ func TestListStations_EmptyStations(t *testing.T) {
 	}`
 
 	client := NewClient("test-token")
-	client.http.Transport = &mockRoundTripper{
-		response: mockResponse(http.StatusOK, mockBody),
-	}
+	resp := mockResponse(http.StatusOK, mockBody)
+	defer func() { _ = resp.Body.Close() }()
+	client.http.Transport = &mockRoundTripper{response: resp}
 
 	stations, err := client.ListStations(context.Background())
 
@@ -334,9 +334,9 @@ func TestListStations_MixedValidAndInvalid(t *testing.T) {
 	}`
 
 	client := NewClient("test-token")
-	client.http.Transport = &mockRoundTripper{
-		response: mockResponse(http.StatusOK, mockBody),
-	}
+	resp := mockResponse(http.StatusOK, mockBody)
+	defer func() { _ = resp.Body.Close() }()
+	client.http.Transport = &mockRoundTripper{response: resp}
 
 	stations, err := client.ListStations(context.Background())
 
@@ -356,9 +356,9 @@ func TestListStations_MixedValidAndInvalid(t *testing.T) {
 
 func TestListStations_InvalidJSON(t *testing.T) {
 	client := NewClient("test-token")
-	client.http.Transport = &mockRoundTripper{
-		response: mockResponse(http.StatusOK, "invalid json{{{"),
-	}
+	resp := mockResponse(http.StatusOK, "invalid json{{{")
+	defer func() { _ = resp.Body.Close() }()
+	client.http.Transport = &mockRoundTripper{response: resp}
 
 	_, err := client.ListStations(context.Background())
 
@@ -413,9 +413,9 @@ func TestGetObservations_Success(t *testing.T) {
 	}`
 
 	client := NewClient("test-token")
-	client.http.Transport = &mockRoundTripper{
-		response: mockResponse(http.StatusOK, mockBody),
-	}
+	resp := mockResponse(http.StatusOK, mockBody)
+	defer func() { _ = resp.Body.Close() }()
+	client.http.Transport = &mockRoundTripper{response: resp}
 
 	station := Station{
 		Name:         "Test Station",
@@ -458,9 +458,9 @@ func TestGetObservations_MultipleObservations(t *testing.T) {
 	}`
 
 	client := NewClient("test-token")
-	client.http.Transport = &mockRoundTripper{
-		response: mockResponse(http.StatusOK, mockBody),
-	}
+	resp := mockResponse(http.StatusOK, mockBody)
+	defer func() { _ = resp.Body.Close() }()
+	client.http.Transport = &mockRoundTripper{response: resp}
 
 	station := Station{
 		DeviceID:     67890,
@@ -495,9 +495,9 @@ func TestGetObservations_HTTPError(t *testing.T) {
 
 func TestGetObservations_InvalidJSON(t *testing.T) {
 	client := NewClient("test-token")
-	client.http.Transport = &mockRoundTripper{
-		response: mockResponse(http.StatusOK, "not valid json"),
-	}
+	resp := mockResponse(http.StatusOK, "not valid json")
+	defer func() { _ = resp.Body.Close() }()
+	client.http.Transport = &mockRoundTripper{response: resp}
 
 	station := Station{DeviceID: 67890, SerialNumber: "ST-00012345"}
 
@@ -537,9 +537,9 @@ func TestGetObservations_EmptyObservations(t *testing.T) {
 	}`
 
 	client := NewClient("test-token")
-	client.http.Transport = &mockRoundTripper{
-		response: mockResponse(http.StatusOK, mockBody),
-	}
+	resp := mockResponse(http.StatusOK, mockBody)
+	defer func() { _ = resp.Body.Close() }()
+	client.http.Transport = &mockRoundTripper{response: resp}
 
 	station := Station{DeviceID: 67890, SerialNumber: "ST-00012345"}
 
@@ -582,9 +582,9 @@ func TestListStations_StationWithZeroDeviceID(t *testing.T) {
 	}`
 
 	client := NewClient("test-token")
-	client.http.Transport = &mockRoundTripper{
-		response: mockResponse(http.StatusOK, mockBody),
-	}
+	resp := mockResponse(http.StatusOK, mockBody)
+	defer func() { _ = resp.Body.Close() }()
+	client.http.Transport = &mockRoundTripper{response: resp}
 
 	stations, err := client.ListStations(context.Background())
 
@@ -621,9 +621,9 @@ func TestListStations_StationWithEmptySerialNumber(t *testing.T) {
 	}`
 
 	client := NewClient("test-token")
-	client.http.Transport = &mockRoundTripper{
-		response: mockResponse(http.StatusOK, mockBody),
-	}
+	resp := mockResponse(http.StatusOK, mockBody)
+	defer func() { _ = resp.Body.Close() }()
+	client.http.Transport = &mockRoundTripper{response: resp}
 
 	stations, err := client.ListStations(context.Background())
 

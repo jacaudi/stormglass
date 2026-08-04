@@ -20,7 +20,12 @@ import (
 // this the pusher's HTTP client would otherwise have no deadline at all.
 const pushTimeout = 10 * time.Second
 
-// PrometheusWriter wraps the existing Prometheus push logic.
+// PrometheusWriter wraps the existing Prometheus push logic. The name
+// stutters (prometheus.PrometheusWriter) but is an established,
+// widely-referenced identifier (main.go); renaming is a cross-file rename
+// out of scope for this lint-debt pass, not a doc-comment fix.
+//
+//nolint:revive // established name; see doc comment above
 type PrometheusWriter struct {
 	pusher *push.Pusher
 	outbox chan prometheus.Metric

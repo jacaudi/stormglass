@@ -1,3 +1,11 @@
+// Package tempestapi is a REST client for the WeatherFlow Tempest API: station
+// and device discovery (ListStations, ListDevices), historical observation
+// fetches decoded into the same tempestudp.Report types the UDP listener
+// produces (GetObservations), and a raw-JSON passthrough (proxy.go) for the
+// httpserver's read-through cache. internal/backfill is the primary consumer
+// of the device-preserving ListDevices path; main.go's API-export mode uses
+// the station-collapsing ListStations path instead — see ListStations'
+// comment for why the two intentionally disagree.
 package tempestapi
 
 import (
@@ -21,6 +29,9 @@ import (
 // ever changed, so it lives once here rather than being hardcoded per method.
 const defaultBaseURL = "https://swd.weatherflow.com/swd/rest"
 
+// Client is an authenticated WeatherFlow REST client. The zero value is not
+// usable — construct one with NewClient, which fills in the auth token and
+// production base URL.
 type Client struct {
 	token   string
 	http    *http.Client
@@ -39,6 +50,9 @@ func WithBaseURL(baseURL string) ClientOption {
 	}
 }
 
+// NewClient returns a Client authenticated with token, pointed at the
+// production WeatherFlow API with a 30s request timeout. Options (currently
+// only WithBaseURL, used by tests) apply after those defaults.
 func NewClient(token string, opts ...ClientOption) *Client {
 	c := &Client{
 		token:   token,
@@ -79,6 +93,11 @@ func (c *Client) get(ctx context.Context, url string) ([]byte, error) {
 	return io.ReadAll(io.LimitReader(resp.Body, 10<<20))
 }
 
+// Station identifies one ST (Tempest) device: which station it belongs to,
+// its device ID (used to fetch observations), and the serial number that
+// correlates it with rows this device's UDP broadcasts have already written
+// to a store. Returned by ListStations and ListDevices — see ListDevices'
+// comment for how the two differ on multi-device stations.
 type Station struct {
 	Name         string
 	StationID    int
@@ -184,19 +203,19 @@ func (c *Client) ListStations(ctx context.Context) ([]Station, error) {
 
 	var out []Station
 	for _, station := range data.Stations {
-		var deviceId int
+		var deviceID int
 		var instance string
 		for _, dev := range station.Devices {
 			if dev.DeviceType == "ST" {
-				deviceId = dev.DeviceID
+				deviceID = dev.DeviceID
 				instance = dev.SerialNumber
 			}
 		}
 
-		if deviceId != 0 && instance != "" {
+		if deviceID != 0 && instance != "" {
 			out = append(out, Station{
 				Name:         station.Name,
-				DeviceID:     deviceId,
+				DeviceID:     deviceID,
 				SerialNumber: instance,
 				StationID:    station.StationID,
 				CreatedAt:    time.Unix(station.CreatedEpoch, 0),
@@ -206,6 +225,11 @@ func (c *Client) ListStations(ctx context.Context) ([]Station, error) {
 	return out, nil
 }
 
+// GetObservations fetches station's observations in [startAt, endAt] and
+// decodes them through the same tempestudp.ParseReport path the UDP
+// listener uses, so backfilled and live rows share one decode
+// implementation. station.SerialNumber is stamped onto the decoded report
+// because the API response itself carries no serial number.
 func (c *Client) GetObservations(ctx context.Context, station Station, startAt time.Time, endAt time.Time) ([]prometheus.Metric, error) {
 	url := fmt.Sprintf("%s/observations/device/%d?time_start=%d&time_end=%d", c.baseURL, station.DeviceID, startAt.Unix(), endAt.Unix())
 	// A non-200 response now surfaces as *StatusError rather than a plain

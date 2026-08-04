@@ -411,8 +411,7 @@ func TestSink_ClosePassesContext(t *testing.T) {
 
 	// context.WithCancel yields a context distinct from context.Background(),
 	// so identity comparison below actually proves the parameter was forwarded.
-	cleanupCtx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	cleanupCtx := t.Context()
 
 	if err := s.Close(cleanupCtx); err != nil {
 		t.Fatalf("unexpected error: %v", err)

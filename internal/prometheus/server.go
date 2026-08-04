@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -77,14 +78,12 @@ func (s *MetricsServer) Start() error {
 		return fmt.Errorf("metrics: listen on %s: %w", s.server.Addr, err)
 	}
 
-	s.shutdownWg.Add(1)
-	go func() {
-		defer s.shutdownWg.Done()
+	s.shutdownWg.Go(func() {
 		log.Printf("metrics: starting HTTP server on port %s", s.port)
 		if err := s.server.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Printf("metrics: server error: %v", err)
 		}
-	}()
+	})
 	return nil
 }
 
@@ -167,9 +166,10 @@ func metricKey(m prometheus.Metric) string {
 	}
 
 	// Build key from description and label values
-	key := m.Desc().String()
+	var key strings.Builder
+	key.WriteString(m.Desc().String())
 	for _, label := range d.Label {
-		key += fmt.Sprintf(",%s=%s", label.GetName(), label.GetValue())
+		fmt.Fprintf(&key, ",%s=%s", label.GetName(), label.GetValue())
 	}
-	return key
+	return key.String()
 }

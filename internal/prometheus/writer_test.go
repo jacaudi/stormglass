@@ -126,13 +126,11 @@ func TestPrometheusWriteDuringClose_NoPanic(t *testing.T) {
 
 	var producers sync.WaitGroup
 	for range 4 {
-		producers.Add(1)
-		go func() {
-			defer producers.Done()
+		producers.Go(func() {
 			for range writesPerProducer {
 				_ = writer.WriteMetrics(t.Context(), metrics)
 			}
-		}()
+		})
 	}
 
 	closeDone := make(chan error, 1)

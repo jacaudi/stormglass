@@ -1,14 +1,45 @@
-# Project-specific
-.secrets
-chainguard-labels.*
-CLAUDE.md
-.worktrees/
-.private-journal/
-deploy/.env
+# --- managed by github-actions-align: regenerated on apply; add your own BELOW the end marker ---
+# Base fragment; language fragments are appended. Rationale: github-actions-align/templates/README.md#ignore-files
 
-# Binaries
-tempestwx-utilities
-tempestwx-exporter
+# OS junk
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+desktop.ini
+
+# Editor
+*.swp
+*.swo
+*~
+.idea/
+*.iml
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# Merge/patch leftovers
+*.orig
+*.rej
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+!**/testdata/**/*.pem
+!**/testdata/**/*.key
+
+# Local tooling
+.worktrees/
+bin/
+dist/
+coverage/
+*.out
+!.gitkeep
 
 # Go
 *.exe
@@ -17,38 +48,63 @@ tempestwx-exporter
 *.so
 *.dylib
 *.test
-*.out
+vendor/
 go.work
 go.work.sum
 
-# Go build cache
-.cache/
+# kubebuilder / operator-sdk local state
+*.kubeconfig
+config/**/*.local.yaml
 
-# Go coverage
+# Node / JS / TS — lockfiles ARE committed (npm ci depends on them)
+node_modules/
+.npm
+.eslintcache
+*.tsbuildinfo
+.vite/
+.next/
+.nuxt/
+.turbo/
+npm-debug.log*
+yarn-error.log*
+# --- end managed ---
+# Repo-specific entries below this line are preserved across regeneration.
+
+# Project-specific
+.secrets
+chainguard-labels.*
+CLAUDE.md
+.private-journal/
+deploy/.env
+
+# Agent scaffolding
+.superpowers/
+docs/prompts/
+
+# Built binaries (this repo's, by name — the managed block's bin/ does not cover
+# a binary written to the repo root, which `go build .` does by default)
+tempestwx-utilities
+tempestwx-exporter
+
+# Go build cache and coverage formats the managed block does not carry
+.cache/
 *.coverprofile
 coverage.txt
 coverage.html
 
-# Dependency directories
-vendor/
-
-# Python
+# Python — no Python project here today, retained from the pre-migration file
 __pycache__/
 *.pyc
 .venv/
 .pytest_cache/
 
-# macOS
-.DS_Store
+# Extended macOS entries beyond the managed base
 .AppleDouble
 .LSOverride
 Icon
-._*
 .DocumentRevisions-V100
 .fseventsd
-.Spotlight-V100
 .TemporaryItems
-.Trashes
 .VolumeIcon.icns
 .com.apple.timemachine.donotpresent
 .AppleDB
@@ -58,22 +114,12 @@ Temporary Items
 .apdisk
 
 # Linux
-*~
 .fuse_hidden*
 .directory
 .Trash-*
 .nfs*
 
-# IDEs
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
+# Eclipse-era IDE files
 .project
 .classpath
 .settings/
-*.iml
-
-# Session handoff prompts (scaffolding, not project artifacts)
-docs/prompts/

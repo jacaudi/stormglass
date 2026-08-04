@@ -170,7 +170,15 @@ export function useWeatherData(
     }
   }, [stationId]);
 
+  // loadData's synchronous prologue is setIsLoading(true) -- the canonical
+  // data-fetching shape React's own "You Might Not Need an Effect" docs use.
+  // The rule exists to stop cascading renders; this fires once per stationId
+  // change, not per render. Both ways out are worse than the suppression:
+  // dropping the loading indicator, or duplicating isLoading as render-phase
+  // adjusted state purely to satisfy a linter. Revisit if this hook ever moves
+  // to a data-fetching library, which is React's actual recommendation here.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- see above
     loadData();
     return () => abortRef.current?.abort();
   }, [loadData]);

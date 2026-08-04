@@ -36,7 +36,7 @@ func TestMetricsServer_StartReturnsBindError(t *testing.T) {
 	// release it immediately. Closing a listener that never accepted a
 	// connection releases the port with no lingering state, so it's safe
 	// to reuse straight away.
-	probe, err := net.Listen("tcp", ":0") //nolint:gosec // test-only: binds an ephemeral port on localhost to discover a free port number, not a production listener
+	probe, err := net.Listen("tcp", ":0")
 	if err != nil {
 		t.Fatalf("failed to discover a free port: %v", err)
 	}

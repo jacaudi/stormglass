@@ -1,7 +1,93 @@
+# THE CI CONTRACT — generated per repo; `task ci` is what CI runs and what you run locally. Rationale: github-actions-align/templates/README.md#taskfiles
 version: '3'
 
-tasks:
+includes:
+  repo:
+    taskfile: .taskfiles/repo.yml
 
+  # --- generated: one entry per language present; `dir:` for non-Go ---
+  go:
+    taskfile: .taskfiles/go.yml
+
+  node:
+    taskfile: .taskfiles/node.yml
+    dir: web
+
+tasks:
+  default:
+    desc: List all tasks
+    cmds:
+      - task --list
+
+  ci:
+    desc: Everything CI runs. Run this before pushing.
+    cmds:
+      - task: repo:ci
+      - task: go:ci
+      - task: node:ci
+
+  lint:
+    desc: Static checks only
+    cmds:
+      - task: repo:ci
+      - task: go:lint
+      - task: node:lint
+
+  test:
+    desc: Tests only
+    cmds:
+      - task: go:test
+      - task: node:test
+
+  build:
+    desc: Build artefacts
+    cmds:
+      # node BEFORE go, and not merely by preference: web/embed.go carries
+      # `//go:embed all:dist`, so the Go binary embeds whatever web/dist holds at
+      # compile time. Build Go first and you ship the previous UI (or, on a clean
+      # checkout, just the tracked .gitkeep).
+      - task: node:build
+      - task: go:build
+
+  # Service repo. Runs locally: IMAGE=ghcr.io/jacaudi/tempestwx-utilities:vX.Y.Z task smoke
+  smoke:
+    desc: Boot the built image and assert it behaves
+    requires:
+      vars: [IMAGE]
+    # Accepts BOTH `IMAGE=… task smoke` and `task smoke IMAGE=…`. Without this,
+    # the CLI form satisfies `requires` but leaves $IMAGE empty in the shell.
+    env:
+      IMAGE: '{{.IMAGE}}'
+    cmds:
+      - |
+        set -eu
+        echo "smoke testing ${IMAGE}"
+        # SQLITE_PATH is not optional here. SQLite is the DEFAULT store and the
+        # process EXITS ON STARTUP if it cannot open the database (CLAUDE.md,
+        # "fail-loud"). The image's /data is not a writable mount under a bare
+        # `docker run`, so without this the container crash-loops and the smoke
+        # test fails for a reason unrelated to the build. The container runs as
+        # USER 65532, so /tmp is the writable choice.
+        docker run -d --name smoke \
+          -p 8080:8080 \
+          -e SQLITE_PATH=/tmp/smoke.db \
+          "${IMAGE}"
+        trap 'docker logs smoke || true; docker rm -f smoke >/dev/null 2>&1 || true' EXIT
+        for i in $(seq 1 30); do
+          curl -sf http://localhost:8080/healthz >/dev/null && break
+          [ "$i" = "30" ] && { echo "::error::container never served /healthz on :8080"; exit 1; }
+          sleep 2
+        done
+        echo "ok: container serves /healthz"
+        # The UI is embedded via //go:embed, so a 200 on / proves the Vite build
+        # actually reached the binary — the one failure `go build` cannot catch,
+        # since an empty web/dist still compiles.
+        curl -sf http://localhost:8080/ >/dev/null \
+          || { echo "::error::serves /healthz but not the embedded UI at /"; exit 1; }
+        echo "ok: embedded UI served"
+
+  # Retained from the pre-migration taskfile: the local image build is not part
+  # of the CI contract but is the documented way to build by hand (CLAUDE.md).
   build-local:
     desc: Build local Docker image with dynamic labels
     env:
@@ -10,9 +96,10 @@ tasks:
     cmds:
       - docker buildx bake image-local
 
-  ui-build:
-    desc: Build the embedded web UI (web/dist), required before `go build`
-    dir: web
-    cmds:
-      - npm ci --ignore-scripts
-      - npm run build
+  # NOTE: the template's `artifact:` task is deliberately absent. This repo ships
+  # no release manifest — the container image IS the release artifact and
+  # releases carry zero assets by design (PR #117). The stock task exits 1, and
+  # `release-artifact` stays commented out in ci.yaml.
+  #
+  # The old `ui-build` task is gone: `node:build` replaces it, and `build:`
+  # above sequences it ahead of `go:build` for the same embed reason.

@@ -52,8 +52,7 @@ func TestPostgresWriter_FlushObservations(t *testing.T) {
 
 // Unit test for routing logic
 func TestPostgresWriter_RouteObservation(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// Mock writer without real DB
 	w := &PostgresWriter{
@@ -168,7 +167,7 @@ func TestPostgresWriter_DrainOnClose(t *testing.T) {
 	go w.batchEvents()
 
 	const wantRows = 250
-	for i := 0; i < wantRows; i++ {
+	for range wantRows {
 		w.obsBatch <- observationRow{serialNumber: "ST-DRAIN"}
 	}
 
@@ -287,7 +286,7 @@ func TestPostgresWriter_ShutdownFlushesLocalBatchUnderCanceledWctx(t *testing.T)
 	go w.batchEvents()
 
 	const wantRows = 5
-	for i := 0; i < wantRows; i++ {
+	for i := range wantRows {
 		w.windBatch <- rapidWindRow{windSpeed: float64(i)}
 	}
 
@@ -379,9 +378,7 @@ func TestPostgresWriteDuringClose_NoPanic(t *testing.T) {
 	stop := make(chan struct{})
 	var producers sync.WaitGroup
 	for range 5 {
-		producers.Add(1)
-		go func() {
-			defer producers.Done()
+		producers.Go(func() {
 			for {
 				select {
 				case <-stop:
@@ -390,7 +387,7 @@ func TestPostgresWriteDuringClose_NoPanic(t *testing.T) {
 					_ = w.WriteReport(t.Context(), report)
 				}
 			}
-		}()
+		})
 	}
 
 	closeCtx, cancel := context.WithTimeout(t.Context(), 5*time.Second)

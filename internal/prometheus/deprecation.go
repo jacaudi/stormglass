@@ -1,3 +1,7 @@
+// Package prometheus is the deprecated bespoke metrics path: a pushgateway
+// writer (writer.go) and a scrape server (server.go), both slated for
+// removal in favor of ENABLE_OTEL (see deprecationMsg below). It emits a
+// one-time WARN the first time either is constructed.
 package prometheus
 
 import (

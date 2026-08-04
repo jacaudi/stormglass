@@ -6,6 +6,7 @@
 // signatures. internal/otel already imports tempestudp; it deliberately does
 // NOT import internal/sink, to avoid an import cycle (sink depends on the
 // writers this package implements) — hence the injection.
+
 package otel
 
 import (

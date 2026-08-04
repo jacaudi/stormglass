@@ -97,6 +97,12 @@ type windInserter interface {
 }
 
 // PostgresWriter writes metrics to PostgreSQL with batching and retry logic.
+// The name stutters (postgres.PostgresWriter) but is an established,
+// widely-referenced identifier (main.go, backfill_cmd.go,
+// internal/sqlite/writer.go); renaming is a cross-file rename out of scope
+// for this lint-debt pass, not a doc-comment fix.
+//
+//nolint:revive // established name; see doc comment above
 type PostgresWriter struct {
 	pool *pgxpool.Pool
 
@@ -258,7 +264,7 @@ func (w *PostgresWriter) insertObservations(ctx context.Context, batch []observa
 	br := w.pool.SendBatch(ctx, b)
 	defer closeBatchResults(br)
 
-	for i := 0; i < len(batch); i++ {
+	for i := range batch {
 		_, err := br.Exec()
 		if err != nil {
 			return fmt.Errorf("insert observation %d: %w", i, err)
@@ -335,7 +341,7 @@ func (w *PostgresWriter) insertRapidWind(ctx context.Context, batch []rapidWindR
 	br := w.pool.SendBatch(ctx, b)
 	defer closeBatchResults(br)
 
-	for i := 0; i < len(batch); i++ {
+	for i := range batch {
 		_, err := br.Exec()
 		if err != nil {
 			return fmt.Errorf("insert rapid_wind %d: %w", i, err)
@@ -407,7 +413,7 @@ func (w *PostgresWriter) insertHubStatus(ctx context.Context, batch []hubStatusR
 	br := w.pool.SendBatch(ctx, b)
 	defer closeBatchResults(br)
 
-	for i := 0; i < len(batch); i++ {
+	for i := range batch {
 		_, err := br.Exec()
 		if err != nil {
 			return fmt.Errorf("insert hub_status %d: %w", i, err)
@@ -460,7 +466,7 @@ func (w *PostgresWriter) insertEvents(ctx context.Context, batch []eventRow) err
 	br := w.pool.SendBatch(ctx, b)
 	defer closeBatchResults(br)
 
-	for i := 0; i < len(batch); i++ {
+	for i := range batch {
 		_, err := br.Exec()
 		if err != nil {
 			return fmt.Errorf("insert event %d: %w", i, err)
@@ -684,15 +690,122 @@ func (w *PostgresWriter) handleLightningStrikeReport(ctx context.Context, r *tem
 	return nil
 }
 
+// metricKey groups a WriteMetrics input by the (serial, timestamp) pair that
+// identifies which reconstructed observation row a metric belongs to.
+type metricKey struct {
+	serialNumber string
+	timestamp    time.Time
+}
+
+// observationFieldMapper matches a metric descriptor substring to the
+// observationRow field(s) it populates. substr and apply mirror
+// WriteMetrics' original desc-matching switch exactly, one entry per case,
+// in the same order (Contains matching, first match wins) -- every entry
+// here must map the same descriptor substring to the same column(s) the
+// original switch did.
+type observationFieldMapper struct {
+	substr string
+	apply  func(obs *observationRow, value float64, kind string)
+}
+
+var observationFieldMappers = []observationFieldMapper{
+	{"tempest_wind_ms", func(obs *observationRow, value float64, kind string) {
+		switch kind {
+		case "lull":
+			obs.windLull = value
+		case "avg":
+			obs.windAvg = value
+		case "gust":
+			obs.windGust = value
+		}
+	}},
+	{"tempest_wind_direction_degrees", func(obs *observationRow, value float64, _ string) {
+		obs.windDirection = value
+	}},
+	{"tempest_pressure_pa", func(obs *observationRow, value float64, _ string) {
+		obs.pressure = value
+	}},
+	{"tempest_temperature_c", func(obs *observationRow, value float64, kind string) {
+		switch kind {
+		case "air":
+			obs.tempAir = value
+		case "wetbulb":
+			obs.tempWetbulb = &value
+		}
+	}},
+	{"tempest_humidity_percent", func(obs *observationRow, value float64, _ string) {
+		obs.humidity = value
+	}},
+	{"tempest_illuminance_lux", func(obs *observationRow, value float64, _ string) {
+		obs.illuminance = value
+	}},
+	{"tempest_uv_index", func(obs *observationRow, value float64, _ string) {
+		obs.uvIndex = value
+	}},
+	{"tempest_irradiance_w_m2", func(obs *observationRow, value float64, _ string) {
+		obs.irradiance = value
+	}},
+	{"tempest_rain_rate_mm_min", func(obs *observationRow, value float64, _ string) {
+		obs.rainRate = value
+	}},
+	{"tempest_lightning_distance_km", func(obs *observationRow, value float64, _ string) {
+		obs.lightningDistance = &value
+	}},
+	{"tempest_lightning_strike_count", func(obs *observationRow, value float64, _ string) {
+		obs.lightningStrikeCount = &value
+	}},
+	{"tempest_battery_volts", func(obs *observationRow, value float64, _ string) {
+		obs.battery = &value
+	}},
+	{"tempest_report_interval_s", func(obs *observationRow, value float64, _ string) {
+		obs.reportInterval = &value
+	}},
+}
+
+// applyObservationField maps desc to the observationRow field(s) it
+// populates via observationFieldMappers, matching the first substring found
+// in desc (mirrors the original switch's top-to-bottom, first-match-wins
+// evaluation). No match is a silent no-op, matching the original switch
+// falling through with no case taken.
+func applyObservationField(obs *observationRow, desc, kind string, value float64) {
+	for _, fm := range observationFieldMappers {
+		if strings.Contains(desc, fm.substr) {
+			fm.apply(obs, value, kind)
+			return
+		}
+	}
+}
+
+// labelValue returns the value of the named label pair, or "" if absent.
+func labelValue(labels []*io_prometheus_client.LabelPair, name string) string {
+	for _, label := range labels {
+		if label.GetName() == name {
+			return label.GetValue()
+		}
+	}
+	return ""
+}
+
+// sendObservationBatch sends every accumulated observation row to the batch
+// channel, respecting the same shutdown/cancellation short-circuits as every
+// other producer send in this file.
+func (w *PostgresWriter) sendObservationBatch(ctx context.Context, observations map[metricKey]*observationRow) error {
+	for _, obs := range observations {
+		select {
+		case w.obsBatch <- *obs:
+		case <-w.done: // Close in progress — stop producing, no send-on-closed
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	return nil
+}
+
 // WriteMetrics implements MetricsWriter interface
 // This is used by the API export mode to write historical data
 func (w *PostgresWriter) WriteMetrics(ctx context.Context, metrics []prometheus.Metric) error {
 	// Group metrics by timestamp and serial number to reconstruct observations
-	type metricKey struct {
-		serialNumber string
-		timestamp    time.Time
-	}
-
 	observations := make(map[metricKey]*observationRow)
 
 	for _, metric := range metrics {
@@ -703,13 +816,7 @@ func (w *PostgresWriter) WriteMetrics(ctx context.Context, metrics []prometheus.
 		}
 
 		// Extract serial number from instance label
-		var serialNumber string
-		for _, label := range dto.GetLabel() {
-			if label.GetName() == "instance" {
-				serialNumber = label.GetValue()
-				break
-			}
-		}
+		serialNumber := labelValue(dto.GetLabel(), "instance")
 		if serialNumber == "" {
 			continue
 		}
@@ -738,73 +845,11 @@ func (w *PostgresWriter) WriteMetrics(ctx context.Context, metrics []prometheus.
 		}
 
 		// Map metric to field based on descriptor
-		desc := metric.Desc().String()
-		switch {
-		case strings.Contains(desc, "tempest_wind_ms"):
-			// Check kind label
-			for _, label := range dto.GetLabel() {
-				if label.GetName() == "kind" {
-					switch label.GetValue() {
-					case "lull":
-						obs.windLull = value
-					case "avg":
-						obs.windAvg = value
-					case "gust":
-						obs.windGust = value
-					}
-					break
-				}
-			}
-		case strings.Contains(desc, "tempest_wind_direction_degrees"):
-			obs.windDirection = value
-		case strings.Contains(desc, "tempest_pressure_pa"):
-			obs.pressure = value
-		case strings.Contains(desc, "tempest_temperature_c"):
-			// Check kind label
-			for _, label := range dto.GetLabel() {
-				if label.GetName() == "kind" {
-					switch label.GetValue() {
-					case "air":
-						obs.tempAir = value
-					case "wetbulb":
-						obs.tempWetbulb = &value
-					}
-					break
-				}
-			}
-		case strings.Contains(desc, "tempest_humidity_percent"):
-			obs.humidity = value
-		case strings.Contains(desc, "tempest_illuminance_lux"):
-			obs.illuminance = value
-		case strings.Contains(desc, "tempest_uv_index"):
-			obs.uvIndex = value
-		case strings.Contains(desc, "tempest_irradiance_w_m2"):
-			obs.irradiance = value
-		case strings.Contains(desc, "tempest_rain_rate_mm_min"):
-			obs.rainRate = value
-		case strings.Contains(desc, "tempest_lightning_distance_km"):
-			obs.lightningDistance = &value
-		case strings.Contains(desc, "tempest_lightning_strike_count"):
-			obs.lightningStrikeCount = &value
-		case strings.Contains(desc, "tempest_battery_volts"):
-			obs.battery = &value
-		case strings.Contains(desc, "tempest_report_interval_s"):
-			obs.reportInterval = &value
-		}
+		applyObservationField(obs, metric.Desc().String(), labelValue(dto.GetLabel(), "kind"), value)
 	}
 
 	// Send all observations to the batch channel
-	for _, obs := range observations {
-		select {
-		case w.obsBatch <- *obs:
-		case <-w.done: // Close in progress — stop producing, no send-on-closed
-			return nil
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-	}
-
-	return nil
+	return w.sendObservationBatch(ctx, observations)
 }
 
 // Flush implements MetricsWriter interface

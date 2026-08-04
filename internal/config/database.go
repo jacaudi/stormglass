@@ -1,3 +1,8 @@
+// Package config resolves database connectivity from environment
+// variables: a full POSTGRES_URL connection string takes precedence over
+// its individual POSTGRES_HOST/PORT/USERNAME/PASSWORD/NAME/SSLMODE
+// components, and an unset POSTGRES_HOST means no database is configured
+// at all.
 package config
 
 import (
