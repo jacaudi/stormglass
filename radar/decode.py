@@ -9,12 +9,11 @@ os.environ.setdefault("MPLBACKEND", "Agg")
 import matplotlib
 
 matplotlib.use("Agg")
+import geojsoncontour
 import matplotlib.pyplot as plt
 import numpy as np
 import pyart
 from pyart.io.nexrad_level3 import NEXRADLevel3File
-
-import geojsoncontour
 
 # Isoband steps over the NWS reflectivity scale (dBZ), 5-dBZ bands.
 _DBZ_LEVELS = list(range(5, 80, 5))
@@ -62,7 +61,11 @@ def _read_site_code(path: str) -> str:
     """Parse the 3-char site code from the NIDS text header's AWIPS ID (e.g. 'N0BTLX' -> 'TLX')."""
     nfile = NEXRADLevel3File(path)
     try:
-        lines = [line for line in nfile.text_header.decode("ascii", "replace").splitlines() if line.strip()]
+        lines = [
+            line
+            for line in nfile.text_header.decode("ascii", "replace").splitlines()
+            if line.strip()
+        ]
         awips_id = lines[-1].strip()
         return awips_id[3:]
     finally:
@@ -83,7 +86,9 @@ def _contour_reflectivity(radar) -> tuple[dict[str, Any], list[float]]:
     fig, ax = plt.subplots()
     try:
         contour_set = ax.tricontourf(lon, lat, values, levels=_DBZ_LEVELS, extend="neither")
-        feature_collection = geojsoncontour.contourf_to_geojson(contour_set, ndigits=5, serialize=False)
+        feature_collection = geojsoncontour.contourf_to_geojson(
+            contour_set, ndigits=5, serialize=False
+        )
     finally:
         plt.close(fig)
 
@@ -98,4 +103,6 @@ def _contour_reflectivity(radar) -> tuple[dict[str, Any], list[float]]:
 def _parse_band(title: str) -> tuple[int, int]:
     """Parse geojsoncontour's 'LOW.00-HIGH.00 ' title into integer 5-dBZ band bounds."""
     low_str, high_str = title.strip().split("-")
-    return int(round(float(low_str))), int(round(float(high_str)))
+    # round() on a float already returns an int in Python 3, so the int() wrapper
+    # this used to carry was a no-op (RUF046).
+    return round(float(low_str)), round(float(high_str))
