@@ -37,7 +37,7 @@ RUN CGO_ENABLED=0 \
     go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o /tempestwx-utilities .
 
 # --- Final stage: non-root static image -------------------------------------
-FROM cgr.dev/chainguard/static:latest@sha256:60582b2ae6074f641094af0f370d4ab241aab271858a66223dcde7eee9f51638
+FROM cgr.dev/chainguard/static:latest@sha256:399c8cb4858f05aaa33f43f02a2e75f28d40f016c0f86e5ba6075769e3303791
 
 COPY --from=builder /tempestwx-utilities /tempestwx-utilities
 
