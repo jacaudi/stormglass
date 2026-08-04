@@ -1,0 +1,69 @@
+# Stage a — lint, format, static analysis, tests, vuln scan. Body is always `task ci`. Rationale: github-actions-align/templates/README.md#ci-testyml
+name: ci-test
+
+on:
+  workflow_call:
+    inputs:
+      task:
+        description: Task target to run. Override for stricter scheduled runs.
+        required: false
+        default: ci
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ${{ inputs.task }}
+    runs-on: ubuntu-latest
+    services:
+      # The Postgres-backed tests in internal/postgres are guarded on
+      # POSTGRES_URL and skip without it, so without this the Postgres half of
+      # the store is asserted by nothing. Only the standard untagged suite runs
+      # -- `-tags integration` is deliberately not enabled, because it holds the
+      # known-failing drain-on-close test (#111).
+      #
+      # `services:` is a job-level key, so a composite action cannot declare
+      # one. Before this migration that forced the block to be triplicated
+      # across on-pull-request/on-push-main/on-release; collapsing the three
+      # entry points into this single stage is what makes one copy possible.
+      postgres:
+        # Floating tag, deliberately: every action here is SHA-pinned, but a
+        # test-only service container is not the supply-chain surface an action
+        # running with repo credentials is, and Renovate tracks the tag string.
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: weather
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # 0, not 2: `task lint` diffs against BASE_REF to decide whether to run
+          # actionlint. Depth 2 only sees the last commit, so a push whose
+          # workflow edit was not the final commit silently skipped the lint.
+          fetch-depth: 0
+
+      - name: Set up toolchains
+        uses: ./.github/actions/setup
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run task ${{ inputs.task }}
+        env:
+          # The real base for this run: the PR's merge base, or the previous tip
+          # on a push. Falls back to HEAD~1 inside the task when unset.
+          BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
+          # Unguards the internal/postgres tests against the service container
+          # above. `task test` shells out to `go test`, which inherits this.
+          POSTGRES_URL: postgres://postgres:postgres@localhost:5432/weather?sslmode=disable
+        run: task ${{ inputs.task }}
