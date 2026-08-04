@@ -76,7 +76,7 @@ services:
     restart: "no"
 
   litestream:
-    image: litestream/litestream:0.3.13@sha256:027eda2a89a86015b9797d2129d4dd447e8953097b4190e1d5a30b73e76d8d58
+    image: litestream/litestream:0.5.15@sha256:f45ca298a567bef6edd23d43429b5f80721473a9a9719e467f11d7888999403e
     command: ["replicate", "-config", "/etc/litestream.yml"]
     volumes:
       - ./litestream.yml:/etc/litestream.yml:ro
