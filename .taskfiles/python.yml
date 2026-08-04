@@ -1,0 +1,68 @@
+# Python sidecar — include with `dir:`; uv only, never python/pip/pipx. Rationale: github-actions-align/templates/README.md#pythonyml
+version: '3'
+
+vars:
+  # Pinned: an unpinned ruff release can turn the fleet red overnight with
+  # nothing to bisect against.
+  # renovate: datasource=pypi depName=ruff
+  RUFF: ruff@0.14.4
+
+tasks:
+  ci:
+    desc: All Python checks
+    cmds:
+      - task: fmt:check
+      - task: lint
+      - task: typecheck
+      - task: test
+
+  lint:
+    desc: ruff
+    cmds:
+      - uvx {{.RUFF}} check .
+
+  fmt:
+    desc: Fix formatting
+    cmds:
+      - uvx {{.RUFF}} format .
+      - uvx {{.RUFF}} check --fix .
+
+  fmt:check:
+    desc: Fail if sources are unformatted
+    cmds:
+      - uvx {{.RUFF}} format --check .
+
+  typecheck:
+    desc: Static type check
+    cmds:
+      - |
+        set -eu
+        [ -f pyproject.toml ] || { echo "no pyproject.toml — skipping typecheck"; exit 0; }
+        uvx ty check .
+
+  test:
+    desc: Run tests
+    cmds:
+      # `uv run`, NOT `uvx`: uvx builds an isolated env containing only the named
+      # tool, so the project and its dependencies are not importable and every
+      # test fails at collection with ModuleNotFoundError.
+      #
+      # Deviation from the template: it runs `uv run --with pytest pytest`, which
+      # assumes a pyproject.toml for uv to resolve the project's dependencies
+      # from. This sidecar has only a pinned requirements.txt, so that form gives
+      # an environment holding pytest and nothing else -- and the tests import
+      # `decode`, which imports matplotlib/numpy/pyart. Collection would fail on
+      # ModuleNotFoundError, the exact trap the comment above warns about,
+      # arriving by a different route. --with-requirements installs the pinned
+      # set, so tests run against the versions radar actually ships.
+      - |
+        set -eu
+        if [ -d tests ] || [ -d test ]; then
+          if [ -f requirements.txt ]; then
+            uv run --with-requirements requirements.txt pytest
+          else
+            uv run --with pytest pytest
+          fi
+        else
+          echo "::warning::no tests/ directory — no Python tests are running"
+        fi
