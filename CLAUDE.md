@@ -11,6 +11,22 @@ Multi-backend data utilities for Tempest weather stations. The application opera
 
 ## Development Commands
 
+### The CI contract
+
+`task ci` is the whole gate, and it is exactly what CI runs — `ci-test.yml`
+invokes `task ci` and nothing else. If a check cannot be run locally with this
+command, it does not belong in a workflow.
+
+```bash
+task ci          # everything CI runs: lint, format, tidy, vuln, tests, node
+task lint        # static checks only
+task test        # tests only
+task --list      # every available target
+```
+
+`task ci` needs `golangci-lint`, `actionlint`, `hadolint` and `govulncheck` on
+PATH; it fails loudly naming the missing tool rather than skipping the check.
+
 ### Testing
 ```bash
 # Run all tests
