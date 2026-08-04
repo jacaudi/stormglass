@@ -101,7 +101,7 @@ services:
     restart: unless-stopped
 
   prometheus:
-    image: prom/prometheus:v3.0.1@sha256:565ee86501224ebbb98fc10b332fa54440b100469924003359edf49cbce374bd
+    image: prom/prometheus:v3.13.2@sha256:508729e0e2d18e11fd742a5a5ca70e557b940a93948c3c95fd0123a6fd538b69
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
