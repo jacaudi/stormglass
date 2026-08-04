@@ -32,7 +32,7 @@ jobs:
         # Floating tag, deliberately: every action here is SHA-pinned, but a
         # test-only service container is not the supply-chain surface an action
         # running with repo credentials is, and Renovate tracks the tag string.
-        image: postgres:16
+        image: postgres:18
         env:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: weather
