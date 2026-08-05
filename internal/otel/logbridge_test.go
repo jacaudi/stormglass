@@ -6,7 +6,7 @@ import (
 	"sync"
 	"testing"
 
-	otellog "go.opentelemetry.io/otel/log"
+	"go.opentelemetry.io/otel/attribute"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
@@ -43,8 +43,12 @@ func attrValue(rec sdklog.Record, key string) (string, bool) {
 		value string
 		found bool
 	)
-	rec.WalkAttributes(func(kv otellog.KeyValue) bool {
-		if kv.Key == key {
+	// otel/log v0.21.0 removed log.KeyValue/log.Value and moved the attribute
+	// model onto go.opentelemetry.io/otel/attribute, so WalkAttributes now hands
+	// back an attribute.KeyValue. attribute.Key is its own string type, hence the
+	// conversion below rather than a direct comparison.
+	rec.WalkAttributes(func(kv attribute.KeyValue) bool {
+		if string(kv.Key) == key {
 			value = kv.Value.AsString()
 			found = true
 			return false
