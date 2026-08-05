@@ -65,12 +65,14 @@ const { mapInstances, attributionControlInstances, setDataMock, addProtocolMock,
     return { mapInstances, attributionControlInstances, setDataMock, addProtocolMock, MockMap, MockAttributionControl };
   });
 
+// Flat, not wrapped in `default`: RadarCard now uses a namespace import, so
+// `maplibregl.Map` resolves against the module's top-level exports. Leaving the
+// `default: {...}` shape here would typecheck fine and then fail at run time
+// with "maplibregl.Map is not a constructor".
 vi.mock('maplibre-gl', () => ({
-  default: {
-    Map: MockMap,
-    AttributionControl: MockAttributionControl,
-    addProtocol: addProtocolMock,
-  },
+  Map: MockMap,
+  AttributionControl: MockAttributionControl,
+  addProtocol: addProtocolMock,
 }));
 
 vi.mock('pmtiles', () => ({
