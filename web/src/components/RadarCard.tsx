@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import maplibregl from 'maplibre-gl';
+// Namespace import, not default: maplibre-gl v6 is ESM-only and dropped the UMD
+// default export. tsconfig.app.json sets verbatimModuleSyntax with no
+// esModuleInterop, so a default import fails with TS1192.
+import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Protocol } from 'pmtiles';
 import type { StationMeta } from '../types/weather';
