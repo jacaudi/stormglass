@@ -1,5 +1,71 @@
 # Changelog
 
+## [3.1.1](https://github.com/jacaudi/tempestwx-utilities/compare/v3.1.0...v3.1.1) (2026-08-05)
+
+
+### Bug Fixes
+
+* **ci:** push to GHCR with GITHUB_TOKEN, not the App token ([8c03532](https://github.com/jacaudi/tempestwx-utilities/commit/8c03532ad34fe46d306e9e54e9ca2d2b8f9ccc7c))
+* **deps:** clear six reachable CVEs govulncheck reports ([a9cc6f9](https://github.com/jacaudi/tempestwx-utilities/commit/a9cc6f989f8f310b8fe6b0bfc427ffa6cabf2e04))
+* **deps:** clear six reachable CVEs govulncheck reports ([a150527](https://github.com/jacaudi/tempestwx-utilities/commit/a15052786b07c75293b72a8917a45a4e3caa1591))
+* **deps:** move to eslint v10 ([d5410ea](https://github.com/jacaudi/tempestwx-utilities/commit/d5410eaa6f13ecf97b80c72707594377ca838e94))
+* **deps:** move to eslint v10 ([6c09b69](https://github.com/jacaudi/tempestwx-utilities/commit/6c09b690b10e8f673baa17afb31dd2e1d210852f))
+* **deps:** move to maplibre-gl v6 (ESM-only) ([479d394](https://github.com/jacaudi/tempestwx-utilities/commit/479d394f9e3aff00bc7b8e4fd1b63e29ab98faba))
+* **deps:** move to maplibre-gl v6 (ESM-only) ([a4a6608](https://github.com/jacaudi/tempestwx-utilities/commit/a4a6608e39abaa611e9c8e0a9b33aadbac6c5550))
+* **deps:** move to vite v8 and @vitejs/plugin-react v6 together ([bde8662](https://github.com/jacaudi/tempestwx-utilities/commit/bde86629fd0cc364465d7b715603140eb58d1dc8))
+* **deps:** move to vite v8 and @vitejs/plugin-react v6 together ([f3df169](https://github.com/jacaudi/tempestwx-utilities/commit/f3df1697d226dd98ef5400718a70ce583ce08ea4))
+* **deps:** take otel log signal to v0.21.0 with the matching slog bridge ([e00ac9a](https://github.com/jacaudi/tempestwx-utilities/commit/e00ac9a432e96633d958c7317ffe63a39e8a2ac4))
+* **deps:** take otel log signal to v0.21.0 with the matching slog bridge ([f0093ac](https://github.com/jacaudi/tempestwx-utilities/commit/f0093ac7ee1ddd2f8f82dfd0f4afc2d38669886e))
+* **sqlite:** conform three measurement columns to float across both stores ([4898e06](https://github.com/jacaudi/tempestwx-utilities/commit/4898e063591f34fab8adece98cf984f251656634))
+* **sqlite:** declare the three measurement columns REAL; fold 0002 into 0001 ([f928bb9](https://github.com/jacaudi/tempestwx-utilities/commit/f928bb9b52ff30ee6b5f589213d290b2d4d2af94))
+* **sqlite:** read the three measurement columns as float64 ([c7ad83e](https://github.com/jacaudi/tempestwx-utilities/commit/c7ad83e96bac0b361495bc6b7cbfa6f9c989bdc3))
+* **sqlite:** stop truncating measurement columns on the write path ([34dd455](https://github.com/jacaudi/tempestwx-utilities/commit/34dd455e70f0d043c806585804195a1d85ae2fc3))
+* unblock roll-forward, close JSON fractional coverage gap, stop a test row leak ([1ea9f4d](https://github.com/jacaudi/tempestwx-utilities/commit/1ea9f4d9db3cf261e7cb77172be52f9a6fac4014))
+
+
+### Miscellaneous Chores
+
+* **deps:** Update busybox Docker tag to v1.38.0 ([b242f77](https://github.com/jacaudi/tempestwx-utilities/commit/b242f77523deb0b6a26fcb821995ef0d6f18fb60))
+* **deps:** Update busybox Docker tag to v1.38.0 ([2d90d66](https://github.com/jacaudi/tempestwx-utilities/commit/2d90d665f08c7185a054051093f0087bd01a7d79))
+* **deps:** Update cgr.dev/chainguard/static:latest Docker digest to 399c8cb ([3522dd8](https://github.com/jacaudi/tempestwx-utilities/commit/3522dd8368540d7745270a90fce4a07e0ec663a3))
+* **deps:** Update cgr.dev/chainguard/static:latest Docker digest to 399c8cb ([67f27f2](https://github.com/jacaudi/tempestwx-utilities/commit/67f27f26156320e4c4ebcc4c6c789708d6f15281))
+* **deps:** Update dependency @testing-library/jest-dom to v7 ([203f99f](https://github.com/jacaudi/tempestwx-utilities/commit/203f99f67840cd4da0187a77e0ebac0c4ba8790b))
+* **deps:** Update dependency @testing-library/jest-dom to v7 ([6de4622](https://github.com/jacaudi/tempestwx-utilities/commit/6de462203f3efdcdb93002eaa7579f740f44ecab))
+* **deps:** Update dependency @types/node to v24.13.3 ([47e82c4](https://github.com/jacaudi/tempestwx-utilities/commit/47e82c4b05147a3ade828c739e249e6f7027a93f))
+* **deps:** Update dependency @types/node to v24.13.3 ([9c2589f](https://github.com/jacaudi/tempestwx-utilities/commit/9c2589f47a76bfb384c5d2b039aad5e5732087f3))
+* **deps:** Update dependency eslint-plugin-react-refresh to ^0.5.0 ([8170216](https://github.com/jacaudi/tempestwx-utilities/commit/8170216061745e3ada4ffb7e22a1b9cb26b55a57))
+* **deps:** Update dependency eslint-plugin-react-refresh to ^0.5.0 ([979dba7](https://github.com/jacaudi/tempestwx-utilities/commit/979dba7b9538f7218db2982fd7574928b83726bf))
+* **deps:** Update dependency fastapi to v0.141.1 ([5c4edfe](https://github.com/jacaudi/tempestwx-utilities/commit/5c4edfefd5ce18560d492b3d60bc15671c6c6213))
+* **deps:** Update dependency fastapi to v0.141.1 ([a75ca2e](https://github.com/jacaudi/tempestwx-utilities/commit/a75ca2edc82d5e5b7cd04a93188522256f9b3ec4))
+* **deps:** Update dependency jsdom to v30 ([70bf61b](https://github.com/jacaudi/tempestwx-utilities/commit/70bf61b63a6bd66ee5376b5fadd31697282b080f))
+* **deps:** Update dependency jsdom to v30 ([03f476d](https://github.com/jacaudi/tempestwx-utilities/commit/03f476dea22e32f9e8aacb370483fe8fdd278837))
+* **deps:** Update dependency react-dom to v19.2.8 ([24aeb5e](https://github.com/jacaudi/tempestwx-utilities/commit/24aeb5ee27af857c022dc06cf45ca746c3ab3eb1))
+* **deps:** Update dependency react-dom to v19.2.8 ([b09572d](https://github.com/jacaudi/tempestwx-utilities/commit/b09572dc869f05728f09ed333e169683bd1adb63))
+* **deps:** Update dependency typescript-eslint to v8.66.0 ([416fe91](https://github.com/jacaudi/tempestwx-utilities/commit/416fe91f2f4d1c6d5d15acd2eb90b8515787d18d))
+* **deps:** Update dependency typescript-eslint to v8.66.0 ([5b43b89](https://github.com/jacaudi/tempestwx-utilities/commit/5b43b89547358e7522df17dfec7744a70ab0dc9b))
+* **deps:** Update dependency vite to v7.3.6 ([9b2b579](https://github.com/jacaudi/tempestwx-utilities/commit/9b2b579674591aa54c9001b96157ca1dd4baf096))
+* **deps:** Update dependency vite to v7.3.6 ([72ecd68](https://github.com/jacaudi/tempestwx-utilities/commit/72ecd6880ee03a05f4b1ad39398fe42c6dd6c06e))
+* **deps:** Update eslint monorepo to v9.39.5 ([0ac8e37](https://github.com/jacaudi/tempestwx-utilities/commit/0ac8e373872a6d38ea3b719377548bf0abd067db))
+* **deps:** Update eslint monorepo to v9.39.5 ([324839a](https://github.com/jacaudi/tempestwx-utilities/commit/324839a864e75bf22649db00d0ea0ba124dc32c6))
+* **deps:** Update grafana/grafana Docker tag to v11.6.16 ([5b4718f](https://github.com/jacaudi/tempestwx-utilities/commit/5b4718fb1559ab4e659829a4cd3d6eab15e9a31b))
+* **deps:** Update grafana/grafana Docker tag to v11.6.16 ([cc6cd68](https://github.com/jacaudi/tempestwx-utilities/commit/cc6cd684edf5a3e1ae509a3f8a00a86161b15d01))
+* **deps:** Update litestream/litestream Docker tag to v0.5.15 ([7346a48](https://github.com/jacaudi/tempestwx-utilities/commit/7346a482403791d26505308b12454313b7ec5f49))
+* **deps:** Update litestream/litestream Docker tag to v0.5.15 ([cbfc7ce](https://github.com/jacaudi/tempestwx-utilities/commit/cbfc7cebe4fb15608f562c46545a5cb318e231b6))
+* **deps:** Update module modernc.org/sqlite to v1.56.0 ([977c8d3](https://github.com/jacaudi/tempestwx-utilities/commit/977c8d3250cfd4791b34461fbd2e66b4db9de39c))
+* **deps:** Update module modernc.org/sqlite to v1.56.0 ([f9b0da7](https://github.com/jacaudi/tempestwx-utilities/commit/f9b0da7cc9483426640619d8882f31414531153d))
+* **deps:** Update Node.js to v24 ([98ecb48](https://github.com/jacaudi/tempestwx-utilities/commit/98ecb48b52b60b5cedcb8a36022ac634a602a738))
+* **deps:** Update Node.js to v24 ([3f689c5](https://github.com/jacaudi/tempestwx-utilities/commit/3f689c5e5ec0f0d1833b7b2064a47ccc0f842ae6))
+* **deps:** Update otel/opentelemetry-collector-contrib Docker tag to v0.158.0 ([1359a88](https://github.com/jacaudi/tempestwx-utilities/commit/1359a883bdee497d464f132a2c75d0b27bdc013d))
+* **deps:** Update otel/opentelemetry-collector-contrib Docker tag to v0.158.0 ([06d74b6](https://github.com/jacaudi/tempestwx-utilities/commit/06d74b64350bb3325b5856e40acd27187ffdff2f))
+* **deps:** Update postgres Docker tag to v18 ([a714cc0](https://github.com/jacaudi/tempestwx-utilities/commit/a714cc00c9d0331bcf73ec7988b7e4f6eedaf47c))
+* **deps:** Update postgres Docker tag to v18 ([8cc26b1](https://github.com/jacaudi/tempestwx-utilities/commit/8cc26b1c1b43155b14358552aeb6aae2cf74ff5d))
+* **deps:** Update prom/prometheus Docker tag to v3.13.2 ([55da9d4](https://github.com/jacaudi/tempestwx-utilities/commit/55da9d46e491a22003cc28edc615dfff5db2de17))
+* **deps:** Update prom/prometheus Docker tag to v3.13.2 ([d4a2d77](https://github.com/jacaudi/tempestwx-utilities/commit/d4a2d7773fd2e713d94659fe4d459acbee87091c))
+* **deps:** Update react monorepo ([78b6555](https://github.com/jacaudi/tempestwx-utilities/commit/78b65557a669e8df5bc99b4c02d1c1ebb6127dec))
+* **deps:** Update react monorepo ([c1cb599](https://github.com/jacaudi/tempestwx-utilities/commit/c1cb599caac3eabef47ee5a3bafa6adbff93c112))
+* drop the workflows' dead composite actions ([9185ebc](https://github.com/jacaudi/tempestwx-utilities/commit/9185ebc565c1126c7a6ec699e639b7e4b3161de5))
+* drop the workflows' dead composite actions ([08353e4](https://github.com/jacaudi/tempestwx-utilities/commit/08353e48652eba5cbb6707ecb013832a3d7fd01e))
+
 ## [3.1.0](https://github.com/jacaudi/tempestwx-utilities/compare/v3.0.0...v3.1.0) (2026-07-31)
 
 
