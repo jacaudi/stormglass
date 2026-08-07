@@ -1,5 +1,5 @@
 fastapi==0.141.1
-uvicorn[standard]==0.51.0
+uvicorn[standard]==0.52.1
 arm-pyart==2.2.5
 boto3==1.43.46
 geojsoncontour==0.5.1
