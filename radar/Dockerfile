@@ -2,7 +2,7 @@
 # must be compiled against GEOS/PROJ. Build in one stage with the toolchain,
 # then copy just the venv into a clean runtime stage so the final image
 # doesn't carry gcc/g++/dev headers.
-FROM python:3.12-slim AS builder
+FROM python:3.14-slim AS builder
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -21,7 +21,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt \
     && pip uninstall -y --no-input pytest
 
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
