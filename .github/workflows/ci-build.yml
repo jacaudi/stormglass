@@ -54,6 +54,11 @@ jobs:
   build:
     name: build + push image
     runs-on: ubuntu-latest
+    # The arm64 leg runs under QEMU, which can crash (SIGILL) without failing
+    # the step — BuildKit then waits forever. Healthy builds finish in ~11-14
+    # min, so 45 is ample headroom while capping a hang well under GitHub's
+    # 6-hour default.
+    timeout-minutes: 45
     permissions:
       contents: read
       packages: write

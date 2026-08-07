@@ -29,6 +29,7 @@ jobs:
   context:
     name: context
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
       pull-requests: read
@@ -147,6 +148,7 @@ jobs:
     needs: [context, test, build, smoke]
     if: ${{ !cancelled() }}   # required: else this is SKIPPED on failure, which can satisfy protection
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Assert required stages
         env:

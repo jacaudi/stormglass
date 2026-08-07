@@ -29,6 +29,7 @@ jobs:
     name: retag ${{ inputs.tag }}
     if: ${{ inputs.mode == 'retag' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
       packages: write

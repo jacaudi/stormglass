@@ -24,6 +24,8 @@ jobs:
   smoke:
     name: smoke test image
     runs-on: ubuntu-latest
+    # Polls the container for up to 60s; a bad image could otherwise hang here.
+    timeout-minutes: 10
     permissions:
       contents: read
       packages: read
