@@ -80,6 +80,10 @@ deploy/.env
 # Agent scaffolding
 .superpowers/
 docs/prompts/
+.auto-claude/
+
+# UI screenshots (local scratch)
+docs/screenshots/
 
 # Built binaries (this repo's, by name — the managed block's bin/ does not cover
 # a binary written to the repo root, which `go build .` does by default)
