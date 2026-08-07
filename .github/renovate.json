@@ -4,5 +4,14 @@
     "github>jacaudi/renovate-config:base",
     "github>jacaudi/renovate-config:go",
     "github>jacaudi/renovate-config:fork"
+  ],
+  "packageRules": [
+    {
+      "description": "Collapse routine Docker image updates into a single PR instead of one PR per image. Majors are deliberately NOT grouped: holding one major (python 3.14, grafana 13) would otherwise block every routine digest and patch bump riding in the same PR.",
+      "matchDatasources": ["docker"],
+      "matchUpdateTypes": ["minor", "patch", "digest", "pin"],
+      "matchPackageNames": ["**", "!golang"],
+      "groupName": "docker-images"
+    }
   ]
 }
