@@ -1,5 +1,23 @@
 # Changelog
 
+## [3.1.2](https://github.com/jacaudi/tempestwx-utilities/compare/v3.1.1...v3.1.2) (2026-08-07)
+
+
+### Miscellaneous Chores
+
+* **deps:** Update cgr.dev/chainguard/static:latest Docker digest to 24dd7ff ([ebc3121](https://github.com/jacaudi/tempestwx-utilities/commit/ebc3121e54818848dd110419522536a48bdbe6bd))
+* **deps:** Update dependency globals to v17 ([0bb4d86](https://github.com/jacaudi/tempestwx-utilities/commit/0bb4d865356b9b764b7e9530a9432d83467408ad))
+* **deps:** Update dependency globals to v17 ([6c11c81](https://github.com/jacaudi/tempestwx-utilities/commit/6c11c8160d66308c1919e8650adc95ff6db6ce50))
+* **deps:** Update dependency maplibre-gl to v6.2.0 ([41d330c](https://github.com/jacaudi/tempestwx-utilities/commit/41d330cb2c11637342310502c38ac1292ae2e93a))
+* **deps:** Update dependency uvicorn to v0.52.1 ([5cac13d](https://github.com/jacaudi/tempestwx-utilities/commit/5cac13d7bd26bc3fd65950061ca4dff80c302107))
+* **deps:** Update dependency uvicorn to v0.52.1 ([8547b5d](https://github.com/jacaudi/tempestwx-utilities/commit/8547b5dbe40d40b0748c2fc856517917adce0cc6))
+* **deps:** Update dependency vite to v8.2.1 ([17ce621](https://github.com/jacaudi/tempestwx-utilities/commit/17ce621b47555b01ed62570bfbdcbb8839d4a8b6))
+* **deps:** Update litestream/litestream Docker tag to v0.5.16 ([674aff2](https://github.com/jacaudi/tempestwx-utilities/commit/674aff26cb0bd5f4f7f9e45ee55fb9694d666ec5))
+* **gitignore:** ignore .auto-claude/ and docs/screenshots/ ([5c100d3](https://github.com/jacaudi/tempestwx-utilities/commit/5c100d3117154af371dd2d6321c4619233fbda9b))
+* **gitignore:** ignore .auto-claude/ and docs/screenshots/ ([1892854](https://github.com/jacaudi/tempestwx-utilities/commit/1892854f416ca24e3a23b7b666b794bfbfc49b3a))
+* **renovate:** group routine Docker image updates into one PR ([caf7103](https://github.com/jacaudi/tempestwx-utilities/commit/caf7103c9fe01d1353007235c3fd997668fee4c5))
+* **renovate:** group routine Docker image updates into one PR ([8198484](https://github.com/jacaudi/tempestwx-utilities/commit/81984845297da5ef87e447382228c3a2e2dbc84a))
+
 ## [3.1.1](https://github.com/jacaudi/tempestwx-utilities/compare/v3.1.0...v3.1.1) (2026-08-05)
 
 
