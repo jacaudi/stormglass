@@ -1,6 +1,7 @@
 package backfill
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -679,5 +680,59 @@ func TestRunRejectsHalfSpecifiedRange(t *testing.T) {
 				t.Errorf("made %d inserts for a rejected config, want 0", len(store.inserted))
 			}
 		})
+	}
+}
+
+// The per-gap "gap filled" line is the machine-readable convergence surface
+// the design chose *instead of* a bespoke summary format
+// (docs/designs/2026-07-28-api-backfill-tool-design.md): automation keys on
+// the returned>0 / inserted==0 pairing to tell "the store already had it"
+// from a genuine permanent hole. Without this test the whole slog.Info block
+// deletes with the package still green (#109).
+//
+// TestMain discards slog package-wide, so this test installs its own buffer
+// at Info and restores the previous default on cleanup.
+func TestRunLogsPerGapConvergenceAttrs(t *testing.T) {
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo})))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+
+	src := &fakeSource{obs: []weather.Observation{obsAt("ST-A", 5000)}}
+	store := &fakeStore{}
+
+	from := at(0)
+	to := from.Add(time.Hour)
+	cfg := Config{From: from, To: to, MinGap: 30 * time.Minute}
+	stations := []tempestapi.Station{station("ST-A")}
+
+	// First pass inserts the row; the second returns the same row and
+	// inserts nothing. Asserting on the second pass pins returned>0 AND
+	// inserted==0 together — the pairing automation actually watches for.
+	if _, err := Run(t.Context(), cfg, src, store, stations, to); err != nil {
+		t.Fatalf("first Run: %v", err)
+	}
+	buf.Reset()
+	if _, err := Run(t.Context(), cfg, src, store, stations, to); err != nil {
+		t.Fatalf("second Run: %v", err)
+	}
+
+	logged := buf.String()
+	if !strings.Contains(logged, "backfill: gap filled") {
+		t.Fatalf("the per-gap success line is missing; got:\n%s", logged)
+	}
+	// Each attr is asserted by name=value: renaming a key or dropping one
+	// breaks automation just as surely as deleting the whole line.
+	for _, want := range []string{"serial=ST-A", "returned=1", "inserted=0"} {
+		if !strings.Contains(logged, want) {
+			t.Errorf("missing %q in the gap-filled line; got:\n%s", want, logged)
+		}
+	}
+	// from/to carry the gap identity — without them a multi-gap run's lines
+	// are indistinguishable.
+	for _, want := range []string{"from=", "to="} {
+		if !strings.Contains(logged, want) {
+			t.Errorf("missing %q attr in the gap-filled line; got:\n%s", want, logged)
+		}
 	}
 }
