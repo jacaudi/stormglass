@@ -5,10 +5,49 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
+
+	"tempestwx-utilities/internal/tempestapi"
 )
+
+// runBackfill must discover devices with ListDevices, never ListStations:
+// ListStations collapses each station to a single ST device (its device loop
+// has no break, so the last one wins), which on a two-sensor station would
+// leave one sensor's gaps permanently unrepaired and unlogged.
+//
+// The two calls have IDENTICAL signatures —
+//
+//	func (c *Client) ListDevices(ctx context.Context) ([]Station, error)
+//	func (c *Client) ListStations(ctx context.Context) ([]Station, error)
+//
+// — which is exactly why swapping them was a test-green mutant (#110). The
+// fix is structural rather than assertive: runBackfill holds the narrow
+// backfillAPI, which does not carry ListStations at all, so the swap is a
+// compile error and no test has to catch it.
+//
+// This test guards the narrowness itself. Widening backfillAPI to embed the
+// whole client would silently restore the mutant.
+func TestBackfillAPISeamDoesNotExposeListStations(t *testing.T) {
+	typ := reflect.TypeFor[backfillAPI]()
+
+	if _, ok := typ.MethodByName("ListDevices"); !ok {
+		t.Error("backfillAPI must expose ListDevices — it is how runBackfill discovers every ST device")
+	}
+	if _, ok := typ.MethodByName("Observations"); !ok {
+		t.Error("backfillAPI must expose Observations — backfill.Run consumes it as the ObservationSource")
+	}
+	if _, ok := typ.MethodByName("ListStations"); ok {
+		t.Error("backfillAPI must NOT expose ListStations: reachable through this interface, the " +
+			"identical-signature swap silently drops a sensor on a two-unit station and compiles clean")
+	}
+}
+
+// The seam must still be satisfied by the real client, or the narrowing
+// traded a silent bug for a broken binary.
+var _ backfillAPI = (*tempestapi.Client)(nil)
 
 func TestParseBackfillFlagsDefaults(t *testing.T) {
 	cfg, _, err := parseBackfillFlags(nil)

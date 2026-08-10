@@ -31,6 +31,29 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// backfillAPI is the REST surface runBackfill is allowed to touch, and it is
+// deliberately narrow.
+//
+// ListDevices and ListStations have identical signatures, and ListStations
+// collapses each station to a single ST device (its device loop has no
+// break, so the last one wins). Calling the wrong one on a two-sensor
+// station would leave one sensor's gaps permanently unrepaired and unlogged,
+// while compiling and passing every test — the maintainer runs a single
+// Tempest, so it would never surface locally (#110).
+//
+// Narrowing the type is what fixes that: ListStations is not a member here,
+// so the swap does not build. This is a type-level guarantee, not an
+// assertion some future test refactor could delete.
+type backfillAPI interface {
+	ListDevices(ctx context.Context) ([]tempestapi.Station, error)
+	backfill.ObservationSource
+}
+
+// newBackfillAPI is the injection point. It returns the narrow interface
+// rather than *tempestapi.Client so the concrete client — and with it
+// ListStations — never enters runBackfill's scope.
+var newBackfillAPI = func(token string) backfillAPI { return tempestapi.NewClient(token) }
+
 // parseBackfillFlags reads the backfill subcommand's own FlagSet.
 //
 // Each subcommand owning its FlagSet (parsed from os.Args[2:]) is the seam a
@@ -321,11 +344,11 @@ func runBackfill(ctx context.Context, args []string) int {
 	defer cleanupStore()
 	slog.Info("backfill: store selected", "store", target)
 
-	client := tempestapi.NewClient(token)
-	// ListDevices, NOT ListStations: ListStations collapses each station to a
-	// single ST device, so a two-sensor station would leave one sensor's gaps
-	// permanently unrepaired and unlogged.
-	devices, err := client.ListDevices(ctx)
+	// The narrow seam, not *tempestapi.Client: ListStations is unreachable
+	// from here, so the identical-signature swap that would drop a sensor is
+	// a compile error rather than something a test has to notice.
+	api := newBackfillAPI(token)
+	devices, err := api.ListDevices(ctx)
 	if err != nil {
 		slog.Error("backfill: list devices", "error", err)
 		return 1
@@ -336,7 +359,7 @@ func runBackfill(ctx context.Context, args []string) int {
 	}
 	slog.Info("backfill: devices discovered", "count", len(devices))
 
-	stats, err := backfill.Run(ctx, cfg, client, store, devices, time.Now().UTC())
+	stats, err := backfill.Run(ctx, cfg, api, store, devices, time.Now().UTC())
 	slog.Info("backfill: complete",
 		"gaps", stats.Gaps, "returned", stats.Returned,
 		"inserted", stats.Inserted, "failed", stats.Failed, "dry_run", cfg.DryRun)
