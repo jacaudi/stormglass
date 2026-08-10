@@ -683,6 +683,110 @@ func TestRunRejectsHalfSpecifiedRange(t *testing.T) {
 	}
 }
 
+// captureLogs installs a buffer as the slog default at the given level and
+// restores the previous default on cleanup. internal/backfill's TestMain
+// discards slog package-wide, so any test asserting on log output has to opt
+// back in. Three tests below need this; the shared helper is the shared
+// knowledge, not a coincidence of shape.
+func captureLogs(t *testing.T, level slog.Level) *bytes.Buffer {
+	t.Helper()
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: level})))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+	return &buf
+}
+
+// A station whose created_epoch is absent or zero decodes to time.Unix(0,0)
+// — 1970 — which is not IsZero(), so nothing rejected it. It then dragged
+// detectFrom back to the epoch and planned a single gap of roughly 20,600
+// daily windows at up to 4 retries each (#108).
+//
+// The guard rejects the epoch sentinel specifically rather than flooring at
+// some plausible product-launch date: the sentinel is the actual observed
+// failure, and a date floor would bake in a constant nobody can justify.
+func TestDetectionRangeExcludesEpochSentinelCreatedAt(t *testing.T) {
+	buf := captureLogs(t, slog.LevelWarn)
+
+	now := at(2000000)
+	cfg := Config{MinGap: 30 * time.Minute}
+	sentinel := tempestapi.Station{SerialNumber: "ST-BAD", DeviceID: 2, CreatedAt: time.Unix(0, 0).UTC()}
+
+	detectFrom, _ := detectionRange(cfg, []tempestapi.Station{sentinel, station("ST-A")}, now)
+
+	want := time.Unix(1000, 0).UTC() // station("ST-A")'s CreatedAt
+	if !detectFrom.Equal(want) {
+		t.Errorf("detectFrom = %v, want %v — the epoch-sentinel station must not drag the range to 1970",
+			detectFrom, want)
+	}
+	if !strings.Contains(buf.String(), "ST-BAD") {
+		t.Errorf("the rejected station must be named in a warning; got:\n%s", buf.String())
+	}
+}
+
+// If EVERY station carries the sentinel there is no trustworthy lower bound,
+// so the detection window collapses to zero width and the run does nothing.
+// Doing nothing loudly beats hammering the API across 20,600 windows.
+func TestDetectionRangeAllSentinelCollapsesToEmptyWindow(t *testing.T) {
+	buf := captureLogs(t, slog.LevelWarn)
+
+	now := at(2000000)
+	cfg := Config{MinGap: 30 * time.Minute}
+	stations := []tempestapi.Station{
+		{SerialNumber: "ST-BAD1", DeviceID: 1, CreatedAt: time.Unix(0, 0).UTC()},
+		{SerialNumber: "ST-BAD2", DeviceID: 2, CreatedAt: time.Unix(0, 0).UTC()},
+	}
+
+	detectFrom, detectTo := detectionRange(cfg, stations, now)
+
+	if !detectFrom.Equal(detectTo) {
+		t.Errorf("detectFrom = %v, detectTo = %v — with no usable creation time the window must be empty, not 1970-to-now",
+			detectFrom, detectTo)
+	}
+	if strings.Count(buf.String(), "ST-BAD") < 2 {
+		t.Errorf("every rejected station must be warned about; got:\n%s", buf.String())
+	}
+}
+
+// Before this, Run logged nothing between "devices discovered" and the first
+// "gap filled": the planned-gap loop sat behind the DryRun guard, so an
+// operator on a live box got one line and then potentially hours of silence
+// with no way to tell working from wedged (#108).
+//
+// Asserting the plan appears BEFORE the first fill is the whole point — a
+// plan logged after the loop would restore the silence this fixes.
+func TestRunLogsThePlanBeforeFillingOnTheRealPath(t *testing.T) {
+	buf := captureLogs(t, slog.LevelInfo)
+
+	src := &fakeSource{obs: []weather.Observation{obsAt("ST-A", 5000)}}
+	store := &fakeStore{}
+	from := at(0)
+	to := from.Add(time.Hour)
+	cfg := Config{From: from, To: to, MinGap: 30 * time.Minute} // DryRun deliberately false
+
+	if _, err := Run(t.Context(), cfg, src, store, []tempestapi.Station{station("ST-A")}, to); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	logged := buf.String()
+	planIdx := strings.Index(logged, "backfill: planned gap")
+	fillIdx := strings.Index(logged, "backfill: gap filled")
+
+	if planIdx < 0 {
+		t.Fatalf("the real path must log its planned gaps, not just the dry-run path; got:\n%s", logged)
+	}
+	if fillIdx < 0 {
+		t.Fatalf("expected a gap-filled line too; got:\n%s", logged)
+	}
+	if planIdx > fillIdx {
+		t.Errorf("the plan was logged AFTER the first fill (plan@%d, fill@%d) — it must precede the loop, "+
+			"otherwise the operator is still staring at silence; got:\n%s", planIdx, fillIdx, logged)
+	}
+	if !strings.Contains(logged, "gaps=1") {
+		t.Errorf("the plan summary must carry the gap count; got:\n%s", logged)
+	}
+}
+
 // The per-gap "gap filled" line is the machine-readable convergence surface
 // the design chose *instead of* a bespoke summary format
 // (docs/designs/2026-07-28-api-backfill-tool-design.md): automation keys on
@@ -693,10 +797,7 @@ func TestRunRejectsHalfSpecifiedRange(t *testing.T) {
 // TestMain discards slog package-wide, so this test installs its own buffer
 // at Info and restores the previous default on cleanup.
 func TestRunLogsPerGapConvergenceAttrs(t *testing.T) {
-	var buf bytes.Buffer
-	prev := slog.Default()
-	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo})))
-	t.Cleanup(func() { slog.SetDefault(prev) })
+	buf := captureLogs(t, slog.LevelInfo)
 
 	src := &fakeSource{obs: []weather.Observation{obsAt("ST-A", 5000)}}
 	store := &fakeStore{}
