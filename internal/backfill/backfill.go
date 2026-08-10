@@ -156,11 +156,9 @@ func Run(
 	}
 	stats.Gaps = len(gaps)
 
+	logPlan(cfg, gaps, detectFrom, detectTo)
+
 	if cfg.DryRun {
-		for _, g := range gaps {
-			slog.Info("backfill: planned gap (dry run)",
-				"serial", g.SerialNumber, "from", g.From, "to", g.To, "duration", g.Duration())
-		}
 		return stats, nil
 	}
 
@@ -204,6 +202,31 @@ func Run(
 	return stats, nil
 }
 
+// logPlan emits the run's intent before any fetching starts, on BOTH the dry
+// and real paths. A real run against a long-lived station is hours of
+// windows, and previously nothing was emitted between "devices discovered"
+// and the first "gap filled" — an operator could not tell working from
+// wedged (#108).
+//
+// The detection range is only printed when it was actually used: an explicit
+// --from/--to never reads detectFrom/detectTo (see detectionRange's doc
+// comment), so printing them there would be noise at best and misleading at
+// worst.
+//
+// Extracted from Run rather than inlined: Run was already at the gocyclo
+// ceiling, and the plan announcement is a cohesive unit with one reason to
+// change.
+func logPlan(cfg Config, gaps []weather.Gap, detectFrom, detectTo time.Time) {
+	if cfg.From.IsZero() || cfg.To.IsZero() {
+		slog.Info("backfill: detection range", "from", detectFrom, "to", detectTo)
+	}
+	slog.Info("backfill: plan", "gaps", len(gaps), "dry_run", cfg.DryRun)
+	for _, g := range gaps {
+		slog.Info("backfill: planned gap",
+			"serial", g.SerialNumber, "from", g.From, "to", g.To, "duration", g.Duration())
+	}
+}
+
 // detectionRange resolves the auto-detect window: from the earliest station
 // creation time to now-MinGap (trailing MinGap so the most recent,
 // still-arriving interval is not mistaken for a hole).
@@ -219,12 +242,31 @@ func detectionRange(cfg Config, stations []tempestapi.Station, now time.Time) (t
 	detectTo := now.Add(-cfg.MinGap)
 	detectFrom := detectTo
 	for _, s := range stations {
+		// An absent or zero created_epoch decodes to the Unix epoch
+		// (client.go builds CreatedAt as time.Unix(station.CreatedEpoch, 0)),
+		// which is NOT IsZero() — so nothing rejected it and a single gap of
+		// roughly 20,600 daily windows got planned.
+		//
+		// Only the sentinel is rejected, not everything before some plausible
+		// date: the sentinel is the actual failure, and a date floor would
+		// bake in a constant with no defensible value.
+		if s.CreatedAt.Equal(epochSentinel) {
+			slog.Warn("backfill: ignoring station creation time, no usable created_epoch",
+				"serial", s.SerialNumber, "created_at", s.CreatedAt)
+			continue
+		}
 		if s.CreatedAt.Before(detectFrom) {
 			detectFrom = s.CreatedAt
 		}
 	}
 	return detectFrom, detectTo
 }
+
+// epochSentinel is what an absent or zero created_epoch decodes to. If every
+// station carries it, detectFrom stays at detectTo and the window collapses
+// to zero width: the run does nothing, loudly, rather than hammering the API
+// back to 1970.
+var epochSentinel = time.Unix(0, 0)
 
 // plannedGaps is the whole detection domain: SQL's interior gaps plus the
 // head, tail, and empty-store cases LAG cannot see. An explicit --from/--to
