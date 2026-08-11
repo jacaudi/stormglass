@@ -80,6 +80,7 @@ deploy/.env
 # Agent scaffolding
 .superpowers/
 docs/prompts/
+docs/plans/
 .auto-claude/
 
 # UI screenshots (local scratch)
