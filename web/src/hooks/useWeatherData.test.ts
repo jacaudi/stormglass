@@ -19,6 +19,7 @@ vi.mock('../api/tempestApi', () => ({
   fetchStationStatus: vi.fn(),
   fetchStationAlmanac: vi.fn(),
   fetchRecordsSummary: vi.fn(),
+  fetchCapabilities: vi.fn(),
 }));
 
 const baseObs: CurrentObservation = {
@@ -99,6 +100,11 @@ const mockedApi = vi.mocked(api);
 
 beforeEach(() => {
   vi.resetAllMocks();
+  // Default to everything enabled. Without this, resetAllMocks leaves
+  // fetchCapabilities resolving undefined, the hook fails closed, and every
+  // existing test silently stops exercising the forecast and almanac
+  // fetches while still passing.
+  mockedApi.fetchCapabilities.mockResolvedValue({ forecast: true, radar: true, almanac: true });
 });
 
 describe('useWeatherData', () => {
@@ -168,6 +174,10 @@ describe('useWeatherData', () => {
 describe('useWeatherData - isLoading with polling', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    // Same default as the outer hook -- this resetAllMocks runs after it and
+    // would otherwise clear it. An undefined document is not just "disabled":
+    // it also defeats the `capabilities === null` retry predicate.
+    mockedApi.fetchCapabilities.mockResolvedValue({ forecast: true, radar: true, almanac: true });
     vi.useFakeTimers();
   });
 
@@ -318,6 +328,45 @@ describe('useWeatherData - isLoading with polling', () => {
     expect(result.current.current).toBe(refAfterInitialLoad);
     expect(result.current.current).not.toBe(secondObs);
   });
+
+  it('retries fetchCapabilities on a poll tick after a failure, then stops once held', async () => {
+    mockedApi.fetchCapabilities
+      .mockRejectedValueOnce(new Error('capabilities down'))
+      .mockResolvedValue({ forecast: false, radar: false, almanac: false });
+    mockedApi.fetchCurrentObservation.mockResolvedValue(baseObs);
+    mockedApi.fetchStationMeta.mockResolvedValue(baseStation);
+    mockedApi.fetchStationStatus.mockResolvedValue(baseStatus);
+    mockedApi.fetchRecordsSummary.mockResolvedValue(baseSummary);
+
+    const { result } = renderHook(() => useWeatherData());
+
+    // Fake timers are active in this describe block, so testing-library's
+    // `waitFor` would hang -- its async wrapper drains through a real
+    // setTimeout it only advances when the *jest* global is present, which
+    // vitest does not provide -- so flush microtasks directly instead,
+    // matching the sibling tests above.
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(result.current.capabilities).toBeNull();
+    expect(mockedApi.fetchCapabilities).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+    });
+
+    expect(result.current.capabilities).not.toBeNull();
+    expect(mockedApi.fetchCapabilities).toHaveBeenCalledTimes(2);
+
+    // A held document -- including an all-false one -- is never refetched.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS * 3);
+    });
+    expect(mockedApi.fetchCapabilities).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('useWeatherData - records summary', () => {
@@ -369,4 +418,71 @@ describe('useWeatherData - records summary', () => {
     await waitFor(() => expect(mockedApi.fetchRecordsSummary).toHaveBeenCalledTimes(2));
     expect(result.current.summary).toEqual(baseSummary);
   });
+});
+
+it('skips the disabled fetches and still loads the core observation', async () => {
+  mockedApi.fetchCapabilities.mockResolvedValue({ forecast: false, radar: false, almanac: false });
+  mockedApi.fetchCurrentObservation.mockResolvedValue(baseObs);
+  mockedApi.fetchStationMeta.mockResolvedValue(baseStation);
+  mockedApi.fetchStationStatus.mockResolvedValue(baseStatus);
+  mockedApi.fetchRecordsSummary.mockResolvedValue(baseSummary);
+
+  const { result } = renderHook(() => useWeatherData());
+
+  await waitFor(() => expect(result.current.current).toEqual(baseObs));
+
+  expect(mockedApi.fetchForecast).not.toHaveBeenCalled();
+  expect(mockedApi.fetchStationAlmanac).not.toHaveBeenCalled();
+  expect(result.current.forecast).toEqual([]);
+  expect(result.current.almanac).toBeNull();
+  expect(result.current.capabilities).toEqual({ forecast: false, radar: false, almanac: false });
+});
+
+it('fetches the optional slices when they are enabled', async () => {
+  mockedApi.fetchCapabilities.mockResolvedValue({ forecast: true, radar: false, almanac: true });
+  mockedApi.fetchCurrentObservation.mockResolvedValue(baseObs);
+  mockedApi.fetchStationMeta.mockResolvedValue(baseStation);
+  mockedApi.fetchForecast.mockResolvedValue([]);
+  mockedApi.fetchStationStatus.mockResolvedValue(baseStatus);
+  mockedApi.fetchStationAlmanac.mockResolvedValue(baseAlmanac);
+  mockedApi.fetchRecordsSummary.mockResolvedValue(baseSummary);
+
+  const { result } = renderHook(() => useWeatherData());
+
+  await waitFor(() => expect(result.current.almanac).toEqual(baseAlmanac));
+  expect(mockedApi.fetchForecast).toHaveBeenCalled();
+  expect(mockedApi.fetchStationAlmanac).toHaveBeenCalled();
+});
+
+it('fails closed and skips the optional fetches when capabilities are unreachable', async () => {
+  mockedApi.fetchCapabilities.mockRejectedValue(new Error('capabilities down'));
+  mockedApi.fetchCurrentObservation.mockResolvedValue(baseObs);
+  mockedApi.fetchStationMeta.mockResolvedValue(baseStation);
+  mockedApi.fetchStationStatus.mockResolvedValue(baseStatus);
+  mockedApi.fetchRecordsSummary.mockResolvedValue(baseSummary);
+
+  const { result } = renderHook(() => useWeatherData());
+
+  await waitFor(() => expect(result.current.current).toEqual(baseObs));
+
+  expect(result.current.capabilities).toBeNull();
+  expect(mockedApi.fetchForecast).not.toHaveBeenCalled();
+  expect(result.current.error).toBeNull();
+});
+
+it('loads the core observation exactly once when capabilities are enabled', async () => {
+  mockedApi.fetchCapabilities.mockResolvedValue({ forecast: true, radar: true, almanac: true });
+  mockedApi.fetchCurrentObservation.mockResolvedValue(baseObs);
+  mockedApi.fetchStationMeta.mockResolvedValue(baseStation);
+  mockedApi.fetchForecast.mockResolvedValue([]);
+  mockedApi.fetchStationStatus.mockResolvedValue(baseStatus);
+  mockedApi.fetchStationAlmanac.mockResolvedValue(baseAlmanac);
+  mockedApi.fetchRecordsSummary.mockResolvedValue(baseSummary);
+
+  const { result } = renderHook(() => useWeatherData());
+
+  await waitFor(() => expect(result.current.current).toEqual(baseObs));
+  // Holding the first load until capabilities settle is what prevents the
+  // abort-and-restart a late capability flip would otherwise cause.
+  expect(mockedApi.fetchStationMeta).toHaveBeenCalledTimes(1);
 });

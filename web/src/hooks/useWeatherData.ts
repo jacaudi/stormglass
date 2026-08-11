@@ -7,6 +7,7 @@ import type {
   StationAlmanac,
   RecordsSummary,
   RecordsWindowDays,
+  Capabilities,
 } from '../types/weather';
 import {
   fetchCurrentObservation,
@@ -15,6 +16,7 @@ import {
   fetchStationStatus,
   fetchStationAlmanac,
   fetchRecordsSummary,
+  fetchCapabilities,
 } from '../api/tempestApi';
 
 // There is no WebSocket backend (Contract C is plain JSON, see design §11),
@@ -23,6 +25,19 @@ import {
 // cadence without hammering the read path; not derived from anything
 // authoritative, just a reasonable middle ground.
 export const POLL_INTERVAL_MS = 30_000;
+
+// Empty value for a disabled forecast slice. Hoisted to a module constant so a
+// fresh [] per load doesn't defeat React's Object.is bail-out on the cards that
+// consume it. (The almanac's disabled value is `null`, which is already a
+// singleton -- it needs no constant.)
+const NO_FORECAST: ForecastDay[] = [];
+
+// How long to wait for the capability document before giving up and failing
+// closed. The first data load is gated on this fetch SETTLING, so without a
+// deadline a request that hangs -- rather than fails -- would hold the
+// dashboard on its loading screen indefinitely, including the core observation
+// path that has no other dependency on capabilities.
+const CAPABILITIES_TIMEOUT_MS = 5_000;
 
 export interface WeatherData {
   station: StationMeta | null;
@@ -39,6 +54,10 @@ export interface WeatherData {
   // successful fetch (§14 P1.6). False immediately after a successful
   // refresh.
   isStale: boolean;
+  // Which optional cards the server has enabled. `null` means unknown --
+  // either not yet fetched or the fetch failed -- and is treated exactly like
+  // all-false, so a card is never mounted on a guess (issue #145).
+  capabilities: Capabilities | null;
   refresh: () => void;
 }
 
@@ -74,6 +93,51 @@ export function useWeatherData(
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [isStale, setIsStale] = useState(false);
+  const [capabilities, setCapabilities] = useState<Capabilities | null>(null);
+  const [capsSettled, setCapsSettled] = useState(false);
+
+  // Stable booleans, NOT `capabilities?.forecast === true` inline in a
+  // dependency array -- a computed expression there is an eslint error
+  // (react-hooks/use-memo). Comparing with === true also makes the
+  // null -> false transition a no-op, so a default deployment never re-runs
+  // loadData when capabilities arrive.
+  const forecastEnabled = capabilities?.forecast === true;
+  const almanacEnabled = capabilities?.almanac === true;
+
+  const loadCapabilities = useCallback(async (signal?: AbortSignal) => {
+    try {
+      // Two reasons to abort, combined: the caller's signal (unmount or a
+      // superseding call) and our own deadline. A timeout rejects, which the
+      // catch treats as unknown, which fails closed and lets the load proceed
+      // -- unlike a hang, which would hold the settle-gate shut forever.
+      const deadline = AbortSignal.timeout(CAPABILITIES_TIMEOUT_MS);
+      const caps = await fetchCapabilities(
+        signal ? AbortSignal.any([signal, deadline]) : deadline
+      );
+      if (signal?.aborted) return;
+      setCapabilities(caps);
+    } catch {
+      // Unknown: leave `capabilities` null, which the gates below treat as
+      // all-false. Never surfaced as an error -- an unreachable
+      // optional-feature document must not blank the dashboard.
+    } finally {
+      if (!signal?.aborted) setCapsSettled(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    // loadCapabilities only setStates after an await, but the rule's analysis
+    // is inter-procedural and not await-aware, so it flags the call itself.
+    // Fetching a document the first render needs is exactly the external-system
+    // synchronisation an effect is for, and it runs once. Same suppression,
+    // same reason, as the loadData effect below. (The directive must be the
+    // last comment line: eslint-disable-next-line applies to the line directly
+    // after it, so trailing prose lines would silently defuse it.)
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- see above
+    loadCapabilities(controller.signal);
+    return () => controller.abort();
+  }, [loadCapabilities]);
 
   // Tracks whichever request set (full load or a poll tick) is currently in
   // flight, so starting a new one cancels the old -- fixes the race where a
@@ -102,9 +166,9 @@ export function useWeatherData(
       await Promise.allSettled([
         fetchStationMeta(stationId, signal),
         fetchCurrentObservation(stationId, signal),
-        fetchForecast(stationId, signal),
+        forecastEnabled ? fetchForecast(stationId, signal) : Promise.resolve(NO_FORECAST),
         fetchStationStatus(stationId, signal),
-        fetchStationAlmanac(stationId, signal),
+        almanacEnabled ? fetchStationAlmanac(stationId, signal) : Promise.resolve(null),
       ]);
 
     // Clear the loading flag only if no newer loadData/refresh call has
@@ -140,7 +204,7 @@ export function useWeatherData(
       setIsStale(true);
       setError(describeError(obsResult));
     }
-  }, [stationId]);
+  }, [stationId, forecastEnabled, almanacEnabled]);
 
   // Lightweight poll: refetches only the core observation, not the
   // WeatherFlow-backed slices -- there is no reason to hammer a best-effort
@@ -178,15 +242,28 @@ export function useWeatherData(
   // adjusted state purely to satisfy a linter. Revisit if this hook ever moves
   // to a data-fetching library, which is React's actual recommendation here.
   useEffect(() => {
+    // Wait for capabilities to SETTLE (resolved or failed), not to succeed.
+    // Starting the load first and letting a late capability flip change
+    // loadData's identity would abort the in-flight requests and restart
+    // them, either delaying first paint or bouncing the rendered dashboard
+    // back to the loading screen.
+    if (!capsSettled) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- see above
     loadData();
     return () => abortRef.current?.abort();
-  }, [loadData]);
+  }, [capsSettled, loadData]);
 
   useEffect(() => {
-    const id = setInterval(pollCurrent, POLL_INTERVAL_MS);
+    const id = setInterval(() => {
+      pollCurrent();
+      // Retry only while unknown. A held document -- including an all-false
+      // one, which is an object and not null -- is never refetched. Without
+      // this, one transient failure hides all three cards for the lifetime of
+      // a page, and this appliance's tab may stay open for weeks.
+      if (capabilities === null) loadCapabilities();
+    }, POLL_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [pollCurrent]);
+  }, [pollCurrent, capabilities, loadCapabilities]);
 
   // Records summary is a separate, slow-moving slice (a 7-365 day
   // aggregate read from the local store, keyed on window not stationId) --
@@ -212,6 +289,16 @@ export function useWeatherData(
     return () => controller.abort();
   }, [recordsWindowDays]);
 
+  // Accepted wrinkle: if capabilities were unknown, the user presses Retry, and
+  // the capability re-attempt then SUCCEEDS, the enabled-flags flip changes
+  // loadData's identity and the effect fires a second load that aborts this one.
+  // One wasted round trip on a path the user explicitly asked to retry; removing
+  // it needs state this hook does not otherwise want.
+  const refresh = useCallback(() => {
+    if (capabilities === null) loadCapabilities();
+    loadData();
+  }, [capabilities, loadCapabilities, loadData]);
+
   return {
     station,
     current,
@@ -223,6 +310,7 @@ export function useWeatherData(
     error,
     lastUpdated,
     isStale,
-    refresh: loadData,
+    capabilities,
+    refresh,
   };
 }

@@ -73,6 +73,7 @@ const mockWeatherData: WeatherData = {
   error: null,
   lastUpdated: new Date(),
   isStale: false,
+  capabilities: { forecast: true, radar: false, almanac: false },
   refresh: vi.fn(),
 };
 
