@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import App from './App';
 import type { WeatherData } from './hooks/useWeatherData';
-import type { CurrentObservation, ForecastDay, RecordsSummary, StationMeta } from './types/weather';
+import type { CurrentObservation, ForecastDay, RecordsSummary, StationAlmanac, StationMeta } from './types/weather';
 import { PrecipitationType, PressureTrend } from './types/weather';
 
 const mockCurrent: CurrentObservation = {
@@ -60,6 +60,30 @@ const mockSummary: RecordsSummary = {
   gustMax: 14.7,
   rainTotal: 12.5,
   lightningTotal: 3,
+};
+
+const mockAlmanac: StationAlmanac = {
+  today: { high: 25, highDate: 'Today', low: 15, lowDate: 'Today' },
+  week: { high: 28, highDate: 'Mon', low: 12, lowDate: 'Tue' },
+  month: { high: 30, highDate: 'Jul 1', low: 10, lowDate: 'Jul 15' },
+  year: { high: 32, highDate: 'Aug 1', low: 5, lowDate: 'Jan 1' },
+  sunrise: Math.floor(Date.now() / 1000),
+  sunset: Math.floor(Date.now() / 1000) + 36000,
+  moonPhase: 0.5,
+  moonPhaseName: 'Full Moon',
+  moonIllumination: 1,
+};
+
+const mockStationWithCoords: StationMeta = {
+  station_id: 1,
+  name: 'Test Station',
+  latitude: 40.7128,
+  longitude: -74.006,
+  elevation: 10,
+  timezone: 'America/New_York',
+  firmware_revision: '1.0',
+  serial_number: 'ST-00000001',
+  device_id: 1,
 };
 
 const mockWeatherData: WeatherData = {
@@ -136,6 +160,33 @@ describe('App optional card gating', () => {
   it('does not mount the radar card for a station with no usable coordinates', () => {
     mockWeatherData.capabilities = { forecast: false, radar: true, almanac: false };
     mockWeatherData.station = { status: { status_code: 0 } } as unknown as StationMeta;
+
+    render(<App />);
+
+    expect(screen.queryByText('Radar')).toBeNull();
+  });
+
+  it('does not mount the almanac card when almanac data exists but the capability is disabled', () => {
+    mockWeatherData.capabilities = { forecast: false, radar: false, almanac: false };
+    mockWeatherData.almanac = mockAlmanac;
+
+    render(<App />);
+
+    expect(screen.queryByText('Station Almanac')).toBeNull();
+  });
+
+  it('mounts the almanac card when almanac data exists and the capability is enabled', () => {
+    mockWeatherData.capabilities = { forecast: false, radar: false, almanac: true };
+    mockWeatherData.almanac = mockAlmanac;
+
+    render(<App />);
+
+    expect(screen.getByText('Station Almanac')).toBeInTheDocument();
+  });
+
+  it('does not mount the radar card for a station with valid coordinates when the radar capability is disabled', () => {
+    mockWeatherData.capabilities = { forecast: false, radar: false, almanac: false };
+    mockWeatherData.station = mockStationWithCoords;
 
     render(<App />);
 
