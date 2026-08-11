@@ -17,12 +17,13 @@ import { AlmanacCard } from './components/AlmanacCard';
 import { RadarCard } from './components/RadarCard';
 import { SettingsPanel } from './components/SettingsPanel';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { hasCoordinates } from './components/formatCoord';
 import type { ThemeName } from './types/weather';
 import './App.css';
 
 function App() {
   const { prefs, setPrefs } = useUnits();
-  const { station, current, forecast, status, almanac, isLoading, error, lastUpdated, isStale, refresh, summary } =
+  const { station, current, forecast, status, almanac, isLoading, error, lastUpdated, isStale, refresh, summary, capabilities } =
     useWeatherData(undefined, prefs.recordsWindowDays);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -82,9 +83,9 @@ function App() {
             <LightningCard current={current} />
             {status && <StationHealth status={status} />}
             <RecordsCard summary={summary} prefs={prefs} />
-            <ForecastStrip forecast={forecast} unit={prefs.temperatureUnit} />
-            {almanac && <AlmanacCard almanac={almanac} unit={prefs.temperatureUnit} />}
-            {station && (
+            {capabilities?.forecast && <ForecastStrip forecast={forecast} unit={prefs.temperatureUnit} />}
+            {capabilities?.almanac && almanac && <AlmanacCard almanac={almanac} unit={prefs.temperatureUnit} />}
+            {capabilities?.radar && hasCoordinates(station) && (
               // Own ErrorBoundary (in addition to RadarCard's internal
               // try/catch around MapLibre init) -- belt-and-suspenders so a
               // WebGL/MapLibre failure can never blank the whole dashboard

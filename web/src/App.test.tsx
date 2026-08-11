@@ -1,8 +1,8 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import App from './App';
 import type { WeatherData } from './hooks/useWeatherData';
-import type { CurrentObservation, ForecastDay, RecordsSummary } from './types/weather';
+import type { CurrentObservation, ForecastDay, RecordsSummary, StationMeta } from './types/weather';
 import { PrecipitationType, PressureTrend } from './types/weather';
 
 const mockCurrent: CurrentObservation = {
@@ -95,5 +95,50 @@ describe('App dashboard layout', () => {
     // forecastAnchor comes AFTER recordsAnchor in document order.
     const position = recordsAnchor.compareDocumentPosition(forecastAnchor);
     expect(position & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
+
+describe('App optional card gating', () => {
+  afterEach(() => {
+    mockWeatherData.capabilities = { forecast: true, radar: false, almanac: false };
+    mockWeatherData.almanac = null;
+    mockWeatherData.station = null;
+  });
+
+  it('mounts no optional card when every capability is false', () => {
+    mockWeatherData.capabilities = { forecast: false, radar: false, almanac: false };
+
+    render(<App />);
+
+    expect(screen.queryByText('7-Day Forecast')).toBeNull();
+    expect(screen.queryByText('Station Almanac')).toBeNull();
+    expect(screen.queryByText('Radar')).toBeNull();
+  });
+
+  it('mounts nothing optional when capabilities are unknown', () => {
+    mockWeatherData.capabilities = null;
+
+    render(<App />);
+
+    expect(screen.queryByText('7-Day Forecast')).toBeNull();
+    expect(screen.queryByText('Station Almanac')).toBeNull();
+    expect(screen.queryByText('Radar')).toBeNull();
+  });
+
+  it('mounts the forecast strip only when forecast is enabled', () => {
+    mockWeatherData.capabilities = { forecast: true, radar: false, almanac: false };
+
+    render(<App />);
+
+    expect(screen.getByText('7-Day Forecast')).toBeInTheDocument();
+  });
+
+  it('does not mount the radar card for a station with no usable coordinates', () => {
+    mockWeatherData.capabilities = { forecast: false, radar: true, almanac: false };
+    mockWeatherData.station = { status: { status_code: 0 } } as unknown as StationMeta;
+
+    render(<App />);
+
+    expect(screen.queryByText('Radar')).toBeNull();
   });
 });
