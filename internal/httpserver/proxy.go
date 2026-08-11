@@ -31,15 +31,28 @@ type WeatherFlowProxy interface {
 // registerObservations, registerStatic) untouched. The browser never sends
 // or needs a token for any of these -- it lives only in deps.WeatherFlow.
 func registerProxy(mux *http.ServeMux, deps Deps) {
+	// /api/station is never gated: it backs no optional card of its own, and
+	// the Header consumes it. (It is still a mount precondition for the radar
+	// card -- see the UI's hasCoordinates guard, which is what handles this
+	// endpoint's habit of returning 200 with an empty envelope.)
 	mux.HandleFunc("GET /api/station", func(w http.ResponseWriter, r *http.Request) {
 		proxyWeatherFlow(w, r, deps.WeatherFlow, "/stations")
 	})
-	mux.HandleFunc("GET /api/forecast", func(w http.ResponseWriter, r *http.Request) {
-		proxyWeatherFlow(w, r, deps.WeatherFlow, weatherFlowForecastPath)
-	})
-	mux.HandleFunc("GET /api/almanac", func(w http.ResponseWriter, r *http.Request) {
-		proxyWeatherFlow(w, r, deps.WeatherFlow, weatherFlowForecastPath)
-	})
+
+	// Forecast and almanac are opt-in (issue #145). Leaving the route
+	// unregistered -- rather than registering it and refusing inside the
+	// handler -- mirrors registerRadar, and makes a disabled feature
+	// incapable of making an upstream WeatherFlow call at all.
+	if deps.Forecast {
+		mux.HandleFunc("GET /api/forecast", func(w http.ResponseWriter, r *http.Request) {
+			proxyWeatherFlow(w, r, deps.WeatherFlow, weatherFlowForecastPath)
+		})
+	}
+	if deps.Almanac {
+		mux.HandleFunc("GET /api/almanac", func(w http.ResponseWriter, r *http.Request) {
+			proxyWeatherFlow(w, r, deps.WeatherFlow, weatherFlowForecastPath)
+		})
+	}
 }
 
 // proxyWeatherFlow calls wf.Proxy for path, forwarding the browser request's
