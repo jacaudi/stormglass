@@ -121,6 +121,9 @@ The application switches modes based on presence of `TOKEN` environment variable
 - `JOB_NAME`: Job label for pushed metrics (default: "tempest")
 - `ENABLE_PROMETHEUS_METRICS`: Set to "true" or "1" to expose `/metrics` endpoint for Prometheus scraping
 - `PROMETHEUS_METRICS_PORT`: Port for the metrics endpoint (default: 9000)
+- `ENABLE_RADAR`: Set to "true" or "1" to enable the NEXRAD radar overlay and register `GET /api/radar/{site}` (default: false; requires the radar sidecar)
+- `ENABLE_FORECAST`: Set to "true" or "1" to enable the 7-day forecast card and register `GET /api/forecast` (default: false)
+- `ENABLE_ALMANAC`: Set to "true" or "1" to enable the station almanac card and register `GET /api/almanac` (default: false)
 - `ENABLE_POSTGRES`: Set to "true" or "1" to enable writing metrics to PostgreSQL (opt-in; SQLite is the default store — see below)
 - `SQLITE_PATH`: Path to the default SQLite database file (default: `/data/tempest.db`)
 - `SQLITE_BATCH_SIZE`: SQLite insert batch size (default: 100)
@@ -203,6 +206,13 @@ All tables use UUIDv7 primary keys (generated in Go, no PostgreSQL extensions re
 | N/A | N/A | Yes | Yes | API export to Postgres (+ optional .gz files) |
 
 > **SQLite default:** every UDP-mode row above (`TOKEN` unset) **also** persists to SQLite at `SQLITE_PATH` (default `/data/tempest.db`), unless `ENABLE_POSTGRES` is the only configured store and `SQLITE_PATH` is unset. SQLite is not written in API-export mode (`TOKEN` set).
+
+> **UI cards are gated separately from the operational mode.** `ENABLE_RADAR`,
+> `ENABLE_FORECAST` and `ENABLE_ALMANAC` decide which optional cards the
+> embedded UI mounts; they are orthogonal to every row above. The server
+> reports them at `GET /api/capabilities`, and a disabled feature's API route
+> is not registered at all (it 404s). All three default to false, so a
+> deployment that sets none renders only the core dashboard.
 
 > **Subcommands bypass mode selection.** `backfill` and `healthcheck` are chosen
 > by the first CLI argument, not by environment variables, and neither starts the
