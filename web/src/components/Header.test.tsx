@@ -63,7 +63,10 @@ describe('Header station location guard', () => {
 
   it('renders a placeholder rather than "undefinedm" when only elevation is missing', () => {
     // hasCoordinates validates latitude/longitude only, so a response with
-    // coordinates but no elevation still reaches the elevation span.
+    // coordinates but no elevation still reaches the elevation span. React
+    // renders `undefined` as nothing (not the string "undefined"), so a
+    // not-toContain('undefined') assertion here could never fail -- it
+    // asserts a positive presence of the `?? '—'` fallback instead.
     const noElevation = {
       station_id: 1,
       name: 'Test',
@@ -80,7 +83,7 @@ describe('Header station location guard', () => {
       />
     );
 
-    expect(document.querySelector('.station-location')?.textContent).not.toContain('undefined');
+    expect(document.querySelector('.station-location')?.textContent).toContain('—m');
   });
 
   it('renders the location line for a station with real coordinates', () => {
