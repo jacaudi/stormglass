@@ -64,6 +64,13 @@ type Deps struct {
 	// a fake.
 	Radar RadarProxy
 
+	// Forecast and Almanac gate GET /api/forecast and GET /api/almanac, and
+	// the matching entries in GET /api/capabilities. main.go sets them from
+	// ENABLE_FORECAST / ENABLE_ALMANAC; both default to false, so a server
+	// built from a zero Deps serves neither route (issue #145).
+	Forecast bool
+	Almanac  bool
+
 	// TracerProvider is the otelhttp middleware's span source (Task 1.6).
 	// Nil means "use the OTel global TracerProvider" -- otelhttp.WithTracerProvider
 	// already treats a nil provider as a no-op, falling back to
@@ -81,6 +88,7 @@ type Deps struct {
 func New(deps Deps) *http.Server {
 	mux := http.NewServeMux()
 	registerHealthz(mux)
+	registerCapabilities(mux, newCapabilities(deps))
 	registerObservations(mux, deps)
 	registerProxy(mux, deps)
 	registerRadar(mux, deps)
