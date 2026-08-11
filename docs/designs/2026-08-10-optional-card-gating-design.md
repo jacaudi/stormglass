@@ -440,7 +440,9 @@ nothing in the DOM. This is the acceptance criterion the tests assert directly.
   That placeholder is one of the three empty shells #145 exists to delete, so
   this is intended; it is a behaviour change from the pre-#145 build, not a
   no-op. A working card still needs the deferred RADAR_SITE→UI wiring (no
-  `site` prop is passed) plus issue #61, both out of scope here.
+  `site` prop is passed) plus issue #62 (a UDP-mode token source for
+  `/api/station`); #61 (response shaping) may also apply. Both out of scope
+  here.
 - **`/api/forecast` and `/api/almanac` return 404 when disabled.** Nothing that
   worked stops working: both are WeatherFlow-backed, the UI is only ever served
   with `TOKEN` empty (§2), and `/better_forecast` answers an empty bearer with a
