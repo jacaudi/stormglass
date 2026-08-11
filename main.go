@@ -460,6 +460,11 @@ func resolveModeAndValidate(token string, writerCount int) Mode {
 // credential to authenticate with and degrades to an upstream 401. Wiring
 // a separate token source for UDP mode is a design decision for a
 // follow-up task, not this one -- see the task report.
+//
+// ENABLE_FORECAST and ENABLE_ALMANAC gate the two routes that depend on that
+// credential, and ENABLE_RADAR gates the sidecar-backed one; all three
+// default to false, and GET /api/capabilities reports them to the UI so a
+// disabled feature's card is never mounted (issue #145).
 func startAPIServer(mode Mode, token string, sw *sqlite.Writer) *http.Server {
 	if mode != ModeUDP {
 		return nil
@@ -479,6 +484,28 @@ func startAPIServer(mode Mode, token string, sw *sqlite.Writer) *http.Server {
 		sidecarURL := cmp.Or(os.Getenv("RADAR_SIDECAR_URL"), "http://radar-sidecar:8081")
 		deps.Radar = radar.NewProxy(sidecarURL)
 	}
+	enableForecast, err := config.ParseBoolEnv("ENABLE_FORECAST")
+	if err != nil {
+		log.Fatal(err)
+	}
+	enableAlmanac, err := config.ParseBoolEnv("ENABLE_ALMANAC")
+	if err != nil {
+		log.Fatal(err)
+	}
+	deps.Forecast = enableForecast
+	deps.Almanac = enableAlmanac
+
+	// A token is what these two routes need to return anything useful, and
+	// there is no way to have one here today: a non-empty TOKEN selects
+	// API-export mode, which never starts this server. Warn rather than
+	// silently serving a card that renders nothing. Written as the real
+	// predicate so it stops firing on its own once issue #62 supplies a
+	// UDP-mode token source.
+	if (enableForecast || enableAlmanac) && token == "" {
+		slog.Warn("forecast/almanac enabled but no WeatherFlow token is available while the UI is served; " +
+			"upstream calls will be unauthenticated and the cards will render no data (see issue #62)")
+	}
+
 	srv := httpserver.New(deps)
 	srv.Addr = cmp.Or(os.Getenv("HTTP_ADDR"), ":8080")
 	go func() {
