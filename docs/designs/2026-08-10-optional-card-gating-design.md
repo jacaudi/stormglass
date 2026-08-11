@@ -2,7 +2,7 @@
 
 **Issue:** [#145](https://github.com/jacaudi/tempestwx-utilities/issues/145)
 **Date:** 2026-08-10
-**Status:** proposed (revised after Gate 1 review)
+**Status:** implemented on `feat/optional-card-gating` (revised after Gate 1 review)
 **Branch point:** `73352e1`
 
 ## Goal
@@ -432,10 +432,15 @@ nothing in the DOM. This is the acceptance criterion the tests assert directly.
   #145 reproduces against) loses the empty 7-Day Forecast bar, the "Radar not
   configured" card, and the `NaN°N, NaN°E · m` header line. Almanac was already
   absent. Everything else is unchanged. The UI gets *simpler*, not different.
-- **`ENABLE_RADAR=true`** still mounts the Radar card, which still shows "Radar
-  not configured for this station." — unchanged, because `App.tsx:96` passes no
-  `site` prop. Fixing that is the deferred RADAR_SITE→UI wiring, out of scope
-  here.
+- **`ENABLE_RADAR=true`** no longer guarantees a Radar card at all. As
+  implemented, `App.tsx` gates radar on `capabilities?.radar && hasCoordinates(station)`,
+  and `/api/station` answers an empty bearer with a 200 and a status-only
+  envelope — so on the UI's normal (`TOKEN` unset) deployment the card is not
+  mounted, rather than mounted showing "Radar not configured for this station."
+  That placeholder is one of the three empty shells #145 exists to delete, so
+  this is intended; it is a behaviour change from the pre-#145 build, not a
+  no-op. A working card still needs the deferred RADAR_SITE→UI wiring (no
+  `site` prop is passed) plus issue #61, both out of scope here.
 - **`/api/forecast` and `/api/almanac` return 404 when disabled.** Nothing that
   worked stops working: both are WeatherFlow-backed, the UI is only ever served
   with `TOKEN` empty (§2), and `/better_forecast` answers an empty bearer with a

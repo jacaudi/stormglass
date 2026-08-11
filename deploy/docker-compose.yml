@@ -54,8 +54,10 @@ services:
       # RADAR_SITE is documented here for operators, but the app does not yet
       # read it from the environment: radar site selection is currently a
       # per-request URL path parameter (/api/radar/{site}) driven by the UI.
-      # Wiring RADAR_SITE into the UI is a known deferred item — the radar
-      # card stays "not configured" until that lands.
+      # Wiring RADAR_SITE into the UI is a known deferred item. Since #145 the
+      # card is also gated on station coordinates, which /api/station cannot
+      # supply with TOKEN unset — so the card is not rendered at all here, not
+      # even as a "not configured" placeholder.
       RADAR_SITE: ${RADAR_SITE:-}
       # Opt-in WeatherFlow-backed cards (#145). Both default to false. They do
       # not work yet in this deployment: the UI only runs with TOKEN unset, so

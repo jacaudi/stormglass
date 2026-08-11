@@ -121,7 +121,7 @@ The application switches modes based on presence of `TOKEN` environment variable
 - `JOB_NAME`: Job label for pushed metrics (default: "tempest")
 - `ENABLE_PROMETHEUS_METRICS`: Set to "true" or "1" to expose `/metrics` endpoint for Prometheus scraping
 - `PROMETHEUS_METRICS_PORT`: Port for the metrics endpoint (default: 9000)
-- `ENABLE_RADAR`: Set to "true" or "1" to enable the NEXRAD radar overlay and register `GET /api/radar/{site}` (default: false; requires the radar sidecar)
+- `ENABLE_RADAR`: Set to "true" or "1" to advertise the radar capability and register `GET /api/radar/{site}` (default: false; requires the radar sidecar). It does not produce a radar overlay on its own — the UI also needs station coordinates and the deferred RADAR_SITE→UI wiring
 - `ENABLE_FORECAST`: Set to "true" or "1" to enable the 7-day forecast card and register `GET /api/forecast` (default: false)
 - `ENABLE_ALMANAC`: Set to "true" or "1" to enable the station almanac card and register `GET /api/almanac` (default: false)
 - `ENABLE_POSTGRES`: Set to "true" or "1" to enable writing metrics to PostgreSQL (opt-in; SQLite is the default store — see below)
@@ -213,6 +213,14 @@ All tables use UUIDv7 primary keys (generated in Go, no PostgreSQL extensions re
 > reports them at `GET /api/capabilities`, and a disabled feature's API route
 > is not registered at all (it 404s). All three default to false, so a
 > deployment that sets none renders only the core dashboard.
+>
+> **Enabling a flag does not yet make its card work.** The container only
+> serves the UI when `TOKEN` is unset (a set `TOKEN` switches it to
+> API-export mode), so the WeatherFlow-backed routes have no credential:
+> issues #62 (a UDP-mode token source) and #61 (response shaping) must land
+> before Forecast and Almanac render real data, and Radar additionally needs
+> the deferred RADAR_SITE→UI wiring. Leave all three false until then. The
+> same caveat is stated in `deploy/.env.example` and `deploy/docker-compose.yml`.
 
 > **Subcommands bypass mode selection.** `backfill` and `healthcheck` are chosen
 > by the first CLI argument, not by environment variables, and neither starts the
