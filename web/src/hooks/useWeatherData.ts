@@ -37,7 +37,7 @@ const NO_FORECAST: ForecastDay[] = [];
 // deadline a request that hangs -- rather than fails -- would hold the
 // dashboard on its loading screen indefinitely, including the core observation
 // path that has no other dependency on capabilities.
-const CAPABILITIES_TIMEOUT_MS = 5_000;
+export const CAPABILITIES_TIMEOUT_MS = 5_000;
 
 export interface WeatherData {
   station: StationMeta | null;
@@ -105,15 +105,22 @@ export function useWeatherData(
   const almanacEnabled = capabilities?.almanac === true;
 
   const loadCapabilities = useCallback(async (signal?: AbortSignal) => {
+    // Two reasons to abort, combined into one controller: the caller's signal
+    // (unmount or a superseding call) and our own deadline. An abort rejects,
+    // which the catch treats as unknown, which fails closed and lets the load
+    // proceed -- unlike a hang, which would hold the settle-gate shut forever.
+    // Deliberately a plain AbortController + setTimeout rather than
+    // AbortSignal.any/AbortSignal.timeout: those are only Baseline "newly
+    // available" (2024), below this bundle's browser floor, and build.target
+    // transpiles syntax without polyfilling runtime APIs. They are also
+    // undrivable by fake timers, which would leave this deadline untested.
+    const deadline = new AbortController();
+    const timer = setTimeout(() => deadline.abort(), CAPABILITIES_TIMEOUT_MS);
+    if (signal?.aborted) deadline.abort();
+    else signal?.addEventListener('abort', () => deadline.abort(), { once: true });
+
     try {
-      // Two reasons to abort, combined: the caller's signal (unmount or a
-      // superseding call) and our own deadline. A timeout rejects, which the
-      // catch treats as unknown, which fails closed and lets the load proceed
-      // -- unlike a hang, which would hold the settle-gate shut forever.
-      const deadline = AbortSignal.timeout(CAPABILITIES_TIMEOUT_MS);
-      const caps = await fetchCapabilities(
-        signal ? AbortSignal.any([signal, deadline]) : deadline
-      );
+      const caps = await fetchCapabilities(deadline.signal);
       if (signal?.aborted) return;
       setCapabilities(caps);
     } catch {
@@ -121,6 +128,7 @@ export function useWeatherData(
       // all-false. Never surfaced as an error -- an unreachable
       // optional-feature document must not blank the dashboard.
     } finally {
+      clearTimeout(timer);
       if (!signal?.aborted) setCapsSettled(true);
     }
   }, []);

@@ -122,6 +122,35 @@ describe('App dashboard layout', () => {
   });
 });
 
+describe('App loading screen', () => {
+  afterEach(() => {
+    mockWeatherData.isLoading = false;
+  });
+
+  it('keeps rendering the dashboard when a later load starts and data is already on screen', () => {
+    // A capability flip (e.g. a failed capability fetch retried successfully on
+    // a poll tick) changes loadData's identity and re-raises isLoading. With
+    // `current` already populated, the rendered dashboard must survive it.
+    mockWeatherData.isLoading = true;
+
+    render(<App />);
+
+    expect(screen.queryByText('Connecting to station...')).toBeNull();
+    expect(screen.getByText('Records')).toBeInTheDocument();
+  });
+
+  it('shows the loading screen for an initial load with no data yet', () => {
+    mockWeatherData.isLoading = true;
+    mockWeatherData.current = null;
+
+    render(<App />);
+
+    expect(screen.getByText('Connecting to station...')).toBeInTheDocument();
+
+    mockWeatherData.current = mockCurrent;
+  });
+});
+
 describe('App optional card gating', () => {
   afterEach(() => {
     mockWeatherData.capabilities = { forecast: true, radar: false, almanac: false };

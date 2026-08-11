@@ -31,7 +31,11 @@ function App() {
     applyTheme(prefs.theme as ThemeName);
   }, [prefs.theme]);
 
-  if (isLoading) {
+  // Only show the loading screen for an INITIAL load (no data yet). `loadData`
+  // re-runs whenever a capability flips — e.g. a failed capability fetch that a
+  // later poll tick retries successfully — and that must not bounce an already
+  // rendered dashboard back to "Connecting to station...".
+  if (isLoading && !current) {
     return (
       <div className="loading-screen">
         <div className="loading-spinner" />

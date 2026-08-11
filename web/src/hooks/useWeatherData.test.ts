@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { useWeatherData, POLL_INTERVAL_MS } from './useWeatherData';
+import { useWeatherData, POLL_INTERVAL_MS, CAPABILITIES_TIMEOUT_MS } from './useWeatherData';
 import * as api from '../api/tempestApi';
 import { PrecipitationType, PressureTrend } from '../types/weather';
 import type {
@@ -10,6 +10,7 @@ import type {
   StationAlmanac,
   RecordsSummary,
   RecordsWindowDays,
+  Capabilities,
 } from '../types/weather';
 
 vi.mock('../api/tempestApi', () => ({
@@ -329,6 +330,47 @@ describe('useWeatherData - isLoading with polling', () => {
     expect(result.current.current).not.toBe(secondObs);
   });
 
+  it('opens the settle-gate on the capabilities deadline when the fetch hangs', async () => {
+    // fetchCapabilities never settles on its own -- it only rejects once its
+    // AbortSignal fires, mirroring real fetch's abort behavior. Nothing but
+    // CAPABILITIES_TIMEOUT_MS can release it, so the core dashboard load is
+    // held until the deadline elapses, and then proceeds with capabilities
+    // still unknown (fail-closed).
+    mockedApi.fetchCapabilities.mockImplementation(
+      (signal?: AbortSignal) =>
+        new Promise<Capabilities>((_resolve, reject) => {
+          signal?.addEventListener('abort', () => {
+            const err = new Error('Aborted');
+            err.name = 'AbortError';
+            reject(err);
+          });
+        })
+    );
+    mockedApi.fetchCurrentObservation.mockResolvedValue(baseObs);
+    mockedApi.fetchStationMeta.mockResolvedValue(baseStation);
+    mockedApi.fetchStationStatus.mockResolvedValue(baseStatus);
+    mockedApi.fetchRecordsSummary.mockResolvedValue(baseSummary);
+
+    const { result } = renderHook(() => useWeatherData());
+
+    // Before the deadline the gate is shut: nothing has loaded yet.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(CAPABILITIES_TIMEOUT_MS - 1);
+    });
+    expect(mockedApi.fetchCurrentObservation).not.toHaveBeenCalled();
+    expect(result.current.isLoading).toBe(true);
+
+    // Crossing the deadline aborts the hung fetch, which settles the gate.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+
+    expect(result.current.current).toEqual(baseObs);
+    expect(result.current.capabilities).toBeNull();
+    expect(result.current.error).toBeNull();
+    expect(mockedApi.fetchForecast).not.toHaveBeenCalled();
+  });
+
   it('retries fetchCapabilities on a poll tick after a failure, then stops once held', async () => {
     mockedApi.fetchCapabilities
       .mockRejectedValueOnce(new Error('capabilities down'))
@@ -360,6 +402,11 @@ describe('useWeatherData - isLoading with polling', () => {
 
     expect(result.current.capabilities).not.toBeNull();
     expect(mockedApi.fetchCapabilities).toHaveBeenCalledTimes(2);
+    // Guards the `=== true` comparisons behind forecastEnabled/almanacEnabled:
+    // this retry took capabilities from unknown to all-false, which must leave
+    // loadData's identity untouched. A truthiness check instead would flip
+    // undefined -> false, re-run the effect, and fire a second full load.
+    expect(mockedApi.fetchStationMeta).toHaveBeenCalledTimes(1);
 
     // A held document -- including an all-false one -- is never refetched.
     await act(async () => {

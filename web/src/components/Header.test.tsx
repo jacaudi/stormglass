@@ -61,6 +61,28 @@ describe('Header station location guard', () => {
     expect(document.querySelector('.station-location')).toBeNull();
   });
 
+  it('renders a placeholder rather than "undefinedm" when only elevation is missing', () => {
+    // hasCoordinates validates latitude/longitude only, so a response with
+    // coordinates but no elevation still reaches the elevation span.
+    const noElevation = {
+      station_id: 1,
+      name: 'Test',
+      latitude: 35.4676,
+      longitude: -97.5164,
+    } as unknown as StationMeta;
+
+    render(
+      <Header
+        station={noElevation}
+        status={null}
+        lastUpdated={null}
+        onSettingsClick={() => {}}
+      />
+    );
+
+    expect(document.querySelector('.station-location')?.textContent).not.toContain('undefined');
+  });
+
   it('renders the location line for a station with real coordinates', () => {
     const station = {
       station_id: 1,
