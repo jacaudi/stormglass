@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { fetchCurrentObservation, fetchStationStatus, fetchRecordsSummary } from './tempestApi';
+import { fetchCurrentObservation, fetchStationStatus, fetchRecordsSummary, fetchCapabilities } from './tempestApi';
 import tempestApiSource from './tempestApi.ts?raw';
 import { PrecipitationType, PressureTrend } from '../types/weather';
 import type { CurrentObservation, RecordsSummary } from '../types/weather';
@@ -164,5 +164,35 @@ describe('fetchRecordsSummary', () => {
 describe('module hygiene', () => {
   it('does not import the deleted stub data module', () => {
     expect(tempestApiSource).not.toMatch(/stubData/);
+  });
+});
+
+describe('fetchCapabilities', () => {
+  it('returns the capability document on 200', async () => {
+    const body = { forecast: true, radar: false, almanac: true };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => body,
+    }));
+
+    await expect(fetchCapabilities()).resolves.toEqual(body);
+    expect(fetch).toHaveBeenCalledWith('/api/capabilities', { signal: undefined });
+  });
+
+  it('rejects on a non-OK status so the caller can fail closed', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => ({}),
+    }));
+
+    await expect(fetchCapabilities()).rejects.toThrow('/api/capabilities responded with 500');
+  });
+
+  it('propagates a network error', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
+
+    await expect(fetchCapabilities()).rejects.toThrow('offline');
   });
 });

@@ -23,6 +23,7 @@ import type {
   StationAlmanac,
   RecordsSummary,
   RecordsWindowDays,
+  Capabilities,
 } from '../types/weather';
 
 // Single-sourced so the endpoint path used by a fetch* function and the one
@@ -34,6 +35,7 @@ const ENDPOINTS = {
   forecast: '/api/forecast',
   almanac: '/api/almanac',
   summary: '/api/observations/summary',
+  capabilities: '/api/capabilities',
 } as const;
 
 // A report older than this is treated as "station offline" by
@@ -130,4 +132,14 @@ export async function fetchRecordsSummary(
   signal?: AbortSignal
 ): Promise<RecordsSummary> {
   return getJSON<RecordsSummary>(`${ENDPOINTS.summary}?days=${days}`, signal);
+}
+
+// ---------------------------------------------------------------------------
+// Capabilities -- which optional cards the server has enabled
+// (GET /api/capabilities). Static, no dependencies server-side, so a failure
+// here means the server is unreachable rather than a feature being off; the
+// caller treats a rejection as "unknown" and fails closed.
+// ---------------------------------------------------------------------------
+export async function fetchCapabilities(signal?: AbortSignal): Promise<Capabilities> {
+  return getJSON<Capabilities>(ENDPOINTS.capabilities, signal);
 }

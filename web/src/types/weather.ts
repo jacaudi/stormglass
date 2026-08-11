@@ -150,3 +150,17 @@ export interface RecordsSummary {
   lightningTotal: number | null;
 }
 
+/**
+ * Which optional UI features the server has enabled (GET /api/capabilities).
+ *
+ * These three key names are an external contract with the Go server's
+ * `capabilities` struct (internal/httpserver/capabilities.go). Both sides are
+ * pinned to web/src/types/__fixtures__/capabilities.json — see
+ * capabilities.contract.test.ts. Issue #149 tracks generating one from the other.
+ */
+export interface Capabilities {
+  forecast: boolean;
+  radar: boolean;
+  almanac: boolean;
+}
+
