@@ -3,6 +3,8 @@ package postgres
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"net"
 	"sync"
 	"syscall"
@@ -182,6 +184,214 @@ func TestPostgresWriter_DrainOnClose(t *testing.T) {
 	}
 }
 
+// ctxHonoringObsInserter mirrors the real insertObservations' ctx-sensitivity,
+// the way fakeWindInserter does for rapid wind: a real pgx insert against an
+// already-canceled ctx fails immediately with context.Canceled, which
+// isRetryable classifies as non-retryable, so flushWithRetry drops the batch.
+// The plain fakeObsInserter above ignores ctx entirely, which is precisely why
+// TestPostgresWriter_DrainOnClose passed while the live-database
+// TestPostgresWriter_DrainOnClose_Integration lost rows (#111).
+//
+// attempts counts every row handed to the inserter whether or not the write
+// succeeded, so a test can wait until the worker has actually consumed the
+// channel instead of racing it.
+type ctxHonoringObsInserter struct {
+	mu       sync.Mutex
+	rows     []observationRow
+	attempts int
+}
+
+func (f *ctxHonoringObsInserter) insertObservations(ctx context.Context, batch []observationRow) error {
+	f.mu.Lock()
+	f.attempts += len(batch)
+	f.mu.Unlock()
+
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("insert observations: %w", err)
+	}
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.rows = append(f.rows, batch...)
+	return nil
+}
+
+func (f *ctxHonoringObsInserter) count() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.rows)
+}
+
+func (f *ctxHonoringObsInserter) attemptCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.attempts
+}
+
+// TestPostgresWriter_SteadyStateFlushSurvivesWriterCtxCancel proves the
+// steady-state observation flush does not depend on the writer's own ctx,
+// which SIGTERM cancels *before* Close is ever called in production.
+//
+// This is the unit-level counterpart to
+// TestPostgresWriter_DrainOnClose_Integration (#111) and covers a window the
+// existing drain tests do not: a row the worker has already taken off
+// obsBatch is no longer in the channel, so Close's drainChannel cannot
+// recover it. If its flush fails, the row is gone. Canceling the writer ctx
+// before the rows are enqueued makes that window deterministic — every row is
+// dequeued and flushed while w.ctx is dead — rather than depending on which
+// case a two-ready select happens to pick.
+//
+// Reverting batchObservations to flush with w.ctx makes this test fail.
+func TestPostgresWriter_SteadyStateFlushSurvivesWriterCtxCancel(t *testing.T) {
+	// SIGTERM has already canceled the shared context the writer was
+	// constructed with; Close has not been called yet.
+	workerCtx, cancelWorkerCtx := context.WithCancel(context.Background())
+	cancelWorkerCtx()
+
+	fake := &ctxHonoringObsInserter{}
+	w := &PostgresWriter{
+		obsBatch:      make(chan observationRow, 1000),
+		windBatch:     make(chan rapidWindRow, 1000),
+		hubBatch:      make(chan hubStatusRow, 1000),
+		eventBatch:    make(chan eventRow, 1000),
+		batchSize:     100,
+		flushInterval: time.Second,
+		maxRetries:    3,
+		ctx:           workerCtx,
+		done:          make(chan struct{}),
+		obsInserter:   fake,
+	}
+
+	w.wg.Add(1)
+	go w.batchObservations()
+
+	const wantRows = 50
+	for range wantRows {
+		w.obsBatch <- observationRow{serialNumber: "ST-STEADY-CANCEL"}
+	}
+
+	// Wait until the worker has consumed and attempted every row, so the
+	// assertion below measures the steady-state flush path rather than
+	// Close's drain silently rescuing rows the worker never reached.
+	deadline := time.Now().Add(5 * time.Second)
+	for fake.attemptCount() < wantRows {
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for worker to consume rows: attempted %d of %d",
+				fake.attemptCount(), wantRows)
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	closeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := w.Close(closeCtx); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	if got := fake.count(); got != wantRows {
+		t.Fatalf("expected %d rows persisted by the steady-state flush, got %d", wantRows, got)
+	}
+}
+
+// failFirstObsInserter fails its first insert with a RETRYABLE error (io.EOF,
+// which isRetryable treats as a transient connection drop) and succeeds on
+// every later attempt. It is the shape needed to reach flushWithRetry's
+// backoff sleep at all: a non-retryable error is dropped before the sleep,
+// which is why #111's reproduction never exercised this path.
+type failFirstObsInserter struct {
+	mu    sync.Mutex
+	calls int
+	rows  []observationRow
+}
+
+func (f *failFirstObsInserter) insertObservations(ctx context.Context, batch []observationRow) error {
+	f.mu.Lock()
+	f.calls++
+	isFirst := f.calls == 1
+	f.mu.Unlock()
+
+	if isFirst {
+		return fmt.Errorf("insert observations: %w", io.EOF)
+	}
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("insert observations: %w", err)
+	}
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.rows = append(f.rows, batch...)
+	return nil
+}
+
+func (f *failFirstObsInserter) callCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.calls
+}
+
+func (f *failFirstObsInserter) count() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.rows)
+}
+
+// TestPostgresWriter_RetryOutlivesWriterCtxCancel proves flushWithRetry does
+// not abandon a retryable flush just because the writer's own ctx is dead
+// (#153). Restarting Postgres and the exporter together produces exactly this
+// pairing: a transient connection error arriving while w.ctx is already
+// canceled. Gating the backoff sleep on w.ctx meant the first such failure
+// dropped the batch outright, at the moment durability matters most.
+//
+// Restoring the `case <-w.ctx.Done()` guard in flushWithRetry makes this fail.
+func TestPostgresWriter_RetryOutlivesWriterCtxCancel(t *testing.T) {
+	// SIGTERM has already canceled the shared context; Close has not run yet.
+	workerCtx, cancelWorkerCtx := context.WithCancel(context.Background())
+	cancelWorkerCtx()
+
+	fake := &failFirstObsInserter{}
+	w := &PostgresWriter{
+		obsBatch:      make(chan observationRow, 10),
+		windBatch:     make(chan rapidWindRow, 10),
+		hubBatch:      make(chan hubStatusRow, 10),
+		eventBatch:    make(chan eventRow, 10),
+		batchSize:     100,
+		flushInterval: time.Hour,
+		maxRetries:    3,
+		ctx:           workerCtx,
+		done:          make(chan struct{}),
+		obsInserter:   fake,
+	}
+
+	w.wg.Add(1)
+	go w.batchObservations()
+
+	w.obsBatch <- observationRow{serialNumber: "ST-RETRY"}
+
+	// Wait for the first (failing) attempt, so Close cannot rescue the row via
+	// its drain before the worker has even tried — which would pass the test
+	// without exercising the retry path at all.
+	deadline := time.Now().Add(5 * time.Second)
+	for fake.callCount() < 1 {
+		if time.Now().After(deadline) {
+			t.Fatal("timed out waiting for the first insert attempt")
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	// Close blocks in wg.Wait() until the worker finishes retrying, so no
+	// extra synchronisation is needed here.
+	closeCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if err := w.Close(closeCtx); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	if got := fake.count(); got != 1 {
+		t.Fatalf("expected the retry to persist the row, got %d rows after %d attempts",
+			got, fake.callCount())
+	}
+}
+
 // TestHandleObservationReport_NaNWetbulbYieldsNull proves a non-convergent
 // (physically impossible) observation stores SQL NULL for temp_wetbulb
 // rather than IEEE NaN. tempest_observations.temp_wetbulb is a nullable
@@ -222,9 +432,13 @@ func TestHandleObservationReport_NaNWetbulbYieldsNull(t *testing.T) {
 // fakeWindInserter is a test double for the windInserter seam, letting
 // TestPostgresWriter_ShutdownFlushesLocalBatchUnderCanceledWctx assert on the
 // worker's local in-flight batch without a live Postgres connection.
+// attempts counts every row handed to the inserter whether or not the write
+// succeeded, so a test can wait until the worker has actually flushed instead
+// of racing it.
 type fakeWindInserter struct {
-	mu   sync.Mutex
-	rows []rapidWindRow
+	mu       sync.Mutex
+	rows     []rapidWindRow
+	attempts int
 }
 
 // insertRapidWind mirrors the real insertRapidWind's ctx-sensitivity: a real
@@ -234,6 +448,10 @@ type fakeWindInserter struct {
 // would pass this test regardless of whether the shutdown flush used the
 // live or the canceled context, defeating the point of the test.
 func (f *fakeWindInserter) insertRapidWind(ctx context.Context, batch []rapidWindRow) error {
+	f.mu.Lock()
+	f.attempts += len(batch)
+	f.mu.Unlock()
+
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -247,6 +465,75 @@ func (f *fakeWindInserter) count() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return len(f.rows)
+}
+
+func (f *fakeWindInserter) attemptCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.attempts
+}
+
+// TestPostgresWriter_BatchFullFlushSurvivesWriterCtxCancel is the
+// accumulator-shaped counterpart to
+// TestPostgresWriter_SteadyStateFlushSurvivesWriterCtxCancel. batchRapidWind
+// and batchHubStatus flush on batch-full and on the ticker, and
+// flushWithRetry drops a batch that fails non-retryably — but the worker has
+// already truncated its local slice, so those rows are gone before Close ever
+// runs. A flush firing in the window after SIGTERM cancels w.ctx and before
+// Close is called must therefore not be bound to w.ctx (#111).
+//
+// Reverting batchRapidWind's batch-full flush to w.ctx makes this test fail.
+func TestPostgresWriter_BatchFullFlushSurvivesWriterCtxCancel(t *testing.T) {
+	// SIGTERM has already canceled the shared context; Close has not run yet.
+	workerCtx, cancelWorkerCtx := context.WithCancel(context.Background())
+	cancelWorkerCtx()
+
+	const wantRows = 5
+
+	fake := &fakeWindInserter{}
+	w := &PostgresWriter{
+		obsBatch:   make(chan observationRow, 10),
+		windBatch:  make(chan rapidWindRow, 10),
+		hubBatch:   make(chan hubStatusRow, 10),
+		eventBatch: make(chan eventRow, 10),
+		batchSize:  wantRows, // the wantRows-th row triggers the batch-full flush
+		// Long enough that the ticker never fires: this test is about the
+		// batch-full path specifically.
+		flushInterval: time.Hour,
+		maxRetries:    3,
+		ctx:           workerCtx,
+		done:          make(chan struct{}),
+		windInserter:  fake,
+	}
+
+	w.wg.Add(1)
+	go w.batchRapidWind()
+
+	for range wantRows {
+		w.windBatch <- rapidWindRow{serialNumber: "ST-BATCHFULL"}
+	}
+
+	// Wait for the batch-full flush to have been attempted, so the assertion
+	// measures that flush rather than Close's shutdown flush of a local slice
+	// the worker never got around to filling.
+	deadline := time.Now().Add(5 * time.Second)
+	for fake.attemptCount() < wantRows {
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for batch-full flush: attempted %d of %d",
+				fake.attemptCount(), wantRows)
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	closeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := w.Close(closeCtx); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	if got := fake.count(); got != wantRows {
+		t.Fatalf("expected %d rows persisted by the batch-full flush, got %d", wantRows, got)
+	}
 }
 
 // TestPostgresWriter_ShutdownFlushesLocalBatchUnderCanceledWctx proves the

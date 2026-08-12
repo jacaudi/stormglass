@@ -276,6 +276,16 @@ func (w *Writer) run(ctx context.Context) {
 		w.flushBatches(fctx, &obsBatch, &windBatch, &hubBatch, &evtBatch)
 	}
 
+	// The ordinary (non-shutdown) flushes below deliberately drop
+	// cancellation from ctx. Shutdown cancels ctx *before* Close runs, and
+	// flushBatches truncates each batch whether or not the insert succeeded —
+	// the insert helpers return nothing and only log — so a flush landing in
+	// that window destroys its rows outright, with no drain able to recover
+	// them (#154; the same defect as the postgres writer's #111). The
+	// <-w.done branch keeps using w.shutdownCtx, and an explicit Flush keeps
+	// using the request's own ctx, so both remain bounded by a live deadline.
+	steadyCtx := context.WithoutCancel(ctx)
+
 	ticker := time.NewTicker(w.flushInterval)
 	defer ticker.Stop()
 
@@ -295,11 +305,11 @@ func (w *Writer) run(ctx context.Context) {
 			obsBatch, windBatch, hubBatch, evtBatch = appendEnvelope(env, obsBatch, windBatch, hubBatch, evtBatch)
 			if len(obsBatch) >= w.batchSize || len(windBatch) >= w.batchSize ||
 				len(hubBatch) >= w.batchSize || len(evtBatch) >= w.batchSize {
-				flush(ctx)
+				flush(steadyCtx)
 			}
 
 		case <-ticker.C:
-			flush(ctx)
+			flush(steadyCtx)
 
 		case <-w.done:
 			// Drain whatever is still buffered in w.rows (non-blocking): the
