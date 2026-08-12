@@ -196,16 +196,35 @@ func NewPostgresWriter(ctx context.Context, databaseURL string) (*PostgresWriter
 func (w *PostgresWriter) batchObservations() {
 	defer w.wg.Done()
 
+	flushCtx := steadyStateFlushCtx(w.ctx)
+
 	for {
 		select {
 		case row := <-w.obsBatch:
 			// Immediate flush for observations
-			w.flushObservations(w.ctx, []observationRow{row})
+			w.flushObservations(flushCtx, []observationRow{row})
 
 		case <-w.done:
 			return
 		}
 	}
+}
+
+// steadyStateFlushCtx returns the context a batch worker must use for its
+// ordinary (non-shutdown) flushes. It deliberately drops cancellation from
+// w.ctx: SIGTERM cancels w.ctx *before* Close is called, and a row a worker
+// has already taken off its channel is no longer visible to Close's
+// drainChannel — so a flush that fails on the dead ctx loses that row
+// outright, with no second chance to recover it (#111). That is the same
+// failure the shutdownCtx field comment describes for the local in-flight
+// batch; the C-H1 fix only ever covered the <-w.done branch, leaving every
+// steady-state flush still bound to w.ctx.
+//
+// Detaching cancellation does not make a flush unbounded: every insert*
+// method derives its own context.WithTimeout, and flushWithRetry caps
+// attempts at w.maxRetries.
+func steadyStateFlushCtx(ctx context.Context) context.Context {
+	return context.WithoutCancel(ctx)
 }
 
 // closeBatchResults closes a pgx batch result set, logging any error.
@@ -278,6 +297,7 @@ func (w *PostgresWriter) batchRapidWind() {
 	defer w.wg.Done()
 
 	batch := make([]rapidWindRow, 0, w.batchSize)
+	flushCtx := steadyStateFlushCtx(w.ctx)
 	ticker := time.NewTicker(w.flushInterval)
 	defer ticker.Stop()
 
@@ -288,14 +308,14 @@ func (w *PostgresWriter) batchRapidWind() {
 
 			// Flush when batch is full
 			if len(batch) >= w.batchSize {
-				w.flushRapidWind(w.ctx, batch)
+				w.flushRapidWind(flushCtx, batch)
 				batch = batch[:0]
 			}
 
 		case <-ticker.C:
 			// Periodic flush
 			if len(batch) > 0 {
-				w.flushRapidWind(w.ctx, batch)
+				w.flushRapidWind(flushCtx, batch)
 				batch = batch[:0]
 			}
 
@@ -355,6 +375,7 @@ func (w *PostgresWriter) batchHubStatus() {
 	defer w.wg.Done()
 
 	batch := make([]hubStatusRow, 0, w.batchSize)
+	flushCtx := steadyStateFlushCtx(w.ctx)
 	ticker := time.NewTicker(w.flushInterval)
 	defer ticker.Stop()
 
@@ -363,13 +384,13 @@ func (w *PostgresWriter) batchHubStatus() {
 		case row := <-w.hubBatch:
 			batch = append(batch, row)
 			if len(batch) >= w.batchSize {
-				w.flushHubStatus(w.ctx, batch)
+				w.flushHubStatus(flushCtx, batch)
 				batch = batch[:0]
 			}
 
 		case <-ticker.C:
 			if len(batch) > 0 {
-				w.flushHubStatus(w.ctx, batch)
+				w.flushHubStatus(flushCtx, batch)
 				batch = batch[:0]
 			}
 
@@ -426,11 +447,13 @@ func (w *PostgresWriter) insertHubStatus(ctx context.Context, batch []hubStatusR
 func (w *PostgresWriter) batchEvents() {
 	defer w.wg.Done()
 
+	flushCtx := steadyStateFlushCtx(w.ctx)
+
 	for {
 		select {
 		case row := <-w.eventBatch:
 			// Immediate flush for events (critical)
-			w.flushEvents(w.ctx, []eventRow{row})
+			w.flushEvents(flushCtx, []eventRow{row})
 
 		case <-w.done:
 			return
