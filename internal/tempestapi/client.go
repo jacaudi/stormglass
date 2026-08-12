@@ -109,6 +109,7 @@ type Station struct {
 // stationsResponse is the /stations payload. ListStations and ListDevices
 // both decode into it, so the JSON contract lives in exactly one place.
 type stationsResponse struct {
+	statusEnvelope
 	Stations []struct {
 		CreatedEpoch int64 `json:"created_epoch"`
 		Devices      []struct {
@@ -119,10 +120,6 @@ type stationsResponse struct {
 		Name      string `json:"name"`
 		StationID int    `json:"station_id"`
 	} `json:"stations"`
-	Status struct {
-		StatusCode    int    `json:"status_code"`
-		StatusMessage string `json:"status_message"`
-	} `json:"status"`
 }
 
 // fetchStations performs the GET /stations call and validates the status
@@ -137,11 +134,8 @@ func (c *Client) fetchStations(ctx context.Context) (*stationsResponse, error) {
 	if err := json.Unmarshal(body, &data); err != nil {
 		return nil, err
 	}
-	if data.Status.StatusCode != 0 {
-		return nil, &StatusError{
-			StatusCode: data.Status.StatusCode,
-			Message:    data.Status.StatusMessage,
-		}
+	if err := data.err(); err != nil {
+		return nil, err
 	}
 	return &data, nil
 }
@@ -230,6 +224,14 @@ func (c *Client) ListStations(ctx context.Context) ([]Station, error) {
 // listener uses, so backfilled and live rows share one decode
 // implementation. station.SerialNumber is stamped onto the decoded report
 // because the API response itself carries no serial number.
+//
+// A non-zero WeatherFlow envelope status_code is an error here. That IS an
+// observable change for ModeAPIExport: main.go's export loop calls os.Exit(1)
+// on any error from this function, so a window that used to contribute zero
+// observations and continue now aborts the run. That is deliberate — the loop
+// already aborts on 401/429/5xx and on parse failures, so an application-level
+// failure joining that set is consistent, and a silently-empty export window
+// is the data loss this reports rather than hides.
 func (c *Client) GetObservations(ctx context.Context, station Station, startAt time.Time, endAt time.Time) ([]prometheus.Metric, error) {
 	url := fmt.Sprintf("%s/observations/device/%d?time_start=%d&time_end=%d", c.baseURL, station.DeviceID, startAt.Unix(), endAt.Unix())
 	// A non-200 response now surfaces as *StatusError rather than a plain
@@ -241,6 +243,21 @@ func (c *Client) GetObservations(ctx context.Context, station Station, startAt t
 	if err != nil {
 		return nil, err
 	}
+
+	// The envelope is checked BEFORE ParseReport, because ParseReport
+	// dispatches on the top-level "type" and cannot see status at all. Two
+	// distinct failures collapse into this one check: a status-only error
+	// envelope (no "type") used to surface as `unhandled message type: ""`,
+	// which no caller can classify, and a typed error envelope with an empty
+	// obs array used to surface as zero metrics and no error at all.
+	var env statusEnvelope
+	if err := json.Unmarshal(body, &env); err != nil {
+		return nil, fmt.Errorf("decode observation envelope: %w", err)
+	}
+	if err := env.err(); err != nil {
+		return nil, err
+	}
+
 	report, err := tempestudp.ParseReport(body)
 	if err != nil {
 		log.Printf("read %s", string(body))
