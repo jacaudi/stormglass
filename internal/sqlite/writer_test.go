@@ -1,6 +1,7 @@
 package sqlite
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"path/filepath"
@@ -468,6 +469,69 @@ func obsReport(serial string, ts int64, tempAir float64) *tempestudp.TempestObse
 		Obs: [][]float64{
 			{float64(ts), 1, 1, 1, 1, 1, 1013, tempAir, 50, 100, 1, 10, 0},
 		},
+	}
+}
+
+// TestWriter_BatchFullFlushSurvivesRunCtxCancel proves a batch-full flush is
+// not bound to the run ctx, which shutdown cancels before Close is called
+// (#154). flushBatches truncates each slice whether or not the insert
+// succeeded — the insert helpers return nothing and only log — so a flush
+// that fails on a dead ctx destroys those rows before Close's drain can see
+// them. This is the SQLite counterpart to
+// TestPostgresWriter_BatchFullFlushSurvivesWriterCtxCancel (#111).
+//
+// Reverting run's batch-full flush to the run ctx makes this fail.
+func TestWriter_BatchFullFlushSurvivesRunCtxCancel(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "batchfull.db")
+	db, err := Open(t.Context(), dbPath, Config{BusyTimeout: 5000 * time.Millisecond})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("close db: %v", err)
+		}
+	}()
+
+	// SIGTERM has already canceled the context the writer runs under; Close
+	// has not been called yet. WriteReport below still carries a live ctx,
+	// mirroring a producer that has not noticed shutdown.
+	runCtx, cancelRunCtx := context.WithCancel(context.Background())
+
+	const n = 5
+	// FlushInterval never fires, so the only flush before Close is the
+	// batch-full one the n-th row triggers.
+	w := NewWriter(runCtx, db, Config{BatchSize: n, FlushInterval: time.Hour})
+
+	cancelRunCtx()
+
+	for i := range n {
+		if err := w.WriteReport(t.Context(), obsReport("ST-BATCHFULL", 1700000200+int64(i), 20)); err != nil {
+			t.Fatalf("WriteReport %d: %v", i, err)
+		}
+	}
+
+	// Flush is a control message on the same channel the rows travel, so FIFO
+	// ordering guarantees all n rows — and therefore the batch-full flush they
+	// triggered — have already been handled when this returns. By then the
+	// local batches are empty, so this Flush itself writes nothing; it is a
+	// barrier, not the thing under test.
+	if err := w.Flush(t.Context()); err != nil {
+		t.Fatalf("Flush: %v", err)
+	}
+
+	var count int
+	if err := db.QueryRowContext(t.Context(),
+		`SELECT COUNT(*) FROM tempest_observations WHERE serial_number = ?`,
+		"ST-BATCHFULL").Scan(&count); err != nil {
+		t.Fatalf("count observations: %v", err)
+	}
+	if count != n {
+		t.Fatalf("expected %d rows persisted by the batch-full flush, got %d", n, count)
+	}
+
+	if err := w.Close(t.Context()); err != nil {
+		t.Fatalf("Close: %v", err)
 	}
 }
 
