@@ -13,14 +13,25 @@ Multi-backend data utilities for Tempest weather stations. The application opera
 
 ### The CI contract
 
-`task ci` is the whole gate, and it is exactly what CI runs — `ci-test.yml`
-invokes `task ci` and nothing else. If a check cannot be run locally with this
-command, it does not belong in a workflow.
+`task ci` is the whole *static* gate: `ci-test.yml` invokes `task ci` and
+nothing else. Every check it runs must be runnable locally with that one
+command — a check that cannot be is not allowed to live only in a workflow.
+
+The image-shaped stages are the deliberate exception, because a container
+build is not something to put in front of every local run. Each still has a
+named local equivalent, and CI runs the stage rather than the task:
+
+| CI stage | Local equivalent |
+|---|---|
+| `ci-build.yml` (application image) | `task build-local` |
+| `ci-smoke.yml` (boot the built image) | `IMAGE=… task smoke` |
+| `ci-radar.yml` (radar sidecar image) | `task radar-build` |
 
 ```bash
-task ci          # everything CI runs: lint, format, tidy, vuln, tests, node
+task ci          # everything the test stage runs: lint, format, tidy, vuln, tests, node, python
 task lint        # static checks only
 task test        # tests only
+task radar-build # compile the radar sidecar image
 task --list      # every available target
 ```
 

@@ -93,6 +93,20 @@ tasks:
           || { echo "::error::serves /healthz but not the embedded UI at /"; exit 1; }
         echo "ok: embedded UI served"
 
+  # The local equivalent of the ci-radar stage, paired with it exactly as
+  # build-local is paired with ci-build. Deliberately not part of `task ci`:
+  # cartopy and arm-pyart compile from source, so a cold build is minutes, and
+  # CI gets that back through its layer cache in a way a local run cannot.
+  #
+  # No --platform: on an arm64 workstation, forcing linux/amd64 runs the
+  # compile under QEMU, where cc1 reproducibly dies with an internal compiler
+  # error. Building natively is both the fast path and the honest one; CI
+  # runners are native linux/amd64, which is the arch that actually ships.
+  radar-build:
+    desc: Build the radar sidecar image locally (build-only; never pushed)
+    cmds:
+      - docker build -f radar/Dockerfile -t tempestwx-radar:local radar/
+
   # Retained from the pre-migration taskfile: the local image build is not part
   # of the CI contract but is the documented way to build by hand (CLAUDE.md).
   build-local:
