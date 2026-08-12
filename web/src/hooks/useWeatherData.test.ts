@@ -447,6 +447,28 @@ describe('useWeatherData - records summary', () => {
     expect(mockedApi.fetchRecordsSummary).toHaveBeenNthCalledWith(2, 30, expect.any(AbortSignal));
   });
 
+  it('re-fetches the summary when refresh() is called', async () => {
+    setupCoreMocks();
+    const before: RecordsSummary = { ...baseSummary, rainTotal: 5 };
+    const after: RecordsSummary = { ...baseSummary, rainTotal: 9 };
+    mockedApi.fetchRecordsSummary.mockResolvedValueOnce(before).mockResolvedValueOnce(after);
+
+    const { result } = renderHook(() => useWeatherData());
+
+    await waitFor(() => expect(result.current.summary).toEqual(before));
+    expect(mockedApi.fetchRecordsSummary).toHaveBeenCalledTimes(1);
+
+    result.current.refresh();
+
+    // The manual Refresh button must cover the Records card too. Without this
+    // the card silently holds page-load extremes -- a storm's rain total and
+    // lightning count never move, and coveredTo freezes -- while every live
+    // card around it updates.
+    await waitFor(() => expect(result.current.summary).toEqual(after));
+    expect(mockedApi.fetchRecordsSummary).toHaveBeenCalledTimes(2);
+    expect(mockedApi.fetchRecordsSummary).toHaveBeenNthCalledWith(2, 7, expect.any(AbortSignal));
+  });
+
   it('retains the prior summary when a refetch after a window change fails (stale-retain)', async () => {
     setupCoreMocks();
     mockedApi.fetchRecordsSummary
