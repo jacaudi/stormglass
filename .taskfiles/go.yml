@@ -45,7 +45,17 @@ tasks:
   test:
     desc: Run tests with the race detector
     cmds:
-      - go test ./... -race
+      # -tags integration is a SUPERSET, not a switch: untagged files always
+      # compile, so this runs the standard suite plus the //go:build
+      # integration files. It was previously omitted because the tagged suite
+      # held the known-failing drain-on-close test (#111); with that fixed,
+      # leaving it off is what let a real row-loss bug sit red and unseen.
+      #
+      # The tagged tests self-guard on POSTGRES_URL and skip when it is unset,
+      # so this stays runnable locally with no database — and CI already
+      # provides one (see ci-test.yml's postgres service), which is why
+      # enabling this costs no new infrastructure.
+      - go test ./... -race -tags integration
 
   build:
     desc: Build binaries into ./bin/

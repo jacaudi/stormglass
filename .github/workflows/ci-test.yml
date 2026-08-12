@@ -22,9 +22,10 @@ jobs:
     services:
       # The Postgres-backed tests in internal/postgres are guarded on
       # POSTGRES_URL and skip without it, so without this the Postgres half of
-      # the store is asserted by nothing. Only the standard untagged suite runs
-      # -- `-tags integration` is deliberately not enabled, because it holds the
-      # known-failing drain-on-close test (#111).
+      # the store is asserted by nothing. `task test` now also passes
+      # `-tags integration`, so the drain-on-close test (#111) runs here too --
+      # it was excluded while it was known-failing, which is precisely how a
+      # real row-loss bug stayed red and invisible for months.
       #
       # `services:` is a job-level key, so a composite action cannot declare
       # one. Before this migration that forced the block to be triplicated
