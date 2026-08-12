@@ -60,6 +60,17 @@ jobs:
   test:
     uses: ./.github/workflows/ci-test.yml
 
+  # Compiles radar/Dockerfile. `task ci` lints it with hadolint and runs the
+  # sidecar's pytest suite, but nothing ever built it — so a change touching
+  # only radar/ got a green `ci` with no evidence the image still builds.
+  # That is exactly how #73 bumped the base image to python:3.14-slim and
+  # merged (4cca78b) having never been compiled (#137).
+  #
+  # Independent of `context`: this is a code check like `test`, not an image
+  # publish, so it runs on every push rather than only when a PR is open.
+  radar:
+    uses: ./.github/workflows/ci-radar.yml
+
   # The GHCR jobs (build/smoke and their release twins) deliberately do NOT
   # receive APP_ID/APP_PRIVATE_KEY, so they authenticate with GITHUB_TOKEN.
   #
@@ -145,7 +156,7 @@ jobs:
     # `context` MUST be here. Without it, a failing context skips build and
     # smoke, this gate accepts `skipped`, and the required check goes GREEN on a
     # PR whose image was never built or tested.
-    needs: [context, test, build, smoke]
+    needs: [context, test, radar, build, smoke]
     if: ${{ !cancelled() }}   # required: else this is SKIPPED on failure, which can satisfy protection
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -154,12 +165,17 @@ jobs:
         env:
           CONTEXT: ${{ needs.context.result }}
           TEST: ${{ needs.test.result }}
+          RADAR: ${{ needs.radar.result }}
           BUILD: ${{ needs.build.result }}
           SMOKE: ${{ needs.smoke.result }}
         run: |
           set -euo pipefail
           fail=0
-          for stage in context:"${CONTEXT}" test:"${TEST}"; do
+          # radar sits in the must-succeed tier, not the may-skip one: it has
+          # no `if:` and no path filter, so anything other than success is a
+          # real failure. Adding it to `needs` without asserting it here would
+          # recreate the silent green #137 is about.
+          for stage in context:"${CONTEXT}" test:"${TEST}" radar:"${RADAR}"; do
             name="${stage%%:*}"; result="${stage##*:}"
             printf '%-8s %s (must be success)\n' "${name}" "${result}"
             [ "${result}" = "success" ] || fail=1

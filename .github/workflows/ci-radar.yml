@@ -1,0 +1,56 @@
+# Stage e — compiles radar/Dockerfile so a radar-only change cannot go green untested (#137).
+name: ci-radar
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  radar:
+    name: build radar image
+    runs-on: ubuntu-latest
+    # cartopy and arm-pyart are compiled from source against GEOS/PROJ; a cold
+    # cache is several minutes. 30 leaves headroom while capping a hang well
+    # under GitHub's 6-hour default, matching ci-build.yml's reasoning.
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      # Build only — deliberately never pushed. The radar sidecar is opt-in
+      # (deploy/docker-compose.yml's `radar` profile), so nothing consumes a
+      # published radar image today; the requirement in #137 is that the
+      # Dockerfile is *compiled*, not that it is distributed.
+      #
+      # This is also why it is NOT a second ci-build.yml call: that stage
+      # hardcodes `push: true` and defaults its image name to
+      # ghcr.io/<owner>/<repo>, so calling it for radar would publish the
+      # sidecar OVER the main application image's `latest` and `sha` tags.
+      #
+      # No QEMU and no `platforms:` — ubuntu-latest is native linux/amd64, so
+      # the single arch this needs comes for free. Emulating the arm64 leg
+      # would be both slow and unreliable for this image: compiling
+      # arm-pyart's C extensions under QEMU reproducibly crashes cc1 with an
+      # internal compiler error, which is an emulation artifact rather than a
+      # real dependency failure (it compiles cleanly on native hardware).
+      - name: Build radar image
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: radar
+          file: radar/Dockerfile
+          push: false
+          # Restores the compiled scientific-Python layers when radar/ is
+          # unchanged, so this stage costs seconds on the pushes that do not
+          # touch it. That is what makes running on every push affordable, and
+          # it is why there is no path filter here: a filter would add a
+          # `skipped` result the `ci` gate must then accept, which is the same
+          # silent-green hole #137 exists to close.
+          cache-from: type=gha
+          cache-to: type=gha,mode=min
