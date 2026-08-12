@@ -95,6 +95,13 @@ export function useWeatherData(
   const [isStale, setIsStale] = useState(false);
   const [capabilities, setCapabilities] = useState<Capabilities | null>(null);
   const [capsSettled, setCapsSettled] = useState(false);
+  // Bumped by refresh() to re-run the records-summary effect below. The
+  // summary is not part of loadData's request set (it is keyed on window, not
+  // stationId, and reads the local store rather than the WeatherFlow proxy),
+  // so a counter in that effect's dependency array is what lets the manual
+  // Refresh button reach it -- while leaving the effect's own per-run
+  // AbortController and stale-retain behaviour exactly as they were.
+  const [summaryNonce, setSummaryNonce] = useState(0);
 
   // Stable booleans, NOT `capabilities?.forecast === true` inline in a
   // dependency array -- a computed expression there is an eslint error
@@ -275,9 +282,13 @@ export function useWeatherData(
 
   // Records summary is a separate, slow-moving slice (a 7-365 day
   // aggregate read from the local store, keyed on window not stationId) --
-  // it has its own trigger (the window pref changing), not the 30s poll or
-  // loadData's stationId-keyed refresh, so it gets its own controller and
-  // effect rather than sharing abortRef/loadData.
+  // it has its own triggers, not the 30s poll, so it gets its own controller
+  // and effect rather than sharing abortRef/loadData.
+  //
+  // Two triggers: the window pref changing, and refresh() bumping
+  // summaryNonce. It stays off the 30s poll deliberately -- a multi-day
+  // aggregate does not move on a 30s cadence, and re-running this scan every
+  // tick would put load on the store for nothing.
   useEffect(() => {
     const controller = new AbortController();
     const { signal } = controller;
@@ -295,7 +306,7 @@ export function useWeatherData(
     })();
 
     return () => controller.abort();
-  }, [recordsWindowDays]);
+  }, [recordsWindowDays, summaryNonce]);
 
   // Accepted wrinkle: if capabilities were unknown, the user presses Retry, and
   // the capability re-attempt then SUCCEEDS, the enabled-flags flip changes
@@ -305,6 +316,10 @@ export function useWeatherData(
   const refresh = useCallback(() => {
     if (capabilities === null) loadCapabilities();
     loadData();
+    // Re-runs the records-summary effect. Without this the Records card is the
+    // one slice the Refresh button does not reach, so it holds page-load
+    // extremes -- and coveredTo -- for the lifetime of the tab (issue #89).
+    setSummaryNonce((n) => n + 1);
   }, [capabilities, loadCapabilities, loadData]);
 
   return {
