@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"sync"
 	"syscall"
@@ -289,6 +290,105 @@ func TestPostgresWriter_SteadyStateFlushSurvivesWriterCtxCancel(t *testing.T) {
 
 	if got := fake.count(); got != wantRows {
 		t.Fatalf("expected %d rows persisted by the steady-state flush, got %d", wantRows, got)
+	}
+}
+
+// failFirstObsInserter fails its first insert with a RETRYABLE error (io.EOF,
+// which isRetryable treats as a transient connection drop) and succeeds on
+// every later attempt. It is the shape needed to reach flushWithRetry's
+// backoff sleep at all: a non-retryable error is dropped before the sleep,
+// which is why #111's reproduction never exercised this path.
+type failFirstObsInserter struct {
+	mu    sync.Mutex
+	calls int
+	rows  []observationRow
+}
+
+func (f *failFirstObsInserter) insertObservations(ctx context.Context, batch []observationRow) error {
+	f.mu.Lock()
+	f.calls++
+	isFirst := f.calls == 1
+	f.mu.Unlock()
+
+	if isFirst {
+		return fmt.Errorf("insert observations: %w", io.EOF)
+	}
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("insert observations: %w", err)
+	}
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.rows = append(f.rows, batch...)
+	return nil
+}
+
+func (f *failFirstObsInserter) callCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.calls
+}
+
+func (f *failFirstObsInserter) count() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.rows)
+}
+
+// TestPostgresWriter_RetryOutlivesWriterCtxCancel proves flushWithRetry does
+// not abandon a retryable flush just because the writer's own ctx is dead
+// (#153). Restarting Postgres and the exporter together produces exactly this
+// pairing: a transient connection error arriving while w.ctx is already
+// canceled. Gating the backoff sleep on w.ctx meant the first such failure
+// dropped the batch outright, at the moment durability matters most.
+//
+// Restoring the `case <-w.ctx.Done()` guard in flushWithRetry makes this fail.
+func TestPostgresWriter_RetryOutlivesWriterCtxCancel(t *testing.T) {
+	// SIGTERM has already canceled the shared context; Close has not run yet.
+	workerCtx, cancelWorkerCtx := context.WithCancel(context.Background())
+	cancelWorkerCtx()
+
+	fake := &failFirstObsInserter{}
+	w := &PostgresWriter{
+		obsBatch:      make(chan observationRow, 10),
+		windBatch:     make(chan rapidWindRow, 10),
+		hubBatch:      make(chan hubStatusRow, 10),
+		eventBatch:    make(chan eventRow, 10),
+		batchSize:     100,
+		flushInterval: time.Hour,
+		maxRetries:    3,
+		ctx:           workerCtx,
+		done:          make(chan struct{}),
+		obsInserter:   fake,
+	}
+
+	w.wg.Add(1)
+	go w.batchObservations()
+
+	w.obsBatch <- observationRow{serialNumber: "ST-RETRY"}
+
+	// Wait for the first (failing) attempt, so Close cannot rescue the row via
+	// its drain before the worker has even tried — which would pass the test
+	// without exercising the retry path at all.
+	deadline := time.Now().Add(5 * time.Second)
+	for fake.callCount() < 1 {
+		if time.Now().After(deadline) {
+			t.Fatal("timed out waiting for the first insert attempt")
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	// Close blocks in wg.Wait() until the worker finishes retrying, so no
+	// extra synchronisation is needed here.
+	closeCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if err := w.Close(closeCtx); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	if got := fake.count(); got != 1 {
+		t.Fatalf("expected the retry to persist the row, got %d rows after %d attempts",
+			got, fake.callCount())
 	}
 }
 

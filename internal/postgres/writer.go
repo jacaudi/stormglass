@@ -237,7 +237,7 @@ func closeBatchResults(br pgx.BatchResults) {
 }
 
 func (w *PostgresWriter) flushObservations(ctx context.Context, batch []observationRow) {
-	w.flushWithRetry(func() error {
+	w.flushWithRetry(ctx, func() error {
 		return w.obsInserter.insertObservations(ctx, batch)
 	}, "tempest_observations", len(batch))
 }
@@ -334,7 +334,7 @@ func (w *PostgresWriter) batchRapidWind() {
 }
 
 func (w *PostgresWriter) flushRapidWind(ctx context.Context, batch []rapidWindRow) {
-	w.flushWithRetry(func() error {
+	w.flushWithRetry(ctx, func() error {
 		return w.windInserter.insertRapidWind(ctx, batch)
 	}, "tempest_rapid_wind", len(batch))
 }
@@ -407,7 +407,7 @@ func (w *PostgresWriter) batchHubStatus() {
 }
 
 func (w *PostgresWriter) flushHubStatus(ctx context.Context, batch []hubStatusRow) {
-	w.flushWithRetry(func() error {
+	w.flushWithRetry(ctx, func() error {
 		return w.insertHubStatus(ctx, batch)
 	}, "tempest_hub_status", len(batch))
 }
@@ -462,7 +462,7 @@ func (w *PostgresWriter) batchEvents() {
 }
 
 func (w *PostgresWriter) flushEvents(ctx context.Context, batch []eventRow) {
-	w.flushWithRetry(func() error {
+	w.flushWithRetry(ctx, func() error {
 		return w.insertEvents(ctx, batch)
 	}, "tempest_events", len(batch))
 }
@@ -882,8 +882,17 @@ func (w *PostgresWriter) Flush(ctx context.Context) error {
 	return nil
 }
 
-// flushWithRetry implements exponential backoff retry logic
-func (w *PostgresWriter) flushWithRetry(flushFn func() error, tableName string, batchSize int) {
+// flushWithRetry implements exponential backoff retry logic.
+//
+// ctx must be the same context the caller hands to flushFn's insert, and is
+// deliberately NOT w.ctx: SIGTERM cancels w.ctx before Close runs, so gating
+// the backoff sleep on it abandoned the first retryable failure that arrived
+// during shutdown and dropped the batch (#153) — the moment durability
+// matters most. Threading the caller's ctx makes the bound follow the flush:
+// steady-state flushes carry the cancellation-detached ctx and back off
+// normally, while a shutdown flush carries Close's ctx and so is bounded by
+// the cleanup deadline instead of aborting instantly.
+func (w *PostgresWriter) flushWithRetry(ctx context.Context, flushFn func() error, tableName string, batchSize int) {
 	backoff := time.Second
 	maxBackoff := 30 * time.Second
 
@@ -909,7 +918,7 @@ func (w *PostgresWriter) flushWithRetry(flushFn func() error, tableName string, 
 
 		// Check if context is still valid before sleeping
 		select {
-		case <-w.ctx.Done():
+		case <-ctx.Done():
 			log.Printf("postgres: context cancelled during retry for %s, dropping batch", tableName)
 			return
 		case <-time.After(backoff):
