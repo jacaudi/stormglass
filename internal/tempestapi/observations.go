@@ -23,10 +23,7 @@ import (
 // array for ObservationSet, so a response may legitimately omit both `type`
 // and `obs` — that is an empty window, not an error.
 type observationSet struct {
-	Status struct {
-		StatusCode    int    `json:"status_code"`
-		StatusMessage string `json:"status_message"`
-	} `json:"status"`
+	statusEnvelope
 	Obs [][]*float64 `json:"obs"`
 }
 
@@ -103,11 +100,8 @@ func (c *Client) Observations(ctx context.Context, station Station, start, end t
 	// A non-zero status_code is a real, non-transient API failure. A zero
 	// status_code with an absent/null/empty obs is an empty window: zero
 	// rows, no error.
-	if set.Status.StatusCode != 0 {
-		return nil, &StatusError{
-			StatusCode: set.Status.StatusCode,
-			Message:    set.Status.StatusMessage,
-		}
+	if err := set.err(); err != nil {
+		return nil, err
 	}
 
 	// at returns ob[i] when the tuple is long enough, nil otherwise. This is

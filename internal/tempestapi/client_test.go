@@ -811,6 +811,55 @@ func TestClient_ChecksStatusCode(t *testing.T) {
 	}
 }
 
+// GetObservations must classify a non-zero WeatherFlow envelope status_code as
+// a *StatusError, exactly as fetchStations and Observations already do.
+//
+// Both response shapes are covered deliberately, because they fail differently
+// today and only one of them matches the way issue #49 describes the gap:
+// without the top-level "type" discriminator ParseReport already rejects the
+// body, but with it the envelope is ignored and the caller sees zero metrics
+// and no error.
+func TestGetObservations_APIStatusFailure_ClassifiesAsStatusError(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{
+			name: "status-only envelope",
+			body: `{"status":{"status_code":2,"status_message":"BAD TOKEN"}}`,
+		},
+		{
+			name: "typed envelope with empty obs",
+			body: `{"type":"obs_st","status":{"status_code":2,"status_message":"BAD TOKEN"},"obs":[]}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, _ = w.Write([]byte(tt.body))
+			}))
+			t.Cleanup(srv.Close)
+			c := NewClient("test-token", WithBaseURL(srv.URL))
+
+			station := Station{DeviceID: 1, SerialNumber: "ST-1"}
+			_, err := c.GetObservations(t.Context(), station, time.Unix(0, 0), time.Unix(60, 0))
+			if err == nil {
+				t.Fatal("GetObservations() error = nil, want a *StatusError for non-zero status_code")
+			}
+			var se *StatusError
+			if !errors.As(err, &se) {
+				t.Fatalf("GetObservations() error = %v (%T), want errors.As to find a *StatusError", err, err)
+			}
+			if se.StatusCode != 2 {
+				t.Errorf("StatusError.StatusCode = %d, want 2", se.StatusCode)
+			}
+			if se.Message != "BAD TOKEN" {
+				t.Errorf("StatusError.Message = %q, want %q", se.Message, "BAD TOKEN")
+			}
+		})
+	}
+}
+
 func TestListDevicesReturnsEverySTDevice(t *testing.T) {
 	// One station, TWO Tempest sensors, plus a hub that must be ignored.
 	body := `{"status":{"status_code":0,"status_message":"SUCCESS"},"stations":[{

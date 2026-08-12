@@ -28,3 +28,33 @@ func (e *StatusError) Error() string {
 	}
 	return fmt.Sprintf("weatherflow API status %d", e.HTTPStatus)
 }
+
+// statusEnvelope is WeatherFlow's application-level status wrapper, carried by
+// every REST response this client decodes. It is declared once rather than
+// per response type because the wire shape and the rule applied to it are a
+// single piece of knowledge — if WeatherFlow renamed either field, or changed
+// what a non-zero code means, all three decode sites would have to change
+// together to stay correct.
+//
+// Embed it in a response struct; encoding/json promotes the tagged field, so
+// the decoded JSON shape is unchanged.
+type statusEnvelope struct {
+	Status struct {
+		StatusCode    int    `json:"status_code"`
+		StatusMessage string `json:"status_message"`
+	} `json:"status"`
+}
+
+// err reports the envelope as a *StatusError when WeatherFlow signalled an
+// application-level failure, and nil otherwise. A zero status_code — including
+// a response that omits the envelope entirely — is a success, because an empty
+// observation window is a legitimate answer rather than an error.
+func (e statusEnvelope) err() error {
+	if e.Status.StatusCode == 0 {
+		return nil
+	}
+	return &StatusError{
+		StatusCode: e.Status.StatusCode,
+		Message:    e.Status.StatusMessage,
+	}
+}
