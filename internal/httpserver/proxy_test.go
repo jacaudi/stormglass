@@ -14,11 +14,15 @@ import (
 
 // testDepsWithWeatherFlow returns a Deps wired to wf (the WeatherFlow client
 // or fake), with the same hermetic in-memory static filesystem the other
-// httpserver tests use.
+// httpserver tests use. Forecast and Almanac are enabled here because this
+// helper exists to exercise the proxy handlers -- a test that wants them off
+// sets the field back to false on the returned value.
 func testDepsWithWeatherFlow(wf WeatherFlowProxy) Deps {
 	return Deps{
 		StaticFS:    fstest.MapFS{"index.html": {Data: []byte("<html>fake index</html>")}},
 		WeatherFlow: wf,
+		Forecast:    true,
+		Almanac:     true,
 	}
 }
 
@@ -148,5 +152,69 @@ func TestProxy_NilWeatherFlow(t *testing.T) {
 		if rec.Code != http.StatusServiceUnavailable {
 			t.Fatalf("GET %s (nil WeatherFlow) = %d, want 503", ep, rec.Code)
 		}
+	}
+}
+
+// TestProxy_DisabledRoutesAreNotRegistered proves a disabled feature 404s
+// rather than proxying: registerProxy skips the route, and the reserved
+// /api/ prefix in registerStatic turns the miss into a 404 (server.go:161).
+// /api/station is unaffected -- it is not gated and backs no optional card.
+func TestProxy_DisabledRoutesAreNotRegistered(t *testing.T) {
+	upstreamCalled := false
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamCalled = true
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"forecast":{"daily":[]}}`))
+	}))
+	defer upstream.Close()
+
+	deps := testDepsWithWeatherFlow(tempestapi.NewClient("tok", tempestapi.WithBaseURL(upstream.URL)))
+	deps.Forecast = false
+	deps.Almanac = false
+	srv := New(deps)
+
+	for _, ep := range []string{"/api/forecast", "/api/almanac"} {
+		rec := httptest.NewRecorder()
+		srv.Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, ep, nil))
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("GET %s (disabled) = %d, want 404", ep, rec.Code)
+		}
+	}
+
+	if upstreamCalled {
+		t.Error("a disabled route reached WeatherFlow; it must not make an upstream call")
+	}
+
+	rec := httptest.NewRecorder()
+	srv.Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/station", nil))
+	if rec.Code != http.StatusOK {
+		t.Errorf("GET /api/station = %d, want 200 -- station is never gated", rec.Code)
+	}
+}
+
+// TestProxy_EnabledRoutesIndependently proves the two flags are independent:
+// enabling only one must not register the other.
+func TestProxy_EnabledRoutesIndependently(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"forecast":{"daily":[]}}`))
+	}))
+	defer upstream.Close()
+
+	deps := testDepsWithWeatherFlow(tempestapi.NewClient("tok", tempestapi.WithBaseURL(upstream.URL)))
+	deps.Forecast = true
+	deps.Almanac = false
+	srv := New(deps)
+
+	rec := httptest.NewRecorder()
+	srv.Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/forecast", nil))
+	if rec.Code != http.StatusOK {
+		t.Errorf("GET /api/forecast (enabled) = %d, want 200", rec.Code)
+	}
+
+	rec = httptest.NewRecorder()
+	srv.Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/almanac", nil))
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("GET /api/almanac (disabled) = %d, want 404", rec.Code)
 	}
 }

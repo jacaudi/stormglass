@@ -1,5 +1,5 @@
 import type { StationMeta, StationStatus } from '../types/weather';
-import { formatCoord } from './formatCoord';
+import { formatCoord, hasCoordinates } from './formatCoord';
 
 interface HeaderProps {
   station: StationMeta | null;
@@ -29,10 +29,12 @@ export function Header({ station, status, lastUpdated, isStale, onSettingsClick 
           </span>
           {station?.name ?? 'Tempest Station'}
         </h1>
-        {station && (
+        {hasCoordinates(station) && (
           <span className="station-location">
             {formatCoord(station.latitude, station.longitude)}
-            &middot; {station.elevation}m
+            {/* hasCoordinates validates lat/lon only -- a response carrying
+                coordinates but no elevation would otherwise render "undefinedm". */}
+            &middot; {station.elevation ?? '—'}m
           </span>
         )}
       </div>

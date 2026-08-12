@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { formatCoord } from './formatCoord';
 import { Header } from './Header';
+import type { StationMeta } from '../types/weather';
 
 describe('formatCoord', () => {
   it('renders a northern, western station as N/W', () => {
@@ -37,5 +38,77 @@ describe('Header stale indicator (M6a)', () => {
   it('does not render a stale indicator when isStale is false', () => {
     render(<Header {...baseProps} isStale={false} />);
     expect(screen.queryByText(/stale/i)).not.toBeInTheDocument();
+  });
+});
+
+describe('Header station location guard', () => {
+  it('renders no location line when the station has no usable coordinates', () => {
+    // /api/station answers an empty bearer with a 200 and WeatherFlow's status
+    // envelope, so `station` is truthy but has no fields. Rendering it produced
+    // "NaN°N, NaN°E · m".
+    const envelopeOnly = { status: { status_code: 0 } } as unknown as StationMeta;
+
+    render(
+      <Header
+        station={envelopeOnly}
+        status={null}
+        lastUpdated={null}
+        onSettingsClick={() => {}}
+      />
+    );
+
+    expect(screen.queryByText(/NaN/)).toBeNull();
+    expect(document.querySelector('.station-location')).toBeNull();
+  });
+
+  it('renders a placeholder rather than "undefinedm" when only elevation is missing', () => {
+    // hasCoordinates validates latitude/longitude only, so a response with
+    // coordinates but no elevation still reaches the elevation span. React
+    // renders `undefined` as nothing (not the string "undefined"), so a
+    // not-toContain('undefined') assertion here could never fail -- it
+    // asserts a positive presence of the `?? '—'` fallback instead.
+    const noElevation = {
+      station_id: 1,
+      name: 'Test',
+      latitude: 35.4676,
+      longitude: -97.5164,
+    } as unknown as StationMeta;
+
+    render(
+      <Header
+        station={noElevation}
+        status={null}
+        lastUpdated={null}
+        onSettingsClick={() => {}}
+      />
+    );
+
+    expect(document.querySelector('.station-location')?.textContent).toContain('—m');
+  });
+
+  it('renders the location line for a station with real coordinates', () => {
+    const station = {
+      station_id: 1,
+      name: 'Test',
+      latitude: 35.4676,
+      longitude: -97.5164,
+      elevation: 361,
+      timezone: 'America/Chicago',
+      firmware_revision: '1',
+      serial_number: 'ST-1',
+      device_id: 2,
+    } satisfies StationMeta;
+
+    render(
+      <Header
+        station={station}
+        status={null}
+        lastUpdated={null}
+        onSettingsClick={() => {}}
+      />
+    );
+
+    expect(document.querySelector('.station-location')).not.toBeNull();
+    expect(screen.queryByText(/NaN/)).toBeNull();
   });
 });

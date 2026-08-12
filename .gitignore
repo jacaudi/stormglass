@@ -80,6 +80,10 @@ deploy/.env
 # Agent scaffolding
 .superpowers/
 docs/prompts/
+# Implementation plans are local-only going forward. The plans already tracked
+# under this path predate the rule and were deliberately left in place -- adding
+# the ignore does not untrack them, so both regimes coexist by design.
+docs/plans/
 .auto-claude/
 
 # UI screenshots (local scratch)
