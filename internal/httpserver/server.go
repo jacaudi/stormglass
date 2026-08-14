@@ -100,6 +100,7 @@ func New(deps Deps) *http.Server {
 	registerCapabilities(mux, newCapabilities(deps))
 	registerObservations(mux, deps)
 	registerStation(mux, deps)
+	registerAlmanac(mux, deps)
 	registerProxy(mux, deps)
 	registerRadar(mux, deps)
 	registerStatic(mux, deps)

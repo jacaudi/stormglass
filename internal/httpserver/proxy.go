@@ -41,11 +41,6 @@ func registerProxy(mux *http.ServeMux, deps Deps) {
 			proxyWeatherFlow(w, r, deps.WeatherFlow, weatherFlowForecastPath)
 		})
 	}
-	if deps.Almanac {
-		mux.HandleFunc("GET /api/almanac", func(w http.ResponseWriter, r *http.Request) {
-			proxyWeatherFlow(w, r, deps.WeatherFlow, weatherFlowForecastPath)
-		})
-	}
 }
 
 // proxyWeatherFlow calls wf.Proxy for path, forwarding the browser request's

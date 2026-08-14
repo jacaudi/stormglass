@@ -91,10 +91,12 @@ func TestProxy_NoTokenInResponseOrLogs(t *testing.T) {
 	}
 }
 
-// TestProxy_ForecastAndAlmanac proves both /api/forecast and /api/almanac
-// proxy WeatherFlow's better_forecast endpoint (v2/B3: proxy, not computed)
-// and pass its JSON straight through, forwarding the browser's query params.
-func TestProxy_ForecastAndAlmanac(t *testing.T) {
+// TestProxy_Forecast proves /api/forecast proxies WeatherFlow's
+// better_forecast endpoint (v2/B3: proxy, not computed) and passes its JSON
+// straight through, forwarding the browser's query params. /api/almanac is
+// no longer proxied here -- it is computed from the local store and
+// astronomy by registerAlmanac (Task 7).
+func TestProxy_Forecast(t *testing.T) {
 	var gotPaths, gotQueries []string
 
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -108,7 +110,7 @@ func TestProxy_ForecastAndAlmanac(t *testing.T) {
 	client := tempestapi.NewClient("tok", tempestapi.WithBaseURL(upstream.URL))
 	srv := New(testDepsWithWeatherFlow(client))
 
-	for _, ep := range []string{"/api/forecast", "/api/almanac"} {
+	for _, ep := range []string{"/api/forecast"} {
 		req := httptest.NewRequest(http.MethodGet, ep+"?station_id=42", nil)
 		rec := httptest.NewRecorder()
 		srv.Handler.ServeHTTP(rec, req)
@@ -126,7 +128,7 @@ func TestProxy_ForecastAndAlmanac(t *testing.T) {
 
 	for _, p := range gotPaths {
 		if p != "/better_forecast" {
-			t.Errorf("upstream path = %q, want /better_forecast for both forecast and almanac", p)
+			t.Errorf("upstream path = %q, want /better_forecast", p)
 		}
 	}
 	for _, q := range gotQueries {

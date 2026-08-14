@@ -34,6 +34,21 @@ type fakeObservationReader struct {
 	// TestHandleSummary_*.
 	summary    sqlite.Summary
 	summaryErr error
+
+	// extremes is consumed in CALL ORDER: handleAlmanac queries today, week,
+	// month, year in that fixed order, so element 0 answers today and so on.
+	// A call past the end yields an all-invalid TempExtremes -- the real
+	// writer's empty-window behaviour.
+	//
+	// Deliberately NOT a map keyed on the window's From timestamp. Those keys
+	// COLLIDE: today.From == week.From on every Sunday (that is what
+	// week-to-date means) and today.From == month.From on the 1st of every
+	// month. Duplicate runtime keys in a Go map literal are legal and
+	// silently last-wins, so a map would quietly collapse two windows onto
+	// one answer and the test would fail on roughly one day in six.
+	extremes    []sqlite.TempExtremes
+	extremesN   int
+	extremesErr error
 }
 
 func (f *fakeObservationReader) LatestObservationAny(context.Context) (sqlite.Observation, error) {
@@ -49,6 +64,18 @@ func (f *fakeObservationReader) HistoryPoints(_ context.Context, field string, _
 
 func (f *fakeObservationReader) SummarizeObservations(context.Context, int64, int64) (sqlite.Summary, error) {
 	return f.summary, f.summaryErr
+}
+
+func (f *fakeObservationReader) TemperatureExtremes(context.Context, int64, int64) (sqlite.TempExtremes, error) {
+	if f.extremesErr != nil {
+		return sqlite.TempExtremes{}, f.extremesErr
+	}
+	if f.extremesN >= len(f.extremes) {
+		return sqlite.TempExtremes{}, nil
+	}
+	te := f.extremes[f.extremesN]
+	f.extremesN++
+	return te, nil
 }
 
 func testDepsWithObservations(reader ObservationReader) Deps {
