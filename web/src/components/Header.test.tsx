@@ -88,15 +88,10 @@ describe('Header station location guard', () => {
 
   it('renders the location line for a station with real coordinates', () => {
     const station = {
-      station_id: 1,
       name: 'Test',
       latitude: 35.4676,
       longitude: -97.5164,
       elevation: 361,
-      timezone: 'America/Chicago',
-      firmware_revision: '1',
-      serial_number: 'ST-1',
-      device_id: 2,
     } satisfies StationMeta;
 
     render(

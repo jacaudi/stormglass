@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { RadarCard } from './RadarCard';
-import type { StationMeta } from '../types/weather';
+import type { LocatedStation } from '../types/weather';
 
 // --- MapLibre GL mock -------------------------------------------------
 // jsdom has no WebGL, so the real maplibre-gl Map would throw on
@@ -81,16 +81,11 @@ vi.mock('pmtiles', () => ({
   },
 }));
 
-const STATION: StationMeta = {
-  station_id: 1,
+const STATION: LocatedStation = {
   name: 'Test Station',
   latitude: 35.4,
   longitude: -97.6,
   elevation: 365,
-  timezone: 'America/Chicago',
-  firmware_revision: '1.0',
-  serial_number: 'ST-001',
-  device_id: 1,
 };
 
 const RADAR_GEOJSON = {

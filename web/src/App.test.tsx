@@ -67,23 +67,19 @@ const mockAlmanac: StationAlmanac = {
   week: { high: 28, highDate: 'Mon', low: 12, lowDate: 'Tue' },
   month: { high: 30, highDate: 'Jul 1', low: 10, lowDate: 'Jul 15' },
   year: { high: 32, highDate: 'Aug 1', low: 5, lowDate: 'Jan 1' },
-  sunrise: Math.floor(Date.now() / 1000),
-  sunset: Math.floor(Date.now() / 1000) + 36000,
+  sunrise: '5:47 AM',
+  sunset: '8:17 PM',
+  daylightMinutes: 14 * 60 + 30,
   moonPhase: 0.5,
   moonPhaseName: 'Full Moon',
   moonIllumination: 1,
 };
 
 const mockStationWithCoords: StationMeta = {
-  station_id: 1,
   name: 'Test Station',
   latitude: 40.7128,
   longitude: -74.006,
   elevation: 10,
-  timezone: 'America/New_York',
-  firmware_revision: '1.0',
-  serial_number: 'ST-00000001',
-  device_id: 1,
 };
 
 const mockWeatherData: WeatherData = {

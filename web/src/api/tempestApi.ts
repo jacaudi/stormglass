@@ -7,12 +7,12 @@
  *   - fetchCurrentObservation is the core: GET /api/observations/current
  *     reads this station's own SQLite store and works in UDP mode with no
  *     TOKEN configured.
- *   - fetchStationMeta/fetchForecast/fetchStationAlmanac
- *     are best-effort passthrough proxies to WeatherFlow (GET /api/station,
- *     /api/forecast, /api/almanac). They require a server-held TOKEN this
- *     appliance may not have, and the proxy forwards WeatherFlow's response
- *     shape unchanged -- it may not match this file's declared return types.
- *     Callers (useWeatherData) are expected to tolerate these failing.
+ *   - fetchStationMeta/fetchStationAlmanac read this server's own
+ *     configuration and SQLite store (GET /api/station, /api/almanac). They
+ *     are tokenless and return this file's declared types exactly.
+ *   - fetchForecast has no provider until issue #81; /api/forecast is not
+ *     registered and capabilities.forecast is false, so useWeatherData never
+ *     calls it.
  */
 
 import type {

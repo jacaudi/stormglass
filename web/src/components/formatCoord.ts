@@ -1,4 +1,4 @@
-import type { StationMeta } from '../types/weather';
+import type { StationMeta, LocatedStation } from '../types/weather';
 
 /** Formats a lat/lon pair with correct hemisphere suffixes (N/S, E/W) derived from sign. */
 export function formatCoord(latitude: number, longitude: number): string {
@@ -10,13 +10,16 @@ export function formatCoord(latitude: number, longitude: number): string {
 /**
  * Narrows a station to one that actually carries a location.
  *
- * StationMeta declares latitude/longitude as `number`, but /api/station is a
- * raw passthrough of WeatherFlow's response and returns HTTP 200 with a
- * status-only envelope when the server holds no token — so a truthy `station`
- * is not a usable one, and formatting it yields NaN. Two consumers share this
- * knowledge: the Header's location line and App's radar mount condition.
+ * /api/station is served from this server's own configuration and OMITS
+ * latitude/longitude unless both are set, so `station` being truthy does not
+ * mean it has coordinates -- StationMeta declares them optional for exactly
+ * that reason. Narrowing to LocatedStation gives consumers plain numbers.
+ *
+ * The `Number.isFinite` checks are retained deliberately: they cost nothing
+ * and they are the guard that would catch a malformed value reaching the
+ * client, which is the failure this function was written to prevent.
  */
-export function hasCoordinates(station: StationMeta | null): station is StationMeta {
+export function hasCoordinates(station: StationMeta | null): station is LocatedStation {
   return (
     station !== null &&
     typeof station.latitude === 'number' &&

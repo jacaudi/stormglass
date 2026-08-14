@@ -52,15 +52,10 @@ const baseObs: CurrentObservation = {
 };
 
 const baseStation: StationMeta = {
-  station_id: 1,
   name: 'Test Station',
   latitude: 0,
   longitude: 0,
   elevation: 0,
-  timezone: 'UTC',
-  firmware_revision: 'v1',
-  serial_number: 'ST-1',
-  device_id: 1,
 };
 
 const baseStatus: StationStatus = {
@@ -76,10 +71,11 @@ const baseAlmanac: StationAlmanac = {
   week: { high: 10, highDate: 'Today', low: 5, lowDate: 'Today' },
   month: { high: 10, highDate: 'Today', low: 5, lowDate: 'Today' },
   year: { high: 10, highDate: 'Today', low: 5, lowDate: 'Today' },
-  sunrise: 0,
-  sunset: 0,
+  sunrise: '6:00 AM',
+  sunset: '6:00 PM',
+  daylightMinutes: 720,
   moonPhase: 0.5,
-  moonPhaseName: 'Full',
+  moonPhaseName: 'Full Moon',
   moonIllumination: 1,
 };
 

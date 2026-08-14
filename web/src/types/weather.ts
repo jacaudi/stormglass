@@ -1,16 +1,33 @@
 /** Tempest Weather Station data types based on the WeatherFlow API */
 
+/**
+ * Station identity (GET /api/station), served entirely from this server's
+ * own configuration -- not from WeatherFlow. Every field is optional
+ * because the server OMITS an unset value rather than emitting a zero:
+ * an emitted "" would defeat the name fallback below (`??` does not fire on
+ * an empty string) and emitted zero coordinates would put every default
+ * deployment at 0.0000°N, 0.0000°E.
+ *
+ * Five fields the old WeatherFlow passthrough declared are gone --
+ * station_id, device_id, timezone, firmware_revision, serial_number -- and
+ * radarSite is new. STATION_TIMEZONE is deliberately server-side only: the
+ * server preformats every timezone-dependent value in StationAlmanac.
+ */
 export interface StationMeta {
-  station_id: number;
-  name: string;
-  latitude: number;
-  longitude: number;
-  elevation: number;
-  timezone: string;
-  firmware_revision: string;
-  serial_number: string;
-  device_id: number;
+  name?: string;
+  latitude?: number;
+  longitude?: number;
+  elevation?: number;  // metres
+  radarSite?: string;  // WSR-88D site code, e.g. "TLX"
 }
+
+/**
+ * A StationMeta known to carry coordinates. `hasCoordinates` narrows to
+ * this, so consumers that need a lat/lon pair (the Header's location line,
+ * the radar map's centre) get them as plain numbers rather than
+ * `number | undefined`.
+ */
+export type LocatedStation = StationMeta & { latitude: number; longitude: number };
 
 export interface CurrentObservation {
   timestamp: number;
@@ -96,20 +113,34 @@ export type PressureUnit = 'mb' | 'inHg' | 'hPa';
 export type RainUnit = 'mm' | 'in';
 
 export interface TempRecord {
-  high: number;     // °C
-  highDate: string; // human label, e.g. "Today", "Feb 15"
-  low: number;      // °C
-  lowDate: string;
+  high: number | null;      // °C -- null when the window holds no reading
+  highDate: string | null;  // server-rendered label, e.g. "Today", "Feb 15"
+  low: number | null;       // °C
+  lowDate: string | null;
 }
 
+/**
+ * GET /api/almanac -- computed from this station's own store and from
+ * astronomy, with no upstream call.
+ *
+ * sunrise/sunset are PREFORMATTED station-local clock strings ("5:47 AM"),
+ * not epochs, and daylightMinutes carries the derived duration separately.
+ * The browser's timezone is the VIEWER's, not the station's, and
+ * STATION_TIMEZONE is not on the wire -- so an epoch here could only ever be
+ * rendered against the wrong zone. Render these strings verbatim.
+ *
+ * Either bound may INDEPENDENTLY be null: above the Arctic Circle a day can
+ * have a sunrise and no sunset. daylightMinutes is null whenever either is.
+ */
 export interface StationAlmanac {
   today: TempRecord;
   week: TempRecord;
   month: TempRecord;
   year: TempRecord;
-  sunrise: number;        // epoch seconds
-  sunset: number;         // epoch seconds
-  moonPhase: number;      // 0–1 (0 = new, 0.5 = full)
+  sunrise: string | null;
+  sunset: string | null;
+  daylightMinutes: number | null;
+  moonPhase: number;        // 0–1 (0 = new, 0.5 = full)
   moonPhaseName: string;
   moonIllumination: number; // 0–1
 }
@@ -127,8 +158,8 @@ export type ThemeName = 'liquid-glass' | 'midnight-aurora' | 'desert-sunset' | '
 
 // Records summary window -- Contract C (GET /api/observations/summary?days=N).
 // RecordsSummary mirrors the Go summaryResponse wire tags exactly (field-for-field,
-// same casing); kept distinct from StationAlmanac/TempRecord, which describe a
-// different (WeatherFlow-proxied) almanac shape.
+// same casing); kept distinct from StationAlmanac/TempRecord, which describe
+// calendar-aligned records and astronomy rather than rolling windows.
 export type RecordsWindowDays = 7 | 30 | 180 | 365;
 
 export interface RecordsMinMax {
