@@ -447,32 +447,24 @@ func resolveModeAndValidate(token string, writerCount int) Mode {
 
 // startAPIServer starts the UI/JSON-API HTTP server for UDP mode and
 // returns it; it returns nil when mode is not ModeUDP. API-export mode is a
-// batch job that runs to completion and exits (exportWithSink), so a
-// long-running server has no place there. deps.Observations is left nil
-// when sqlite is disabled (postgres-only edge case) -- assigning sw
-// directly would wrap a nil *sqlite.Writer in a non-nil ObservationReader
-// interface, defeating the handlers' nil guard, so it is only set when sw
-// is actually non-nil.
+// batch job that runs to completion and exits, so a long-running server has
+// no place there.
 //
-// TOKEN-in-UDP-mode limitation (flagged, not fixed here): token is always
-// empty when mode is ModeUDP (a non-empty TOKEN switches to ModeAPIExport),
-// so the WeatherFlow proxy (/api/forecast|almanac|station) has no
-// credential to authenticate with and degrades to an upstream 401. Wiring
-// a separate token source for UDP mode is a design decision for a
-// follow-up task, not this one -- see the task report.
+// Every endpoint it serves is tokenless: observations and the almanac come
+// from the local SQLite store, station identity from configuration, radar
+// from the sidecar. There is no WeatherFlow credential in UDP mode and no
+// code path that could use one -- issue #62 is closed as won't-do.
 //
-// ENABLE_FORECAST and ENABLE_ALMANAC gate the two routes that depend on that
-// credential, and ENABLE_RADAR gates the sidecar-backed one; all three
-// default to false, and GET /api/capabilities reports them to the UI so a
-// disabled feature's card is never mounted (issue #145).
-func startAPIServer(mode Mode, token string, station config.StationConfig, sw *sqlite.Writer) *http.Server {
+// deps.Observations is left nil when sqlite is disabled (the postgres-only
+// edge case) -- assigning sw directly would wrap a nil *sqlite.Writer in a
+// non-nil ObservationReader interface, defeating the handlers' nil guard.
+func startAPIServer(mode Mode, station config.StationConfig, sw *sqlite.Writer) *http.Server {
 	if mode != ModeUDP {
 		return nil
 	}
 	deps := httpserver.Deps{
-		StaticFS:    web.DistFS(),
-		Station:     station,
-		WeatherFlow: tempestapi.NewClient(token),
+		StaticFS: web.DistFS(),
+		Station:  station,
 	}
 	if sw != nil {
 		deps.Observations = sw
@@ -485,27 +477,11 @@ func startAPIServer(mode Mode, token string, station config.StationConfig, sw *s
 		sidecarURL := cmp.Or(os.Getenv("RADAR_SIDECAR_URL"), "http://radar-sidecar:8081")
 		deps.Radar = radar.NewProxy(sidecarURL)
 	}
-	enableForecast, err := config.ParseBoolEnv("ENABLE_FORECAST")
-	if err != nil {
-		log.Fatal(err)
-	}
 	enableAlmanac, err := config.ParseBoolEnv("ENABLE_ALMANAC")
 	if err != nil {
 		log.Fatal(err)
 	}
-	deps.Forecast = enableForecast
 	deps.Almanac = enableAlmanac
-
-	// A token is what these two routes need to return anything useful, and
-	// there is no way to have one here today: a non-empty TOKEN selects
-	// API-export mode, which never starts this server. Warn rather than
-	// silently serving a card that renders nothing. Written as the real
-	// predicate so it stops firing on its own once issue #62 supplies a
-	// UDP-mode token source.
-	if (enableForecast || enableAlmanac) && token == "" {
-		slog.Warn("forecast/almanac enabled but no WeatherFlow token is available while the UI is served; " +
-			"upstream calls will be unauthenticated and the cards will render no data (see issue #62)")
-	}
 
 	srv := httpserver.New(deps)
 	srv.Addr = cmp.Or(os.Getenv("HTTP_ADDR"), ":8080")
@@ -591,7 +567,7 @@ func main() {
 	mode := resolveModeAndValidate(token, metricsSink.WriterCount())
 
 	// Start the UI/JSON-API HTTP server (UDP mode only)
-	srv = startAPIServer(mode, token, stationCfg, sw)
+	srv = startAPIServer(mode, stationCfg, sw)
 
 	// Choose operational mode
 	if token != "" {

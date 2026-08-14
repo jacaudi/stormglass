@@ -222,8 +222,7 @@ func mapSidecarError(code string, status int) error {
 // scrubTransportError returns a URL-free error for a transport failure. A
 // failed *http.Client.Do commonly returns a *url.Error whose Error() string
 // embeds the full request URL; that URL (the sidecar's address) is scrubbed
-// defensively so it never reaches a log line, mirroring
-// internal/tempestapi's scrubTransportError for the WeatherFlow proxy.
+// defensively so it never reaches a log line.
 func scrubTransportError(err error) error {
 	var urlErr *url.Error
 	if errors.As(err, &urlErr) {

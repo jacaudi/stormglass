@@ -76,9 +76,8 @@ func handleRadar(w http.ResponseWriter, r *http.Request, radarProxy RadarProxy) 
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	// body is the sidecar's own GeoJSON response, not browser-supplied input
-	// -- see proxy.go's proxyWeatherFlow for the identical G705 passthrough
-	// rationale, which applies here unchanged.
+	// body is the sidecar's own GeoJSON response, not browser-supplied
+	// input, so writing it through unescaped is not an XSS/injection risk.
 	if _, err := w.Write(body); err != nil { //nolint:gosec // G705: see comment above
 		slog.ErrorContext(ctx, "httpserver: write radar proxy response", "error", err)
 	}

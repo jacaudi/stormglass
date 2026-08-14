@@ -1,8 +1,7 @@
 // Package tempestapi is a REST client for the WeatherFlow Tempest API: station
-// and device discovery (ListStations, ListDevices), historical observation
+// and device discovery (ListStations, ListDevices), and historical observation
 // fetches decoded into the same tempestudp.Report types the UDP listener
-// produces (GetObservations), and a raw-JSON passthrough (proxy.go) for the
-// httpserver's read-through cache. internal/backfill is the primary consumer
+// produces (GetObservations). internal/backfill is the primary consumer
 // of the device-preserving ListDevices path; main.go's API-export mode uses
 // the station-collapsing ListStations path instead — see ListStations'
 // comment for why the two intentionally disagree.
@@ -24,9 +23,9 @@ import (
 )
 
 // defaultBaseURL is the production WeatherFlow REST host. It is the single
-// source for every request this client builds (ListStations, GetObservations,
-// Proxy) -- all three would need to change together if WeatherFlow's host
-// ever changed, so it lives once here rather than being hardcoded per method.
+// source for every request this client builds (ListStations, GetObservations)
+// -- both would need to change together if WeatherFlow's host ever changed,
+// so it lives once here rather than being hardcoded per method.
 const defaultBaseURL = "https://swd.weatherflow.com/swd/rest"
 
 // Client is an authenticated WeatherFlow REST client. The zero value is not
