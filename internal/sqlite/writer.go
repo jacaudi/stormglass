@@ -1003,3 +1003,84 @@ func (w *Writer) SummarizeObservations(ctx context.Context, from, to int64) (Sum
 	}
 	return s, nil
 }
+
+// TempExtremes carries the max and min air temperature over a window with
+// the timestamp at which each occurred. Every field is nullable: a window
+// with no non-NULL temp_air row -- which includes both an empty window and a
+// window whose every temp_air is NULL -- leaves all four invalid. A value
+// and its timestamp are always valid together or invalid together; the
+// queries cannot produce a mismatched pair.
+type TempExtremes struct {
+	Max   sql.NullFloat64
+	MaxAt sql.NullInt64
+	Min   sql.NullFloat64
+	MinAt sql.NullInt64
+}
+
+// The two extreme queries are written out in full rather than built from a
+// shared template with an interpolated direction: they express different
+// knowledge (which extreme), the duplication is two characters, and no
+// direction string is ever formatted into SQL text.
+//
+// `temp_air ASC|DESC` selects the extreme; `timestamp ASC` breaks ties
+// toward the EARLIEST occurrence; and `temp_air IS NOT NULL` both keeps a
+// NULL row from ranking first on the ascending query and makes an empty or
+// all-NULL window return zero rows rather than a NULL/timestamp mismatch.
+//
+// Note this is NOT an aggregate query. `SELECT max(temp_air), timestamp ...
+// ORDER BY timestamp` looks equivalent and is not: an aggregate with no
+// GROUP BY returns one row, so its ORDER BY is a no-op and SQLite documents
+// the bare column as arbitrary among ties (sqlite.org/lang_select §2.5).
+const (
+	temperatureMaxSQL = `
+	SELECT temp_air, timestamp FROM tempest_observations
+	 WHERE timestamp BETWEEN ? AND ? AND temp_air IS NOT NULL
+	 ORDER BY temp_air DESC, timestamp ASC
+	 LIMIT 1
+`
+	temperatureMinSQL = `
+	SELECT temp_air, timestamp FROM tempest_observations
+	 WHERE timestamp BETWEEN ? AND ? AND temp_air IS NOT NULL
+	 ORDER BY temp_air ASC, timestamp ASC
+	 LIMIT 1
+`
+)
+
+// TemperatureExtremes returns the max and min air temperature in [from, to]
+// with the timestamp at which each occurred.
+//
+// Max/Min are invalid when the window contains no row with a non-NULL
+// temp_air. Ties resolve to the EARLIEST occurrence. Runs on the read-only
+// handle so a wide scan never queues behind the single ingest writer.
+func (w *Writer) TemperatureExtremes(ctx context.Context, from, to int64) (TempExtremes, error) {
+	var te TempExtremes
+
+	maxV, maxAt, err := w.temperatureExtreme(ctx, temperatureMaxSQL, from, to)
+	if err != nil {
+		return TempExtremes{}, err
+	}
+	minV, minAt, err := w.temperatureExtreme(ctx, temperatureMinSQL, from, to)
+	if err != nil {
+		return TempExtremes{}, err
+	}
+
+	te.Max, te.MaxAt, te.Min, te.MinAt = maxV, maxAt, minV, minAt
+	return te, nil
+}
+
+// temperatureExtreme runs one of the two extreme queries. sql.ErrNoRows is
+// the empty/all-NULL window and is NOT an error: it yields an invalid value
+// and an invalid timestamp, together.
+func (w *Writer) temperatureExtreme(ctx context.Context, query string, from, to int64) (sql.NullFloat64, sql.NullInt64, error) {
+	var value sql.NullFloat64
+	var at sql.NullInt64
+
+	err := w.readDB.QueryRowContext(ctx, query, from, to).Scan(&value, &at)
+	if errors.Is(err, sql.ErrNoRows) {
+		return sql.NullFloat64{}, sql.NullInt64{}, nil
+	}
+	if err != nil {
+		return sql.NullFloat64{}, sql.NullInt64{}, fmt.Errorf("temperature extreme: %w", err)
+	}
+	return value, at, nil
+}
