@@ -95,10 +95,12 @@ function App() {
               // WebGL/MapLibre failure can never blank the whole dashboard
               // grid, which shares a single outer ErrorBoundary.
               <ErrorBoundary>
-                {/* No client-side site table/nearest-site lookup yet
-                    (follow-up, belongs with the DOC.1 extract-sidecar work)
-                    -- RadarCard degrades to "not configured" until one exists. */}
-                <RadarCard station={station} />
+                {/* hasCoordinates is redundant for GATING here -- the server
+                    already guarantees capabilities.radar is false without
+                    coordinates -- but it's still what narrows `station` to
+                    LocatedStation for the type checker, which RadarCard
+                    requires. Do not remove it. */}
+                <RadarCard station={station} site={station.radarSite} />
               </ErrorBoundary>
             )}
           </div>

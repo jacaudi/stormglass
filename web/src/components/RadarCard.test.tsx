@@ -251,3 +251,15 @@ describe('RadarCard missing site', () => {
     expect(mapInstances.length).toBe(0);
   });
 });
+
+describe('RadarCard site wiring', () => {
+  it('leaves the card in the not-configured state without a site', () => {
+    render(<RadarCard station={STATION} />);
+    expect(screen.getByText('Radar not configured for this station.')).toBeInTheDocument();
+  });
+
+  it('leaves the not-configured state once a site is supplied', () => {
+    render(<RadarCard station={STATION} site="TLX" />);
+    expect(screen.queryByText('Radar not configured for this station.')).not.toBeInTheDocument();
+  });
+});
