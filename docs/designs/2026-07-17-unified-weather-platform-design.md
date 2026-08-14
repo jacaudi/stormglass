@@ -508,6 +508,9 @@ New endpoints on the single HTTP server (all tokenless from the browser; `otelht
 | `GET /api/station` | WeatherFlow REST proxy | Token injected server-side (`Bearer`). |
 | `GET /api/forecast` | WeatherFlow REST proxy | Better-Forecast; token server-side. |
 | `GET /api/almanac` | WeatherFlow REST proxy (**v2/B3: proxy, not computed**) | Sunrise/sunset/moon; token injected server-side (`Bearer`). |
+| `GET /api/radar/{site}` | `internal/radar` → Python sidecar | Proxies+caches the sidecar's **contoured-GeoJSON** reflectivity (Py-ART). Opt-in (`ENABLE_RADAR`). |
+| `GET /healthz` | — | Liveness (resolves UI F-LOW/G-LOW health probe gap). |
+| `GET /metrics` | legacy prometheus scrape | **Deprecated**; removed after OTel migration (O4). |
 
 > **Superseded by `docs/designs/2026-08-13-weatherflow-token-and-shaping-design.md`.**
 > Decision B3 resolved the almanac to a WeatherFlow `better_forecast`
@@ -522,10 +525,6 @@ New endpoints on the single HTTP server (all tokenless from the browser; `otelht
 > 2021–2026 across four independent lineages, and none is documented; that is
 > not proof that no undocumented parameter could surface one, but it is why
 > moon phase is computed locally.
-
-| `GET /api/radar/{site}` | `internal/radar` → Python sidecar | Proxies+caches the sidecar's **contoured-GeoJSON** reflectivity (Py-ART). Opt-in (`ENABLE_RADAR`). |
-| `GET /healthz` | — | Liveness (resolves UI F-LOW/G-LOW health probe gap). |
-| `GET /metrics` | legacy prometheus scrape | **Deprecated**; removed after OTel migration (O4). |
 
 Shapes should match the UI's existing `types/weather.ts` (SI units — °C, m/s, mb, mm) so the vendored
 components need minimal change; the UI's unit hook (verified correct) handles display conversion.
