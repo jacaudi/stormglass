@@ -132,7 +132,7 @@ The application switches modes based on presence of `TOKEN` environment variable
 - `JOB_NAME`: Job label for pushed metrics (default: "tempest")
 - `ENABLE_PROMETHEUS_METRICS`: Set to "true" or "1" to expose `/metrics` endpoint for Prometheus scraping
 - `PROMETHEUS_METRICS_PORT`: Port for the metrics endpoint (default: 9000)
-- `ENABLE_RADAR`: Set to "true" or "1" to render the radar card and register `GET /api/radar/{site}` (default: false). Requires the radar sidecar, `RADAR_SITE`, and `STATION_LATITUDE`/`STATION_LONGITUDE`. If any is missing the card is not mounted and an ERROR names what is missing — the process still starts and keeps ingesting.
+- `ENABLE_RADAR`: Set to "true" or "1" to render the radar card and register `GET /api/radar/{site}` (default: false). `RADAR_SITE` and `STATION_LATITUDE`/`STATION_LONGITUDE` are checked at startup: if either is missing the card is not mounted and an ERROR names it — the process still starts and keeps ingesting. The radar sidecar must also be running to serve tiles, but its absence is **not** checked at startup; it surfaces as failing tile requests at runtime.
 - `ENABLE_FORECAST`: Set to "true" or "1" to enable the 7-day forecast card (default: false). **There is no forecast provider yet.** The WeatherFlow proxy was removed (issue #62, closed won't-do) and the tokenless NWS replacement is issue #81, so enabling this today logs an ERROR and mounts nothing.
 - `ENABLE_ALMANAC`: Set to "true" or "1" to render the station almanac card and register `GET /api/almanac` (default: false). Requires `STATION_LATITUDE`/`STATION_LONGITUDE` and an observation store (SQLite is the default).
 - `ENABLE_POSTGRES`: Set to "true" or "1" to enable writing metrics to PostgreSQL (opt-in; SQLite is the default store — see below)
@@ -258,9 +258,12 @@ All tables use UUIDv7 primary keys (generated in Go, no PostgreSQL extensions re
 > running `ENABLE_FORECAST=true` or `ENABLE_RADAR=true` today is up and
 > ingesting with a dead card. After this change it stays up and ingesting,
 > the card is not mounted at all, and an ERROR names what is missing. **No
-> configuration becomes unstartable.** To get the almanac and radar cards
-> working, set `STATION_LATITUDE`/`STATION_LONGITUDE` (and `RADAR_SITE` for
-> radar). `TOKEN`'s meaning is unchanged: it still selects API-export mode.
+> configuration that starts today becomes unstartable.** A malformed
+> `STATION_*` value or a malformed `ENABLE_*` boolean is still a fatal
+> startup error — that is an operator error, not an unconfigured feature. To
+> get the almanac and radar cards working, set
+> `STATION_LATITUDE`/`STATION_LONGITUDE` (and `RADAR_SITE` for radar).
+> `TOKEN`'s meaning is unchanged: it still selects API-export mode.
 
 > **Subcommands bypass mode selection.** `backfill` and `healthcheck` are chosen
 > by the first CLI argument, not by environment variables, and neither starts the
