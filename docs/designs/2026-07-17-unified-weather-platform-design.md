@@ -8,6 +8,20 @@
 - 2026-07-17 — per user: **O1** radar decode → **Python Py-ART sidecar** (reuse DRAS), **O3** output → **contoured GeoJSON isobands**, **O5** → **the app only ships OTLP signals; trace/log backends are the operator's choice** (not prescribed). Reflected throughout.
 - 2026-07-17 (v2, plan cold-review coherence) — per user: **B1** the legacy Postgres tunables (`POSTGRES_BATCH_SIZE`/`FLUSH_INTERVAL`/`MAX_RETRIES`) are now wired from env, so **C-H2 is resolved for the Postgres path too** (not only carried as a lesson into the SQLite writer); **B2** the map basemap is **OpenStreetMap served via a same-origin Protomaps `.pmtiles` file** (no external tile server, no API key, offline-capable, OSM attribution required) — so the **CSP becomes self-only**; **B3** `/api/almanac` **proxies WeatherFlow** (the §11 "proxy or computed" ambiguity is resolved to proxy). Reflected in §4, §6, §7, §9, §11, §15, §16.
 
+> **Superseded by `docs/designs/2026-08-13-weatherflow-token-and-shaping-design.md`.**
+> Decision B3 resolved the almanac to a WeatherFlow `better_forecast`
+> passthrough. That is reversed: the almanac is computed from the local store
+> and from astronomy, and the WeatherFlow proxy is deleted, because in UDP
+> mode the appliance holds no WeatherFlow credential (issue #62, won't-do).
+>
+> The "Sunrise/sunset/moon" row also overstates what the endpoint could have
+> supplied. Sunrise and sunset are correct — they exist in
+> `better_forecast.forecast.daily[]`. **No moon field is returned by
+> `better_forecast` by default** in any of six recorded payloads spanning
+> 2021–2026 across four independent lineages, and none is documented; that is
+> not proof that no undocumented parameter could surface one, but it is why
+> moon phase is computed locally.
+
 ---
 
 ## 1. Summary
@@ -494,6 +508,21 @@ New endpoints on the single HTTP server (all tokenless from the browser; `otelht
 | `GET /api/station` | WeatherFlow REST proxy | Token injected server-side (`Bearer`). |
 | `GET /api/forecast` | WeatherFlow REST proxy | Better-Forecast; token server-side. |
 | `GET /api/almanac` | WeatherFlow REST proxy (**v2/B3: proxy, not computed**) | Sunrise/sunset/moon; token injected server-side (`Bearer`). |
+
+> **Superseded by `docs/designs/2026-08-13-weatherflow-token-and-shaping-design.md`.**
+> Decision B3 resolved the almanac to a WeatherFlow `better_forecast`
+> passthrough. That is reversed: the almanac is computed from the local store
+> and from astronomy, and the WeatherFlow proxy is deleted, because in UDP
+> mode the appliance holds no WeatherFlow credential (issue #62, won't-do).
+>
+> The "Sunrise/sunset/moon" row also overstates what the endpoint could have
+> supplied. Sunrise and sunset are correct — they exist in
+> `better_forecast.forecast.daily[]`. **No moon field is returned by
+> `better_forecast` by default** in any of six recorded payloads spanning
+> 2021–2026 across four independent lineages, and none is documented; that is
+> not proof that no undocumented parameter could surface one, but it is why
+> moon phase is computed locally.
+
 | `GET /api/radar/{site}` | `internal/radar` → Python sidecar | Proxies+caches the sidecar's **contoured-GeoJSON** reflectivity (Py-ART). Opt-in (`ENABLE_RADAR`). |
 | `GET /healthz` | — | Liveness (resolves UI F-LOW/G-LOW health probe gap). |
 | `GET /metrics` | legacy prometheus scrape | **Deprecated**; removed after OTel migration (O4). |
