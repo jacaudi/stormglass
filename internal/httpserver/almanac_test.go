@@ -98,6 +98,54 @@ func TestAPI_Almanac_PopulatedWindows(t *testing.T) {
 	}
 }
 
+// TestAPI_Almanac_QueriesFourDistinctWindows proves handleAlmanac queries the
+// four windows almanacWindows computes -- today, week, month, year, in that
+// order -- rather than passing the same window four times. Every other test
+// in this file answers purely by call index (fakeObservationReader.extremes
+// is consumed in order), so a mutation to handleAlmanac's slice that queries
+// {today, today, today, today} would pass all of them; this is the one test
+// that observes the actual (from, to) each call carried.
+//
+// The From values are asserted positionally against almanacWindows' own
+// output, never for pairwise distinctness: they legitimately coincide
+// (today.From == week.From on every Sunday, == month.From on the 1st of the
+// month, and all three == year.From on 1 January), so an "all differ"
+// assertion would itself be flaky on those calendar dates -- precisely the
+// map-collision bug shape this branch already fixed once, in a different
+// form.
+//
+// To is deliberately not compared against a test-computed value:
+// handleAlmanac reads time.Now() internally, a different instant than any
+// `now` this test could capture. Instead this asserts the four recorded To
+// values equal ONE ANOTHER, which handleAlmanac guarantees by construction
+// (all four windows are derived from a single `now`) -- the real signal here
+// is the From positions.
+func TestAPI_Almanac_QueriesFourDistinctWindows(t *testing.T) {
+	station := denverStation(t)
+	wantToday, wantWeek, wantMonth, wantYear := almanacWindows(time.Now(), station.Location)
+
+	reader := &fakeObservationReader{}
+	getAlmanacJSON(t, testDepsWithAlmanac(t, reader, station))
+
+	if len(reader.extremesCalls) != 4 {
+		t.Fatalf("TemperatureExtremes called %d times, want 4", len(reader.extremesCalls))
+	}
+
+	wantFrom := []int64{wantToday.From, wantWeek.From, wantMonth.From, wantYear.From}
+	labels := []string{"today", "week", "month", "year"}
+	for i, want := range wantFrom {
+		if got := reader.extremesCalls[i].From; got != want {
+			t.Errorf("call %d (%s) From = %d, want %d", i, labels[i], got, want)
+		}
+	}
+
+	for i := 1; i < len(reader.extremesCalls); i++ {
+		if got, want := reader.extremesCalls[i].To, reader.extremesCalls[0].To; got != want {
+			t.Errorf("call %d To = %d, want %d (all four windows share one `now`)", i, got, want)
+		}
+	}
+}
+
 // A freshly provisioned appliance has no history. It must render em-dashes,
 // not NaN -- the shape the old passthrough produced.
 func TestAPI_Almanac_EmptyStoreYieldsNulls(t *testing.T) {

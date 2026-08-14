@@ -49,6 +49,13 @@ type fakeObservationReader struct {
 	extremes    []sqlite.TempExtremes
 	extremesN   int
 	extremesErr error
+
+	// extremesCalls records the (from, to) window of every TemperatureExtremes
+	// call, in call order -- so a test can pin that handleAlmanac queries four
+	// DISTINCT windows (today, week, month, year) rather than the same window
+	// four times. Recorded unconditionally, including on the error path, so a
+	// test can inspect how many calls happened before a failure.
+	extremesCalls []almanacWindow
 }
 
 func (f *fakeObservationReader) LatestObservationAny(context.Context) (sqlite.Observation, error) {
@@ -66,7 +73,8 @@ func (f *fakeObservationReader) SummarizeObservations(context.Context, int64, in
 	return f.summary, f.summaryErr
 }
 
-func (f *fakeObservationReader) TemperatureExtremes(context.Context, int64, int64) (sqlite.TempExtremes, error) {
+func (f *fakeObservationReader) TemperatureExtremes(_ context.Context, from, to int64) (sqlite.TempExtremes, error) {
+	f.extremesCalls = append(f.extremesCalls, almanacWindow{From: from, To: to})
 	if f.extremesErr != nil {
 		return sqlite.TempExtremes{}, f.extremesErr
 	}

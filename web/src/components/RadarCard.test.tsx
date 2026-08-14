@@ -166,21 +166,27 @@ describe('RadarCard basemap + protocol registration', () => {
 
 describe('RadarCard radar data layer', () => {
   it('adds a fill layer styled by dbz_min once radar GeoJSON loads', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(() =>
-        Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve(RADAR_GEOJSON),
-        })
-      )
+    const fetchMock = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(RADAR_GEOJSON),
+      })
     );
+    vi.stubGlobal('fetch', fetchMock);
 
     render(<RadarCard station={STATION} site="TLX" />);
     const map = mapInstances[mapInstances.length - 1];
     map.fire('load');
 
     await waitFor(() => expect(map.addLayer).toHaveBeenCalled());
+
+    // Pins the SITE VALUE, not merely its truthiness: `site="TLX"` must
+    // reach the fetch URL as the WSR-88D site code. Every other assertion in
+    // this file only checks that SOME site is/isn't configured, so a caller
+    // that passed the wrong prop through (e.g. station.name instead of the
+    // radar site code) would pass every one of them as long as the value
+    // was truthy.
+    expect(fetchMock).toHaveBeenCalledWith('/api/radar/TLX');
 
     const layerCall = map.addLayer.mock.calls.find(
       (call) => call[0]?.type === 'fill' && call[0]?.source === 'radar-reflectivity'
