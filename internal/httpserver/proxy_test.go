@@ -26,7 +26,7 @@ func testDepsWithWeatherFlow(wf WeatherFlowProxy) Deps {
 	}
 }
 
-// TestProxy_InjectsBearerToken proves GET /api/station reaches WeatherFlow
+// TestProxy_InjectsBearerToken proves GET /api/forecast reaches WeatherFlow
 // with the server-held token injected as `Authorization: Bearer`, while the
 // browser-facing request itself carries no token at all.
 func TestProxy_InjectsBearerToken(t *testing.T) {
@@ -36,7 +36,7 @@ func TestProxy_InjectsBearerToken(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotAuth = r.Header.Get("Authorization")
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"stations":[]}`))
+		_, _ = w.Write([]byte(`{"forecast":{"daily":[]}}`))
 	}))
 	defer upstream.Close()
 
@@ -45,12 +45,12 @@ func TestProxy_InjectsBearerToken(t *testing.T) {
 
 	// The browser-facing request carries no Authorization header at all --
 	// it doesn't need one, since the token lives only on the server.
-	req := httptest.NewRequest(http.MethodGet, "/api/station", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/forecast", nil)
 	rec := httptest.NewRecorder()
 	srv.Handler.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
-		t.Fatalf("GET /api/station = %d, want 200, body: %s", rec.Code, rec.Body.String())
+		t.Fatalf("GET /api/forecast = %d, want 200, body: %s", rec.Code, rec.Body.String())
 	}
 	if gotAuth != "Bearer "+token {
 		t.Errorf("upstream Authorization header = %q, want %q", gotAuth, "Bearer "+token)
@@ -136,15 +136,17 @@ func TestProxy_ForecastAndAlmanac(t *testing.T) {
 	}
 }
 
-// TestProxy_NilWeatherFlow proves all three proxy handlers 503 (not panic)
-// when Deps.WeatherFlow is nil -- calling a method on a nil interface value
+// TestProxy_NilWeatherFlow proves both proxy handlers 503 (not panic) when
+// Deps.WeatherFlow is nil -- calling a method on a nil interface value
 // panics with no dynamic type to dispatch to, and handleCurrentObservation
 // already guards its own nil ObservationReader dependency the same way, but
 // registerProxy had no equivalent guard before this fix (SGE review M7).
+// /api/station is excluded here: it is served from config, not proxied, and
+// correctly returns 200 with no upstream at all.
 func TestProxy_NilWeatherFlow(t *testing.T) {
 	srv := New(testDepsWithWeatherFlow(nil))
 
-	for _, ep := range []string{"/api/station", "/api/forecast", "/api/almanac"} {
+	for _, ep := range []string{"/api/forecast", "/api/almanac"} {
 		req := httptest.NewRequest(http.MethodGet, ep, nil)
 		rec := httptest.NewRecorder()
 		srv.Handler.ServeHTTP(rec, req)
@@ -185,10 +187,13 @@ func TestProxy_DisabledRoutesAreNotRegistered(t *testing.T) {
 		t.Error("a disabled route reached WeatherFlow; it must not make an upstream call")
 	}
 
+	// /api/station is registered by registerStation, not registerProxy, and
+	// is served entirely from config -- it returns 200 regardless of the
+	// Forecast/Almanac flags and with no WeatherFlow upstream involved at all.
 	rec := httptest.NewRecorder()
 	srv.Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/station", nil))
 	if rec.Code != http.StatusOK {
-		t.Errorf("GET /api/station = %d, want 200 -- station is never gated", rec.Code)
+		t.Errorf("GET /api/station = %d, want 200 -- station is served from config, not proxied", rec.Code)
 	}
 }
 

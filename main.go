@@ -465,12 +465,13 @@ func resolveModeAndValidate(token string, writerCount int) Mode {
 // credential, and ENABLE_RADAR gates the sidecar-backed one; all three
 // default to false, and GET /api/capabilities reports them to the UI so a
 // disabled feature's card is never mounted (issue #145).
-func startAPIServer(mode Mode, token string, sw *sqlite.Writer) *http.Server {
+func startAPIServer(mode Mode, token string, station config.StationConfig, sw *sqlite.Writer) *http.Server {
 	if mode != ModeUDP {
 		return nil
 	}
 	deps := httpserver.Deps{
 		StaticFS:    web.DistFS(),
+		Station:     station,
 		WeatherFlow: tempestapi.NewClient(token),
 	}
 	if sw != nil {
@@ -519,6 +520,18 @@ func startAPIServer(mode Mode, token string, sw *sqlite.Writer) *http.Server {
 
 func main() {
 	dispatchSubcommand()
+
+	// Station identity is validated at the boundary, ahead of any resource
+	// attachment (go-standards §15.3, 12-Factor III). Validating after the
+	// store and OTel are open would mean a malformed value produces a partial
+	// startup that then exits past the deferred cleanupResources.
+	//
+	// Runs in both modes. A malformed STATION_* value is an operator error
+	// wherever it appears; absent values are never an error.
+	stationCfg, err := config.LoadStation()
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	ctx, done := signalContext(context.Background(), signal.NotifyContext)
 	defer done()
@@ -578,7 +591,7 @@ func main() {
 	mode := resolveModeAndValidate(token, metricsSink.WriterCount())
 
 	// Start the UI/JSON-API HTTP server (UDP mode only)
-	srv = startAPIServer(mode, token, sw)
+	srv = startAPIServer(mode, token, stationCfg, sw)
 
 	// Choose operational mode
 	if token != "" {

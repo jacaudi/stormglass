@@ -13,6 +13,8 @@ import (
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/trace"
+
+	"tempestwx-utilities/internal/config"
 )
 
 const (
@@ -50,7 +52,14 @@ type Deps struct {
 	// ObservationReader); tests pass a fake.
 	Observations ObservationReader
 
-	// WeatherFlow backs GET /api/station, /api/forecast, and /api/almanac
+	// Station is the operator-supplied station identity backing
+	// GET /api/station, and the source of the coordinates and timezone
+	// GET /api/almanac computes from. It is plain configuration, not a
+	// backing service: the store holds no coordinates and no UDP message
+	// carries any. main fills it from config.LoadStation.
+	Station config.StationConfig
+
+	// WeatherFlow backs GET /api/forecast and /api/almanac
 	// (Task 1.5). Production passes a *tempestapi.Client constructed from
 	// the server-held TOKEN (which satisfies WeatherFlowProxy); tests pass a
 	// fake or a *tempestapi.Client pointed at an httptest.Server.
@@ -90,6 +99,7 @@ func New(deps Deps) *http.Server {
 	registerHealthz(mux)
 	registerCapabilities(mux, newCapabilities(deps))
 	registerObservations(mux, deps)
+	registerStation(mux, deps)
 	registerProxy(mux, deps)
 	registerRadar(mux, deps)
 	registerStatic(mux, deps)

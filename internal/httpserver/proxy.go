@@ -25,20 +25,13 @@ type WeatherFlowProxy interface {
 	Proxy(ctx context.Context, path string, query url.Values) (body []byte, contentType string, status int, err error)
 }
 
-// registerProxy registers the WeatherFlow passthrough proxy handlers.
-// Additive per the Deps seam server.go documents: a new field
-// (WeatherFlow) plus this one register call, siblings (registerHealthz,
-// registerObservations, registerStatic) untouched. The browser never sends
-// or needs a token for any of these -- it lives only in deps.WeatherFlow.
+// registerProxy registers the remaining WeatherFlow passthrough proxy
+// handlers (/api/forecast and /api/almanac). Additive per the Deps seam
+// server.go documents: a new field (WeatherFlow) plus this one register
+// call, siblings (registerHealthz, registerObservations, registerStatic)
+// untouched. The browser never sends or needs a token for either route -- it
+// lives only in deps.WeatherFlow.
 func registerProxy(mux *http.ServeMux, deps Deps) {
-	// /api/station is never gated: it backs no optional card of its own, and
-	// the Header consumes it. (It is still a mount precondition for the radar
-	// card -- see the UI's hasCoordinates guard, which is what handles this
-	// endpoint's habit of returning 200 with an empty envelope.)
-	mux.HandleFunc("GET /api/station", func(w http.ResponseWriter, r *http.Request) {
-		proxyWeatherFlow(w, r, deps.WeatherFlow, "/stations")
-	})
-
 	// Forecast and almanac are opt-in (issue #145). Leaving the route
 	// unregistered -- rather than registering it and refusing inside the
 	// handler -- mirrors registerRadar, and makes a disabled feature
