@@ -26,9 +26,11 @@ func mustTime(s string) *time.Time {
 	return &t
 }
 
-// vectors is Appendix A.3, transcribed verbatim. datePassed is the calendar
-// date the row asks about; the test drives SunriseSunset with noon UTC on
-// that date, so t.Date() in t's own location is exactly datePassed.
+// vectors is Appendix A.3 rows 1-17, transcribed verbatim, plus one row
+// (18) derived in-repo rather than taken from A.3 -- see that row's own
+// comment for its provenance. datePassed is the calendar date the row asks
+// about; the test drives SunriseSunset with noon UTC on that date, so
+// t.Date() in t's own location is exactly datePassed.
 var vectors = []struct {
 	name     string
 	lat, lon float64
@@ -82,6 +84,12 @@ var vectors = []struct {
 	// inspection, since solar noon at 180 is 00:00 UTC and the equatorial
 	// solstice day is ~12 h, putting sunrise ~18:00 UTC on D-1 and sunset
 	// ~06:00 UTC on D.
+	//
+	// This is deliberately not a live paired time.Time.Equal(lon=+180)
+	// assertion: on correct code the two longitudes differ by ~1.97 us (they
+	// anchor on UTC dates a day apart, so refineEvent's first pass runs a
+	// Julian Day apart). An exact-equality pairing would fail correct code;
+	// convert to a paired assertion only with a tolerance.
 	{"antimeridian_west_sign_matches_east_sign", 0, -180, 2026, time.June, 21,
 		mustTime("2026-06-20T17:58:01Z"), mustTime("2026-06-21T06:05:24Z")},
 }
@@ -131,11 +139,19 @@ func TestSunriseSunset_UsesLocalDateNotUTCDate(t *testing.T) {
 	assertInstant(t, "sunrise", rise, mustTime("2026-11-18T21:42:00Z"))
 }
 
-// TestSunriseSunset_DatelineZones covers the four IANA zones whose legal
-// calendar runs a day ahead of the sun. Values are USNO
-// (aa.usno.navy.mil/api/rstt/oneday), transcribed from design section 2.3 --
-// that API began returning HTTP 500 after they were captured, so do NOT try
-// to re-fetch them, and do NOT substitute another provider: the alternatives
+// TestSunriseSunset_DatelineZones covers two IANA zones whose legal calendar
+// runs a day ahead of the sun (Kiritimati +14, Apia +13), plus one control,
+// Auckland in NZDT. Auckland's legal offset is also +13, but its solar
+// offset is +11.65, so its skew is only +1.35 and its anchor must NOT
+// shift -- it is the row that fails under issue #166's own suggested fix.
+// Tonga and Chatham share the same shift branch as Kiritimati and Apia but
+// are NOT covered by a row here.
+//
+// Values are USNO (aa.usno.navy.mil/api/rstt/oneday), transcribed from
+// design section 2.3. USNO's API had a transient outage after they were
+// captured; it is back up, and all three were re-queried live and returned
+// HTTP 200 with exact matches, so re-verifying them against USNO is
+// welcome. Do NOT substitute another provider: api.sunrise-sunset.org
 // measured 160-230 s wide of USNO on day length, which would breach the
 // +-90 s tolerance this file must not relax.
 //
@@ -241,6 +257,12 @@ func eqCentreTerms(tc, m float64) map[string]float64 {
 // Reconciling this function to match a changed implementation defeats the
 // check entirely. If it starts failing, check solarIntermediates against A.1
 // step 9 BEFORE touching anything here.
+//
+// referenceDeclination now calls this function rather than carrying its own
+// transcription, so this is the single reference feeding BOTH the obliquity
+// anchor (TestSolarIntermediates_ObliquityIsAnchored) and the declination
+// anchor (TestSolarPosition_TermsAreAllPresent): a bad edit here silently
+// weakens two checks at once, not one.
 func referenceObliquity(jd float64) float64 {
 	tc := (jd - 2451545.0) / 36525.0
 	omega := 125.04 - 1934.136*tc

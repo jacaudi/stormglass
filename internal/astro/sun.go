@@ -45,8 +45,10 @@ func SunriseSunset(lat, lon float64, t time.Time) (sunrise, sunset *time.Time) {
 	//      deliberate dateline anomalies (Kiritimati, Apia, Tonga, Chatham) --
 	//      and at lon == -180 exactly;
 	//   -1 where it runs a day behind, e.g. STATION_TIMEZONE=Etc/GMT+12 with
-	//      STATION_LONGITUDE=179. The two are validated independently, so such
-	//      pairings are reachable through configuration.
+	//      STATION_LONGITUDE=179.
+	// Both are reachable through configuration, since STATION_TIMEZONE and
+	// STATION_LONGITUDE are validated independently: e.g. a zone offset of
+	// +05:30 with STATION_LONGITUDE=-100 gives skew 12.17, also shift +1.
 	//
 	// Deriving the anchor from t's local CLOCK noon instead looks equivalent
 	// and is not: that shifts whenever the LEGAL offset exceeds +12 regardless
