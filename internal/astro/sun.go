@@ -18,6 +18,11 @@ const zenith = 90.833
 // USNO's published Denver transit; some older NOAA spreadsheets are
 // west-positive and mixing them silently inverts results).
 //
+// The UTC date it anchors on is derived from the SOLAR meridian rather than
+// from t's calendar date directly. For every ordinary zone the two are the
+// same and the anchor is unshifted; they diverge only where the legal offset
+// runs more than 12 h from the solar offset. See the body for the derivation.
+//
 // Both results are absolute instants and either may fall on an adjacent UTC
 // day: at west longitudes sunset commonly lands on D+1, at east longitudes
 // sunrise on D-1. Either may INDEPENDENTLY be nil where that event does not
@@ -28,8 +33,34 @@ const zenith = 90.833
 // fully lit day.
 func SunriseSunset(lat, lon float64, t time.Time) (sunrise, sunset *time.Time) {
 	y, mo, d := t.Date() // t's OWN location -- NOT t.UTC().Date() (design §7.1 item 1)
-	jd := julianDay0(y, int(mo), d)
-	midnightUTC := time.Date(y, mo, d, 0, 0, 0, 0, time.UTC)
+
+	// Anchor on the UTC date whose SOLAR noon at lon carries t's local date.
+	// Solar noon on UTC date U is at U + (12 - lon/15) h, which lies inside U
+	// for lon in (-180, 180] -- OPEN at the lower end, because lon == -180
+	// puts it at exactly U + 24 h. In t's zone that instant's date is
+	// U + floor((12 + skew)/24), where skew = offset - lon/15. shift inverts
+	// that, and is 0 whenever -12 <= skew < 12, i.e. every ordinary zone.
+	// It is:
+	//   +1 where the legal calendar runs a day ahead of the sun -- the
+	//      deliberate dateline anomalies (Kiritimati, Apia, Tonga, Chatham) --
+	//      and at lon == -180 exactly;
+	//   -1 where it runs a day behind, e.g. STATION_TIMEZONE=Etc/GMT+12 with
+	//      STATION_LONGITUDE=179. The two are validated independently, so such
+	//      pairings are reachable through configuration.
+	//
+	// Deriving the anchor from t's local CLOCK noon instead looks equivalent
+	// and is not: that shifts whenever the LEGAL offset exceeds +12 regardless
+	// of where the sun is, which breaks Auckland in NZDT and McMurdo in
+	// summer, whose solar offsets are under 12 (design §2.2).
+	_, offsetSec := t.Zone()
+	shift := int(math.Floor((float64(offsetSec)/3600.0 - lon/15.0 + 12.0) / 24.0))
+
+	// shift is in {-1, 0, +1} for every lon LoadStation can produce, because
+	// parseFloatEnv rejects non-finite and out-of-range values. time.Date then
+	// normalises d-shift across month, year and leap boundaries.
+	midnightUTC := time.Date(y, mo, d-shift, 0, 0, 0, 0, time.UTC)
+	ay, amo, ad := midnightUTC.Date()
+	jd := julianDay0(ay, int(amo), ad)
 
 	return refineEvent(jd, midnightUTC, lat, lon, true),
 		refineEvent(jd, midnightUTC, lat, lon, false)

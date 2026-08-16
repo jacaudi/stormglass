@@ -71,6 +71,19 @@ var vectors = []struct {
 	// result to (nil, nil) fails HERE and passes everything else (design §6.4).
 	{"utqiagvik_sunrise_without_sunset", 71.2906, -156.7887, 2026, time.May, 10,
 		mustTime("2026-05-10T10:58:00Z"), nil},
+	// The antimeridian. Solar noon at lon = -180 falls at exactly midnight
+	// + 24 h -- the first instant of the NEXT UTC day -- so the interval in
+	// which "solar noon is inside UTC date U" holds is (-180, 180], open at
+	// the lower end. The shipped code assumed it was closed and returned the
+	// following day's pair here, in EVERY zone including UTC.
+	//
+	// The expected values are the ones lon = +180 produces, which is the same
+	// meridian and must agree; they are independently sanity-checked by
+	// inspection, since solar noon at 180 is 00:00 UTC and the equatorial
+	// solstice day is ~12 h, putting sunrise ~18:00 UTC on D-1 and sunset
+	// ~06:00 UTC on D.
+	{"antimeridian_west_sign_matches_east_sign", 0, -180, 2026, time.June, 21,
+		mustTime("2026-06-20T17:58:01Z"), mustTime("2026-06-21T06:05:24Z")},
 }
 
 func TestSunriseSunset_USNOVectors(t *testing.T) {
@@ -116,6 +129,74 @@ func TestSunriseSunset_UsesLocalDateNotUTCDate(t *testing.T) {
 		t.Fatal("sunrise: got nil -- the date was taken from t.UTC(), not from t's own location")
 	}
 	assertInstant(t, "sunrise", rise, mustTime("2026-11-18T21:42:00Z"))
+}
+
+// TestSunriseSunset_DatelineZones covers the four IANA zones whose legal
+// calendar runs a day ahead of the sun. Values are USNO
+// (aa.usno.navy.mil/api/rstt/oneday), transcribed from design section 2.3 --
+// that API began returning HTTP 500 after they were captured, so do NOT try
+// to re-fetch them, and do NOT substitute another provider: the alternatives
+// measured 160-230 s wide of USNO on day length, which would breach the
+// +-90 s tolerance this file must not relax.
+//
+// time.FixedZone is used rather than time.LoadLocation for three reasons:
+// SunriseSunset reads only t.Zone(), so the code path is identical; no
+// _ "time/tzdata" import is then needed (this package imports only math and
+// time, so it does not inherit internal/config's embedded database); and a
+// pinned offset cannot change meaning when a tzdata update revises a zone,
+// which for these locations is not hypothetical -- Samoa moved across the
+// dateline in 2011.
+//
+// Comparing instants is sufficient to catch the bug: the defect is a
+// whole-day error, which is three orders of magnitude outside tolerance.
+func TestSunriseSunset_DatelineZones(t *testing.T) {
+	tests := []struct {
+		name              string
+		lat, lon          float64
+		offsetHours       int
+		year              int
+		month             time.Month
+		day               int
+		wantRise, wantSet *time.Time
+	}{
+		{
+			// USNO: Rise 06:29, Set 18:40 local (+14).
+			name: "kiritimati_utc_plus_14", lat: 1.87, lon: -157.43, offsetHours: 14,
+			year: 2026, month: time.August, day: 14,
+			wantRise: mustTime("2026-08-13T16:29:00Z"),
+			wantSet:  mustTime("2026-08-14T04:40:00Z"),
+		},
+		{
+			// USNO: Rise 06:43, Set 18:21 local (+13).
+			name: "apia_utc_plus_13", lat: -13.83, lon: -171.77, offsetHours: 13,
+			year: 2026, month: time.August, day: 14,
+			wantRise: mustTime("2026-08-13T17:43:00Z"),
+			wantSet:  mustTime("2026-08-14T05:21:00Z"),
+		},
+		{
+			// CONTROL, and the load-bearing row. Auckland in NZDT also has a
+			// +13 legal offset, but its SOLAR offset is +11.65, so its skew is
+			// only +1.35 and the anchor must NOT shift. Issue #166's own
+			// suggested fix -- deriving the date from local CLOCK noon --
+			// passes the two rows above and FAILS this one, 190 days a year.
+			// USNO: Rise 06:18, Set 20:42 local (+13).
+			name: "auckland_nzdt_must_not_shift", lat: -36.85, lon: 174.76, offsetHours: 13,
+			year: 2026, month: time.January, day: 15,
+			wantRise: mustTime("2026-01-14T17:18:00Z"),
+			wantSet:  mustTime("2026-01-15T07:42:00Z"),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			loc := time.FixedZone("TEST", tc.offsetHours*3600)
+			at := time.Date(tc.year, tc.month, tc.day, 0, 0, 0, 0, loc)
+
+			rise, set := SunriseSunset(tc.lat, tc.lon, at)
+			assertInstant(t, "sunrise", rise, tc.wantRise)
+			assertInstant(t, "sunset", set, tc.wantSet)
+		})
+	}
 }
 
 // eqTimeTerms returns A.1 step 11's five equation-of-time terms by name, in
