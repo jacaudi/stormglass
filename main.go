@@ -453,8 +453,9 @@ type uiFlags struct {
 	Radar    bool
 }
 
-// uiDecision is what the server can actually serve, plus one
-// operator-facing reason per flag that is enabled and cannot be honoured.
+// uiDecision is what the server can actually serve, plus operator-facing
+// diagnostics at two severities: a reason per enabled flag that cannot be
+// honoured, and a warning per card that is served but degraded.
 type uiDecision struct {
 	Almanac bool
 	Radar   bool
@@ -466,6 +467,11 @@ type uiDecision struct {
 	// never returned as an error, because there is no caller that should
 	// treat them as fatal -- see decideUI's doc comment.
 	Reasons []string
+	// Warnings are logged at WARN: a card that IS mounted, but degraded by a
+	// default the operator probably did not intend. Unlike Reasons, a warning
+	// never gates route registration or the capability document -- the card
+	// works, it is just not what they meant.
+	Warnings []string
 }
 
 // decideUI resolves which optional cards this process can serve and why any
@@ -480,11 +486,14 @@ type uiDecision struct {
 // empty, so under a fatal rule, flipping ENABLE_RADAR=true and nothing else
 // would turn a dead card into a permanent data outage.
 //
-// Loud without being fatal: every unmet precondition produces an ERROR log
-// naming the missing variables, the route is left unregistered, and
-// /api/capabilities reports the feature false -- the mechanism issue #145
-// built, where one value gates both the routing and the document so they
-// cannot disagree.
+// Loud without being fatal, at two severities. An unmet precondition produces
+// an ERROR naming the missing or invalid variables, leaves the route
+// unregistered, and reports /api/capabilities false -- the mechanism issue
+// #145 built, where one value gates both the routing and the document so they
+// cannot disagree. A precondition that is MET but degraded by an unintended
+// default produces a WARN instead: the route is registered and the capability
+// is true, because the card works -- it is just not what the operator meant.
+// STATION_TIMEZONE is the only such case today (issue #165).
 //
 // A MALFORMED value is a different matter and is already fatal, in
 // config.LoadStation: absent means "the operator did not configure this
@@ -513,6 +522,15 @@ func decideUI(flags uiFlags, station config.StationConfig, hasStore bool) uiDeci
 					"configuration. The almanac card will not be mounted.")
 		default:
 			d.Almanac = true
+			if !station.TimezoneConfigured {
+				d.Warnings = append(d.Warnings,
+					"ENABLE_ALMANAC is true and coordinates are set, but STATION_TIMEZONE "+
+						"is not: sunrise and sunset will render as UTC clock times, the "+
+						"Today/This Week/This Month/This Year windows will use UTC calendar "+
+						"boundaries, and the record date labels (\"Today\", \"Jan 2\") will be "+
+						"UTC-dated. Set STATION_TIMEZONE to the station's IANA zone "+
+						"(e.g. America/Denver).")
+			}
 		}
 	}
 
@@ -522,6 +540,13 @@ func decideUI(flags uiFlags, station config.StationConfig, hasStore bool) uiDeci
 			d.Reasons = append(d.Reasons,
 				"ENABLE_RADAR is true but RADAR_SITE is not set, so no WSR-88D site can be requested. "+
 					"The radar card will not be mounted.")
+		case !radar.IsValidSite(*station.RadarSite):
+			d.Reasons = append(d.Reasons, fmt.Sprintf(
+				"ENABLE_RADAR is true but RADAR_SITE=%q is not a known WSR-88D site "+
+					"code. It must match one of the codes in internal/radar/sites.go "+
+					"exactly -- three uppercase letters, and usually not the ICAO form "+
+					"(TLX, not KTLX). The radar card will not be mounted.",
+				*station.RadarSite))
 		case !hasCoords:
 			d.Reasons = append(d.Reasons,
 				"ENABLE_RADAR is true but STATION_LATITUDE and STATION_LONGITUDE are not both set, "+
@@ -575,6 +600,9 @@ func startAPIServer(mode Mode, station config.StationConfig, sw *sqlite.Writer) 
 	)
 	for _, reason := range decision.Reasons {
 		slog.Error("optional UI card not mounted", "reason", reason)
+	}
+	for _, warning := range decision.Warnings {
+		slog.Warn("optional UI card degraded", "warning", warning)
 	}
 
 	// RADAR_SITE reaches the wire only when the radar card is actually

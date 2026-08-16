@@ -234,18 +234,22 @@ func TestRequireWriters(t *testing.T) {
 func TestDecideUI(t *testing.T) {
 	lat, lon := 39.74, -104.98
 	site := "TLX"
-	located := config.StationConfig{Latitude: &lat, Longitude: &lon, RadarSite: &site}
+	located := config.StationConfig{Latitude: &lat, Longitude: &lon, RadarSite: &site, TimezoneConfigured: true}
+	locatedNoTZ := config.StationConfig{Latitude: &lat, Longitude: &lon, RadarSite: &site}
 	locatedNoSite := config.StationConfig{Latitude: &lat, Longitude: &lon}
 	siteNoCoords := config.StationConfig{RadarSite: &site}
+	badSite := "KTLX"
+	locatedBadSite := config.StationConfig{Latitude: &lat, Longitude: &lon, RadarSite: &badSite}
 
 	tests := []struct {
-		name        string
-		flags       uiFlags
-		station     config.StationConfig
-		hasStore    bool
-		wantAlmanac bool
-		wantRadar   bool
-		wantReasons []string // substrings each ERROR reason must contain
+		name         string
+		flags        uiFlags
+		station      config.StationConfig
+		hasStore     bool
+		wantAlmanac  bool
+		wantRadar    bool
+		wantReasons  []string // substrings each ERROR reason must contain
+		wantWarnings []string // substrings each WARN warning must contain
 	}{
 		{
 			name:        "everything_configured",
@@ -292,6 +296,17 @@ func TestDecideUI(t *testing.T) {
 			wantReasons: []string{"ENABLE_RADAR", "RADAR_SITE"},
 		},
 		{
+			// KTLX is the ICAO form, which is what most operators know. It is
+			// not in the site table, so before this check the card mounted and
+			// every tile request 400'd with no startup diagnostic at all.
+			name:        "radar_with_an_unknown_site",
+			flags:       uiFlags{Radar: true},
+			station:     locatedBadSite,
+			hasStore:    true,
+			wantRadar:   false,
+			wantReasons: []string{"ENABLE_RADAR", "KTLX", "sites.go"},
+		},
+		{
 			name:        "radar_without_coordinates",
 			flags:       uiFlags{Radar: true},
 			station:     siteNoCoords,
@@ -309,6 +324,24 @@ func TestDecideUI(t *testing.T) {
 			station:  located,
 			hasStore: true,
 		},
+		{
+			// The card MOUNTS and works -- it is just on the wrong clock. So
+			// this is a warning, not a reason: capabilities.almanac stays true
+			// and the route stays registered.
+			name:         "almanac_without_a_timezone_warns_but_mounts",
+			flags:        uiFlags{Almanac: true},
+			station:      locatedNoTZ,
+			hasStore:     true,
+			wantAlmanac:  true,
+			wantWarnings: []string{"ENABLE_ALMANAC", "STATION_TIMEZONE", "UTC"},
+		},
+		{
+			name:        "almanac_with_a_timezone_is_silent",
+			flags:       uiFlags{Almanac: true},
+			station:     located,
+			hasStore:    true,
+			wantAlmanac: true,
+		},
 	}
 
 	for _, tc := range tests {
@@ -321,19 +354,32 @@ func TestDecideUI(t *testing.T) {
 			if got.Radar != tc.wantRadar {
 				t.Errorf("Radar = %v, want %v", got.Radar, tc.wantRadar)
 			}
-			if !tc.flags.Radar && got.RadarSite != nil {
-				t.Errorf("RadarSite = %v, want nil when ENABLE_RADAR is false", *got.RadarSite)
+			if !tc.wantRadar && got.RadarSite != nil {
+				t.Errorf("RadarSite = %q, want nil when the radar card is not mounted", *got.RadarSite)
 			}
 			if len(tc.wantReasons) == 0 {
 				if len(got.Reasons) != 0 {
 					t.Errorf("Reasons = %v, want none", got.Reasons)
 				}
-				return
+			} else {
+				joined := strings.Join(got.Reasons, " | ")
+				for _, want := range tc.wantReasons {
+					if !strings.Contains(joined, want) {
+						t.Errorf("reasons %q must mention %q", joined, want)
+					}
+				}
 			}
-			joined := strings.Join(got.Reasons, " | ")
-			for _, want := range tc.wantReasons {
-				if !strings.Contains(joined, want) {
-					t.Errorf("reasons %q must mention %q", joined, want)
+
+			if len(tc.wantWarnings) == 0 {
+				if len(got.Warnings) != 0 {
+					t.Errorf("Warnings = %v, want none", got.Warnings)
+				}
+			} else {
+				joinedW := strings.Join(got.Warnings, " | ")
+				for _, want := range tc.wantWarnings {
+					if !strings.Contains(joinedW, want) {
+						t.Errorf("warnings %q must mention %q", joinedW, want)
+					}
 				}
 			}
 		})

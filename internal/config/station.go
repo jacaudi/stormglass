@@ -35,6 +35,13 @@ type StationConfig struct {
 	Elevation *float64
 	RadarSite *string
 	Location  *time.Location
+
+	// TimezoneConfigured records whether STATION_TIMEZONE was set and parsed.
+	// Location cannot carry this: it defaults to time.UTC, and
+	// time.LoadLocation("UTC") returns that same pointer, so an operator who
+	// deliberately chose UTC is indistinguishable from one who set nothing.
+	// The almanac warns only the second (issue #165). Not serialised.
+	TimezoneConfigured bool
 }
 
 // Coordinate bounds. Elevation is unbounded in metres (the Dead Sea shore is
@@ -121,6 +128,7 @@ func LoadStation() (StationConfig, error) {
 			errs = append(errs, fmt.Errorf("invalid IANA timezone %q for STATION_TIMEZONE: %w", v, err))
 		} else {
 			cfg.Location = loc
+			cfg.TimezoneConfigured = true
 		}
 	}
 
