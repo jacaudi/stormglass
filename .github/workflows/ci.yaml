@@ -26,8 +26,25 @@ jobs:
   # runs; building does not — most feature-branch commits are WIP, and a
   # multi-arch build plus smoke on each is the bulk of the runner time and
   # registry churn. A DRAFT PR counts.
+  #
+  # `needs: [test]` is NOT a data dependency — it is a freshness one, and it is
+  # load-bearing. This job's only input is "does an open PR exist for this
+  # branch?", which is a fact about the world that CHANGES while the run is in
+  # flight. Evaluated at push time it answers in ~4 s; `build`, the job it
+  # gates, cannot start until `test` finishes ~2 min later. `gh pr create`
+  # right after `git push` therefore lands inside that window, `context`
+  # answers "no open PR", build and smoke skip, and the `ci` rollup goes green
+  # having never built the image. That happened SEVEN times before this fix.
+  #
+  # Waiting for `test` does not make the query race-free, it makes the window
+  # ~2 min instead of ~4 s, which covers the push-then-open-PR flow completely.
+  # The residual case — a PR opened minutes after the push — is caught loudly
+  # by the `ci` gate's re-query rather than passing silently. Deciding at the
+  # point of use instead of caching the answer is also just correct: `build`
+  # already needs `test`, so this costs ~4 s of wall clock and nothing else.
   context:
     name: context
+    needs: [test]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -160,6 +177,9 @@ jobs:
     if: ${{ !cancelled() }}   # required: else this is SKIPPED on failure, which can satisfy protection
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read   # for the skipped-build re-query below
     steps:
       - name: Assert required stages
         env:
@@ -189,3 +209,30 @@ jobs:
             case "${result}" in success|skipped) ;; *) fail=1 ;; esac
           done
           [ "${fail}" = "0" ] || { echo "::error::one or more required stages did not pass"; exit 1; }
+
+      # The backstop for the assertion directly above. That loop accepts a
+      # skipped build/smoke on `context`'s word, and `context` answered minutes
+      # ago — so a PR opened after it ran turns "correctly skipped" into "green
+      # on an image that was never built". Re-asking HERE, at the end of the
+      # run, is the latest and therefore most accurate point available.
+      #
+      # This cannot fire on the normal flow now that `context` waits for
+      # `test`; it exists so the residual case is LOUD. Seven silent false
+      # greens is the reason this job does not get to trust a cached answer.
+      - name: Reject a skipped image build while a PR is open
+        if: ${{ needs.build.result == 'skipped' || needs.smoke.result == 'skipped' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_REF}" = "refs/heads/main" ]; then
+            echo "on main — build/smoke are unconditional there, nothing to re-check"
+            exit 0
+          fi
+          n=$(gh pr list --repo "${GITHUB_REPOSITORY}" --head "${GITHUB_REF_NAME}" \
+                --state open --json number --jq 'length')
+          if [ "${n}" -gt 0 ]; then
+            echo "::error::build/smoke were skipped, but ${n} open PR(s) now exist for ${GITHUB_REF_NAME}. The image was never built or booted, so this run is not evidence the PR is mergeable. Re-run this workflow (gh run rerun <run-id>) now that the PR exists."
+            exit 1
+          fi
+          echo "no open PR for ${GITHUB_REF_NAME} — skipping build/smoke is correct"
