@@ -522,6 +522,13 @@ func decideUI(flags uiFlags, station config.StationConfig, hasStore bool) uiDeci
 			d.Reasons = append(d.Reasons,
 				"ENABLE_RADAR is true but RADAR_SITE is not set, so no WSR-88D site can be requested. "+
 					"The radar card will not be mounted.")
+		case !radar.IsValidSite(*station.RadarSite):
+			d.Reasons = append(d.Reasons, fmt.Sprintf(
+				"ENABLE_RADAR is true but RADAR_SITE=%q is not a known WSR-88D site "+
+					"code. It must match one of the 163 codes in internal/radar/sites.go "+
+					"exactly -- three uppercase letters, and usually not the ICAO form "+
+					"(TLX, not KTLX). The radar card will not be mounted.",
+				*station.RadarSite))
 		case !hasCoords:
 			d.Reasons = append(d.Reasons,
 				"ENABLE_RADAR is true but STATION_LATITUDE and STATION_LONGITUDE are not both set, "+

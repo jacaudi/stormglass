@@ -237,6 +237,8 @@ func TestDecideUI(t *testing.T) {
 	located := config.StationConfig{Latitude: &lat, Longitude: &lon, RadarSite: &site}
 	locatedNoSite := config.StationConfig{Latitude: &lat, Longitude: &lon}
 	siteNoCoords := config.StationConfig{RadarSite: &site}
+	badSite := "KTLX"
+	locatedBadSite := config.StationConfig{Latitude: &lat, Longitude: &lon, RadarSite: &badSite}
 
 	tests := []struct {
 		name        string
@@ -292,6 +294,17 @@ func TestDecideUI(t *testing.T) {
 			wantReasons: []string{"ENABLE_RADAR", "RADAR_SITE"},
 		},
 		{
+			// KTLX is the ICAO form, which is what most operators know. It is
+			// not in the site table, so before this check the card mounted and
+			// every tile request 400'd with no startup diagnostic at all.
+			name:        "radar_with_an_unknown_site",
+			flags:       uiFlags{Radar: true},
+			station:     locatedBadSite,
+			hasStore:    true,
+			wantRadar:   false,
+			wantReasons: []string{"ENABLE_RADAR", "KTLX", "sites.go"},
+		},
+		{
 			name:        "radar_without_coordinates",
 			flags:       uiFlags{Radar: true},
 			station:     siteNoCoords,
@@ -321,8 +334,8 @@ func TestDecideUI(t *testing.T) {
 			if got.Radar != tc.wantRadar {
 				t.Errorf("Radar = %v, want %v", got.Radar, tc.wantRadar)
 			}
-			if !tc.flags.Radar && got.RadarSite != nil {
-				t.Errorf("RadarSite = %v, want nil when ENABLE_RADAR is false", *got.RadarSite)
+			if !tc.wantRadar && got.RadarSite != nil {
+				t.Errorf("RadarSite = %q, want nil when the radar card is not mounted", *got.RadarSite)
 			}
 			if len(tc.wantReasons) == 0 {
 				if len(got.Reasons) != 0 {
