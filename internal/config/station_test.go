@@ -159,6 +159,53 @@ func TestLoadStation_LoadsNonUTCZone(t *testing.T) {
 	}
 }
 
+func TestLoadStation_TimezoneConfigured(t *testing.T) {
+	tests := []struct {
+		name     string
+		value    string // "" means the variable is not set at all
+		set      bool
+		wantFlag bool
+		wantErr  bool
+	}{
+		{name: "unset", set: false, wantFlag: false},
+		// An operator at a genuinely UTC station made a choice, and must not
+		// be warned. Location cannot express this: time.LoadLocation("UTC")
+		// returns the time.UTC pointer itself, so the flag is the only way to
+		// tell "chose UTC" from "did not choose".
+		{name: "explicit_utc", value: "UTC", set: true, wantFlag: true},
+		{name: "valid_zone", value: "America/Denver", set: true, wantFlag: true},
+		// Malformed stays fatal, and the flag stays false: it is set only in
+		// the success branch.
+		{name: "malformed", value: "Not/AZone", set: true, wantFlag: false, wantErr: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Every test in this file starts here, so a stray STATION_* in the
+			// developer's shell cannot make LoadStation error and fail a
+			// wantErr:false row. See the helper's own comment.
+			clearStationEnv(t)
+
+			if tc.set {
+				t.Setenv("STATION_TIMEZONE", tc.value)
+			} else {
+				t.Setenv("STATION_TIMEZONE", "")
+			}
+
+			cfg, err := LoadStation()
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("LoadStation() err = %v, wantErr = %v", err, tc.wantErr)
+			}
+			if cfg.TimezoneConfigured != tc.wantFlag {
+				t.Errorf("TimezoneConfigured = %v, want %v", cfg.TimezoneConfigured, tc.wantFlag)
+			}
+			if tc.name == "explicit_utc" && cfg.Location != time.UTC {
+				t.Errorf("Location = %v, want time.UTC", cfg.Location)
+			}
+		})
+	}
+}
+
 // clearStationEnv unsets every variable LoadStation reads, so a test never
 // inherits one from the developer's shell. t.Setenv restores on cleanup.
 func clearStationEnv(t *testing.T) {

@@ -466,6 +466,11 @@ type uiDecision struct {
 	// never returned as an error, because there is no caller that should
 	// treat them as fatal -- see decideUI's doc comment.
 	Reasons []string
+	// Warnings are logged at WARN: a card that IS mounted, but degraded by a
+	// default the operator probably did not intend. Unlike Reasons, a warning
+	// never gates route registration or the capability document -- the card
+	// works, it is just not what they meant.
+	Warnings []string
 }
 
 // decideUI resolves which optional cards this process can serve and why any
@@ -513,6 +518,15 @@ func decideUI(flags uiFlags, station config.StationConfig, hasStore bool) uiDeci
 					"configuration. The almanac card will not be mounted.")
 		default:
 			d.Almanac = true
+			if !station.TimezoneConfigured {
+				d.Warnings = append(d.Warnings,
+					"ENABLE_ALMANAC is true and coordinates are set, but STATION_TIMEZONE "+
+						"is not: sunrise and sunset will render as UTC clock times, the "+
+						"Today/This Week/This Month/This Year windows will use UTC calendar "+
+						"boundaries, and the record date labels (\"Today\", \"Jan 2\") will be "+
+						"UTC-dated. Set STATION_TIMEZONE to the station's IANA zone "+
+						"(e.g. America/Denver).")
+			}
 		}
 	}
 
@@ -582,6 +596,9 @@ func startAPIServer(mode Mode, station config.StationConfig, sw *sqlite.Writer) 
 	)
 	for _, reason := range decision.Reasons {
 		slog.Error("optional UI card not mounted", "reason", reason)
+	}
+	for _, warning := range decision.Warnings {
+		slog.Warn("optional UI card degraded", "warning", warning)
 	}
 
 	// RADAR_SITE reaches the wire only when the radar card is actually
