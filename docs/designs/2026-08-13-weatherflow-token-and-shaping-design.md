@@ -820,6 +820,13 @@ constant until #81 restores the field alongside its provider.
 
 ## 9. Unmet preconditions degrade loudly; they never stop the process
 
+> **Extended 2026-08-15** by
+> `docs/designs/2026-08-15-astro-anchor-and-startup-diagnostics-design.md`,
+> which adds two rows — an invalid (not merely absent) `RADAR_SITE`, and a
+> third severity for a card that mounts but is degraded by an unset
+> `STATION_TIMEZONE`. The table below is left as the record of what #162
+> shipped; see that document for the current full table.
+
 **No UI feature flag can prevent the appliance from starting or ingesting.**
 
 `startAPIServer` runs at `main.go:581`, before `listenAndPushWithSink` at

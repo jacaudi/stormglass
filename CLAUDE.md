@@ -132,7 +132,7 @@ The application switches modes based on presence of `TOKEN` environment variable
 - `JOB_NAME`: Job label for pushed metrics (default: "tempest")
 - `ENABLE_PROMETHEUS_METRICS`: Set to "true" or "1" to expose `/metrics` endpoint for Prometheus scraping
 - `PROMETHEUS_METRICS_PORT`: Port for the metrics endpoint (default: 9000)
-- `ENABLE_RADAR`: Set to "true" or "1" to render the radar card and register `GET /api/radar/{site}` (default: false). `RADAR_SITE` and `STATION_LATITUDE`/`STATION_LONGITUDE` are checked at startup: if either is missing the card is not mounted and an ERROR names it — the process still starts and keeps ingesting. The radar sidecar must also be running to serve tiles, but its absence is **not** checked at startup; it surfaces as failing tile requests at runtime.
+- `ENABLE_RADAR`: Set to "true" or "1" to render the radar card and register `GET /api/radar/{site}` (default: false). `RADAR_SITE` and `STATION_LATITUDE`/`STATION_LONGITUDE` are checked at startup: if either is missing, or if `RADAR_SITE` is not one of the 163 WSR-88D codes in `internal/radar/sites.go`, the card is not mounted and an ERROR names it — the process still starts and keeps ingesting. The radar sidecar must also be running to serve tiles, but its absence is **not** checked at startup; it surfaces as failing tile requests at runtime.
 - `ENABLE_FORECAST`: Set to "true" or "1" to enable the 7-day forecast card (default: false). **There is no forecast provider yet.** The WeatherFlow proxy was removed (issue #62, closed won't-do) and the tokenless NWS replacement is issue #81, so enabling this today logs an ERROR and mounts nothing.
 - `ENABLE_ALMANAC`: Set to "true" or "1" to render the station almanac card and register `GET /api/almanac` (default: false). Requires `STATION_LATITUDE`/`STATION_LONGITUDE` and an observation store (SQLite is the default).
 - `ENABLE_POSTGRES`: Set to "true" or "1" to enable writing metrics to PostgreSQL (opt-in; SQLite is the default store — see below)
@@ -158,8 +158,8 @@ once.
 - `STATION_LATITUDE` / `STATION_LONGITUDE`: decimal degrees, −90..90 and −180..180. Must be set **together**. Needed by the almanac and the radar card. Absent means those cards are not mounted.
 - `STATION_ELEVATION`: metres. Display only; absent renders `—`.
 - `STATION_NAME`: display only; absent renders `Tempest Station`.
-- `STATION_TIMEZONE`: IANA name (e.g. `America/Denver`). **Defaults to `UTC`**, so an operator who sets coordinates but not a timezone gets calendar windows on UTC boundaries — correct per the default, and surprising. Server-side only; it never appears on the wire, because the server preformats every timezone-dependent value.
-- `RADAR_SITE`: WSR-88D site code (e.g. `TLX`). Read only when `ENABLE_RADAR` is true.
+- `STATION_TIMEZONE`: IANA name (e.g. `America/Denver`). **Defaults to `UTC`**. If coordinates are set and this is not, the almanac still mounts, but renders on UTC: sunrise/sunset become UTC clock times (a Denver station shows "Sunrise 2:17 PM · Sunset 11:39 PM" on the December solstice), the calendar windows fall on UTC boundaries, and the record date labels are UTC-dated. That case logs a **WARN** at startup — the card works, it is just not what most operators mean. Server-side only; it never appears on the wire, because the server preformats every timezone-dependent value.
+- `RADAR_SITE`: WSR-88D site code (e.g. `TLX`, not the ICAO form `KTLX`). Read only when `ENABLE_RADAR` is true, and validated at startup against the 163-entry table in `internal/radar/sites.go`; an unknown code leaves the card unmounted with an ERROR naming the value.
 
 ## SQLite Storage (default store)
 
@@ -249,10 +249,14 @@ All tables use UUIDv7 primary keys (generated in Go, no PostgreSQL extensions re
 > #81. Leave `ENABLE_FORECAST` false until then.
 >
 > An unmet precondition is never fatal. `ENABLE_ALMANAC=true` without
-> coordinates, or `ENABLE_RADAR=true` without `RADAR_SITE`, logs an ERROR
-> naming the missing variables, leaves the route unregistered and reports the
-> capability false. The process starts and keeps ingesting — a card flag must
-> never be able to stop the data path.
+> coordinates, or `ENABLE_RADAR=true` without `RADAR_SITE` — or with a
+> `RADAR_SITE` that is not in the site table — logs an ERROR naming the
+> problem, leaves the route unregistered and reports the capability false.
+> The process starts and keeps ingesting; a card flag must never be able to
+> stop the data path. A precondition that is *met* but degraded logs a **WARN**
+> instead and the card still mounts: setting coordinates without
+> `STATION_TIMEZONE` is the one such case, and renders every almanac time on
+> UTC.
 
 > **Migration note (upgrading from a pre-tokenless build):** a deployment
 > running `ENABLE_FORECAST=true` or `ENABLE_RADAR=true` today is up and

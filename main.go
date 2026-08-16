@@ -453,8 +453,9 @@ type uiFlags struct {
 	Radar    bool
 }
 
-// uiDecision is what the server can actually serve, plus one
-// operator-facing reason per flag that is enabled and cannot be honoured.
+// uiDecision is what the server can actually serve, plus operator-facing
+// diagnostics at two severities: a reason per enabled flag that cannot be
+// honoured, and a warning per card that is served but degraded.
 type uiDecision struct {
 	Almanac bool
 	Radar   bool
@@ -485,11 +486,14 @@ type uiDecision struct {
 // empty, so under a fatal rule, flipping ENABLE_RADAR=true and nothing else
 // would turn a dead card into a permanent data outage.
 //
-// Loud without being fatal: every unmet precondition produces an ERROR log
-// naming the missing variables, the route is left unregistered, and
-// /api/capabilities reports the feature false -- the mechanism issue #145
-// built, where one value gates both the routing and the document so they
-// cannot disagree.
+// Loud without being fatal, at two severities. An unmet precondition produces
+// an ERROR naming the missing or invalid variables, leaves the route
+// unregistered, and reports /api/capabilities false -- the mechanism issue
+// #145 built, where one value gates both the routing and the document so they
+// cannot disagree. A precondition that is MET but degraded by an unintended
+// default produces a WARN instead: the route is registered and the capability
+// is true, because the card works -- it is just not what the operator meant.
+// STATION_TIMEZONE is the only such case today (issue #165).
 //
 // A MALFORMED value is a different matter and is already fatal, in
 // config.LoadStation: absent means "the operator did not configure this
