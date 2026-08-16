@@ -1,5 +1,68 @@
 # Changelog
 
+## [4.0.0](https://github.com/jacaudi/tempestwx-utilities/compare/v3.1.2...v4.0.0) (2026-08-16)
+
+
+### ⚠ BREAKING CHANGES
+
+* delete the WeatherFlow proxy from the UDP-mode appliance
+
+### Features
+
+* add ENABLE_FORECAST and ENABLE_ALMANAC ([9338df9](https://github.com/jacaudi/tempestwx-utilities/commit/9338df928696806ed65458085024709b11fe9c7b)), closes [#145](https://github.com/jacaudi/tempestwx-utilities/issues/145)
+* **almanac:** warn when coordinates are set and STATION_TIMEZONE is not ([6a02b03](https://github.com/jacaudi/tempestwx-utilities/commit/6a02b039abf1089503c806057ba59d2fbf330dc4)), closes [#165](https://github.com/jacaudi/tempestwx-utilities/issues/165)
+* **astro:** compute moon phase, name and illumination via Meeus 48.4 ([16e97fb](https://github.com/jacaudi/tempestwx-utilities/commit/16e97fb6ef64967f21e0ac7f1506c48bba415b7e))
+* **astro:** compute sunrise and sunset from vendored NOAA equations ([1bd04b2](https://github.com/jacaudi/tempestwx-utilities/commit/1bd04b254b828a179bfa1a0860831e204cc316b3))
+* **config:** load station identity from STATION_* and RADAR_SITE ([1face3e](https://github.com/jacaudi/tempestwx-utilities/commit/1face3e815f4f5b25456d06a781a6b26c0a25f3a))
+* gate the Forecast, Radar and Almanac cards behind config ([4654e97](https://github.com/jacaudi/tempestwx-utilities/commit/4654e97f57ea42e4ceb1236d7cacea3ba8f10e13))
+* **httpserver:** add calendar-aligned almanac window arithmetic ([e6dde8c](https://github.com/jacaudi/tempestwx-utilities/commit/e6dde8c3bb20e6ffbeaea5ba6fecfc23fd4c4c87))
+* **httpserver:** add GET /api/capabilities ([eb40eb0](https://github.com/jacaudi/tempestwx-utilities/commit/eb40eb0407df4a4e5d70453ae51bb60426a2a251)), closes [#145](https://github.com/jacaudi/tempestwx-utilities/issues/145)
+* **httpserver:** compute /api/almanac from the local store and astronomy ([5b626cb](https://github.com/jacaudi/tempestwx-utilities/commit/5b626cb2c7e88da3dba0ec1400c1afde2f95ba63))
+* **httpserver:** register /api/forecast and /api/almanac only when enabled ([ac14a78](https://github.com/jacaudi/tempestwx-utilities/commit/ac14a78f265c3dd2a26d1a55527006c9659b74db)), closes [#145](https://github.com/jacaudi/tempestwx-utilities/issues/145)
+* **httpserver:** serve /api/station from station identity config ([1cc03c0](https://github.com/jacaudi/tempestwx-utilities/commit/1cc03c05a271edbc6ee10abbd02443187b1efe44))
+* **main:** degrade loudly on unmet UI preconditions instead of exiting ([b4838e9](https://github.com/jacaudi/tempestwx-utilities/commit/b4838e9848b2b101f9ddc14abd40fc2a2ea3314e))
+* make the UDP-mode appliance tokenless and delete the WeatherFlow proxy ([017fdfa](https://github.com/jacaudi/tempestwx-utilities/commit/017fdfa13c1d99a2362cb6c851d1e5756e27cb04))
+* **radar:** reject an unknown RADAR_SITE at startup ([9aaa8b3](https://github.com/jacaudi/tempestwx-utilities/commit/9aaa8b3637ced430008157fbab73c419d7213d54)), closes [#163](https://github.com/jacaudi/tempestwx-utilities/issues/163)
+* **sqlite:** add TemperatureExtremes with argmax timestamps ([462b77a](https://github.com/jacaudi/tempestwx-utilities/commit/462b77a693baee8c105ddd8d61d95358016d4bd5))
+* **web:** add Capabilities type and fetchCapabilities ([4616860](https://github.com/jacaudi/tempestwx-utilities/commit/46168606c9967bc84f9a41dfc804d1cc57a99e4d))
+* **web:** fetch capabilities in useWeatherData and skip disabled slices ([6a7642f](https://github.com/jacaudi/tempestwx-utilities/commit/6a7642f06782d835fdb2c78433e6d94e09af93c0)), closes [#145](https://github.com/jacaudi/tempestwx-utilities/issues/145)
+* **web:** mount Forecast, Almanac and Radar only when enabled ([2711979](https://github.com/jacaudi/tempestwx-utilities/commit/2711979be63a744114583b8f9f66533fb244c4f1)), closes [#145](https://github.com/jacaudi/tempestwx-utilities/issues/145)
+* **web:** retype the station and almanac contracts for the tokenless API ([a6897c9](https://github.com/jacaudi/tempestwx-utilities/commit/a6897c96768fa73f92d1f06a48a3a5ffe90906de))
+* **web:** wire RADAR_SITE through /api/station to the radar card ([08e65f9](https://github.com/jacaudi/tempestwx-utilities/commit/08e65f9c2a2e57a265ce8b39d13ef76eff2d55e2))
+
+
+### Bug Fixes
+
+* address SR-eng review findings (comments, almanac windows, radar site) ([8b23f92](https://github.com/jacaudi/tempestwx-utilities/commit/8b23f92204b4139086f9f919e9ef634ab27ea841))
+* **astro:** anchor sunrise/sunset on solar noon, not the UTC date ([5565e87](https://github.com/jacaudi/tempestwx-utilities/commit/5565e87039e7f9d77cdfec77c33ec5de0b5c0d92)), closes [#166](https://github.com/jacaudi/tempestwx-utilities/issues/166)
+* **astro:** compute the obliquity once and anchor it in a test ([12f1953](https://github.com/jacaudi/tempestwx-utilities/commit/12f19537c4296ae036db177e95cf88a953db7ff9)), closes [#167](https://github.com/jacaudi/tempestwx-utilities/issues/167)
+* **backfill:** close the three observability and seam gaps ([#108](https://github.com/jacaudi/tempestwx-utilities/issues/108), [#109](https://github.com/jacaudi/tempestwx-utilities/issues/109), [#110](https://github.com/jacaudi/tempestwx-utilities/issues/110)) ([73352e1](https://github.com/jacaudi/tempestwx-utilities/commit/73352e10184e0c6c14e875fcbbb9d8beabd04c49))
+* **backfill:** reject the epoch sentinel and announce the plan before filling ([c47a397](https://github.com/jacaudi/tempestwx-utilities/commit/c47a39718accb55391361869736282c5c22cf602)), closes [#108](https://github.com/jacaudi/tempestwx-utilities/issues/108)
+* correct prose findings from the final whole-branch review ([5fe7f4e](https://github.com/jacaudi/tempestwx-utilities/commit/5fe7f4e5d5084aa02c36b443158fef286d2b31e1))
+* **postgres:** bound retry backoff by the flush ctx, not the writer's ctx ([fd77cb6](https://github.com/jacaudi/tempestwx-utilities/commit/fd77cb6f20a5ecb4b823de7ed97d38a600d8c4a5)), closes [#153](https://github.com/jacaudi/tempestwx-utilities/issues/153)
+* **postgres:** flush with a shutdown-proof context so Close loses no rows ([1a40bbf](https://github.com/jacaudi/tempestwx-utilities/commit/1a40bbf1ee82620286c51b68be2e0505adcfa4b3)), closes [#111](https://github.com/jacaudi/tempestwx-utilities/issues/111)
+* solar-meridian sunrise anchor, single obliquity, and two startup diagnostics ([d15670f](https://github.com/jacaudi/tempestwx-utilities/commit/d15670fef338e8471ee4a937d6277b49b5556ef0))
+* **sqlite:** detach steady-state flushes from the cancellable run ctx ([d5f5495](https://github.com/jacaudi/tempestwx-utilities/commit/d5f54957bd8a98804e395de749a4de16ecb879ca)), closes [#154](https://github.com/jacaudi/tempestwx-utilities/issues/154)
+* stop losing rows on shutdown in both writers ([c85ba74](https://github.com/jacaudi/tempestwx-utilities/commit/c85ba743987817eaea27610bf969cef12cd7cc20))
+* **tempestapi:** check the WeatherFlow envelope status_code in GetObservations ([c27c4d0](https://github.com/jacaudi/tempestwx-utilities/commit/c27c4d0b966dd7d54c297635c9589ed495bb2457))
+* **tempestapi:** check the WeatherFlow envelope status_code in GetObservations ([6e8deb6](https://github.com/jacaudi/tempestwx-utilities/commit/6e8deb61d7beffce8394162554ffde01561b40cb)), closes [#49](https://github.com/jacaudi/tempestwx-utilities/issues/49)
+* **web:** refetch the records summary when Refresh is pressed ([34f7c0b](https://github.com/jacaudi/tempestwx-utilities/commit/34f7c0b7ed3da96a2d18a8956ba4e448e046f3c1))
+* **web:** refetch the records summary when Refresh is pressed ([570e9db](https://github.com/jacaudi/tempestwx-utilities/commit/570e9db55bee49b1c38aba258743a2f01b26b061)), closes [#89](https://github.com/jacaudi/tempestwx-utilities/issues/89)
+* **web:** stop a capability flip from blanking a rendered dashboard ([821d8e2](https://github.com/jacaudi/tempestwx-utilities/commit/821d8e22db4a34d952dd4f7a79dd79627a274da2)), closes [#145](https://github.com/jacaudi/tempestwx-utilities/issues/145)
+* **web:** stop rendering NaN coordinates for a station-less response ([1fdefb3](https://github.com/jacaudi/tempestwx-utilities/commit/1fdefb339f51697f703b9356133e06136b1666c4)), closes [#145](https://github.com/jacaudi/tempestwx-utilities/issues/145)
+
+
+### Miscellaneous Chores
+
+* **deps:** Update grafana/grafana Docker tag to v13 ([2e19f69](https://github.com/jacaudi/tempestwx-utilities/commit/2e19f693b713c3d62e71396ef0d0350e7a4a9fc5))
+* **deps:** Update python Docker tag to v3.14 ([b3f901a](https://github.com/jacaudi/tempestwx-utilities/commit/b3f901ab91941c8a6af6896cd404decdc3cc9b0c))
+* gitignore implementation plans; add the card-gating design ([2c41fe2](https://github.com/jacaudi/tempestwx-utilities/commit/2c41fe2927f85c1322b5dffc8c7e2de3ddadc36d))
+
+
+### Code Refactoring
+
+* delete the WeatherFlow proxy from the UDP-mode appliance ([5279803](https://github.com/jacaudi/tempestwx-utilities/commit/5279803fe3a6d1a016ad132446b7ba35165b7f50))
+
 ## [3.1.2](https://github.com/jacaudi/tempestwx-utilities/compare/v3.1.1...v3.1.2) (2026-08-07)
 
 
