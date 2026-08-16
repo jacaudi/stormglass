@@ -153,13 +153,61 @@ func eqCentreTerms(tc, m float64) map[string]float64 {
 	}
 }
 
+// referenceObliquity is an INDEPENDENT transcription of A.1 step 9 -- the
+// corrected mean obliquity of the ecliptic, in degrees. It is written from the
+// design, NOT derived from sun.go, which is what lets it anchor sun.go.
+//
+// Reconciling this function to match a changed implementation defeats the
+// check entirely. If it starts failing, check solarIntermediates against A.1
+// step 9 BEFORE touching anything here.
+func referenceObliquity(jd float64) float64 {
+	tc := (jd - 2451545.0) / 36525.0
+	omega := 125.04 - 1934.136*tc
+	sec := 21.448 - tc*(46.8150+tc*(0.00059-tc*0.001813))
+	return 23.0 + (26.0+sec/60.0)/60.0 + 0.00256*math.Cos(rad(omega))
+}
+
+// TestSolarIntermediates_ObliquityIsAnchored pins the single obliquity that
+// sun.go computes, and pins the fact that the equation of time is built from
+// THAT value rather than from a second series.
+//
+// Both assertions are load-bearing and they catch different mutants:
+//
+//	assertion 1 catches a drifted eps -- including the specific recurrence of
+//	  issue #167, where someone re-inlines a correct obliquity for the
+//	  declination and leaves the shared one wrong. The +-90 s vector tolerance
+//	  absorbs up to ~0.3 deg of that drift, so nothing else catches it.
+//	assertion 2 catches a correct eps whose y was built from a DIFFERENT
+//	  series -- the shape the bug had before the two were merged.
+//
+// Do not drop either.
+func TestSolarIntermediates_ObliquityIsAnchored(t *testing.T) {
+	for _, jd := range probeDates {
+		_, _, _, y, eps := solarIntermediates(jd)
+
+		if want := referenceObliquity(jd); math.Abs(eps-want) > 1e-9 {
+			t.Fatalf("jd %.1f: solarIntermediates eps = %.12f, independent reference = %.12f.\n"+
+				"Check A.1 step 9 in sun.go BEFORE editing referenceObliquity.", jd, eps, want)
+		}
+
+		// tan^2(eps/2) is A.1 step 9's y. Measured headroom is ~1e-18, so
+		// 1e-12 is six orders loose and cannot flake; it is tight enough that
+		// a second obliquity series feeding y cannot hide behind it.
+		tan := math.Tan(rad(eps / 2))
+		if want := tan * tan; math.Abs(y-want) > 1e-12 {
+			t.Fatalf("jd %.1f: y = %.18f but tan^2(eps/2) = %.18f -- y is built from a "+
+				"DIFFERENT obliquity than the one returned.", jd, y, want)
+		}
+	}
+}
+
 // referenceDeclination rebuilds A.1 steps 6-10 with one equation-of-centre
 // term optionally omitted. The chain is duplicated from solarPosition
 // deliberately: the anchor assertion fails loudly if the two ever drift,
 // which is exactly what makes the per-term checks trustworthy.
 func referenceDeclination(jd float64, omit string) float64 {
 	tc := (jd - 2451545.0) / 36525.0
-	l0, m, _, _ := solarIntermediates(jd)
+	l0, m, _, _, _ := solarIntermediates(jd)
 
 	var c float64
 	for name, v := range eqCentreTerms(tc, m) {
@@ -170,10 +218,7 @@ func referenceDeclination(jd float64, omit string) float64 {
 
 	omega := 125.04 - 1934.136*tc
 	lambda := l0 + c - 0.00569 - 0.00478*math.Sin(rad(omega))
-	sec := 21.448 - tc*(46.8150+tc*(0.00059-tc*0.001813))
-	eps0 := 23.0 + (26.0+sec/60.0)/60.0
-	eps := eps0 + 0.00256*math.Cos(rad(omega))
-	return deg(math.Asin(math.Sin(rad(eps)) * math.Sin(rad(lambda))))
+	return deg(math.Asin(math.Sin(rad(referenceObliquity(jd))) * math.Sin(rad(lambda))))
 }
 
 // probeDates spans the year: a single instant can drive a sin/cos factor to
@@ -190,7 +235,7 @@ func TestSolarPosition_TermsAreAllPresent(t *testing.T) {
 	// ANCHOR. Without this the per-term checks would compare the reference
 	// against itself and pass against an implementation missing terms.
 	for _, jd := range probeDates {
-		l0, m, e, y := solarIntermediates(jd)
+		l0, m, e, y, _ := solarIntermediates(jd)
 		gotEqTime, gotDecl := solarPosition(jd)
 
 		if full := referenceEqTime(eqTimeTerms(l0, m, e, y), ""); math.Abs(gotEqTime-full) > 1e-9 {
@@ -208,14 +253,14 @@ func TestSolarPosition_TermsAreAllPresent(t *testing.T) {
 		}
 	}
 
-	l0, m, e, y := solarIntermediates(probeDates[0])
+	l0, m, e, y, _ := solarIntermediates(probeDates[0])
 
 	// Sorted, so subtest order is deterministic -- map iteration is not.
 	for _, name := range slices.Sorted(maps.Keys(eqTimeTerms(l0, m, e, y))) {
 		t.Run("eqtime_"+name, func(t *testing.T) {
 			var maxDelta float64
 			for _, jd := range probeDates {
-				a, b, c, d := solarIntermediates(jd)
+				a, b, c, d, _ := solarIntermediates(jd)
 				got, _ := solarPosition(jd)
 				without := referenceEqTime(eqTimeTerms(a, b, c, d), name)
 				maxDelta = max(maxDelta, math.Abs(got-without))

@@ -81,7 +81,7 @@ func eventMinutes(jd, lat, lon float64, rise bool) (float64, bool) {
 func solarPosition(jd float64) (eqTime, decl float64) {
 	t := (jd - 2451545.0) / 36525.0
 
-	l0, m, e, y := solarIntermediates(jd)
+	l0, m, e, y, eps := solarIntermediates(jd)
 
 	// Step 6: equation of the centre.
 	c := math.Sin(rad(m))*(1.914602-t*(0.004817+0.000014*t)) +
@@ -91,11 +91,8 @@ func solarPosition(jd float64) (eqTime, decl float64) {
 	o := l0 + c
 	omega := 125.04 - 1934.136*t
 	lambda := o - 0.00569 - 0.00478*math.Sin(rad(omega))
-	// Step 9: mean obliquity of the ecliptic, corrected (same omega).
-	sec := 21.448 - t*(46.8150+t*(0.00059-t*0.001813))
-	eps0 := 23.0 + (26.0+sec/60.0)/60.0
-	eps := eps0 + 0.00256*math.Cos(rad(omega))
-	// Step 10: declination.
+	// Step 10: declination. (Step 9, the obliquity, is in solarIntermediates,
+	// which returns the eps used here and by step 11's y.)
 	decl = deg(math.Asin(math.Sin(rad(eps)) * math.Sin(rad(lambda))))
 	// Step 11: equation of time. l0 is the normalised value and m the
 	// un-normalised one, exactly as NOAA does it -- l0's normalisation is
@@ -111,12 +108,17 @@ func solarPosition(jd float64) (eqTime, decl float64) {
 	return eqTime, decl
 }
 
-// solarIntermediates returns the four quantities the equation of time is
-// built from: the normalised geometric mean longitude, the UN-normalised
-// geometric mean anomaly, the orbital eccentricity, and tan²(ε/2).
+// solarIntermediates returns the quantities the rest of the model is built
+// from: the normalised geometric mean longitude, the UN-normalised geometric
+// mean anomaly, the orbital eccentricity, tan²(ε/2), and the corrected mean
+// obliquity ε itself.
+//
+// ε is returned rather than recomputed by the caller because the declination
+// and the equation of time must use the SAME value. They previously used two
+// textually identical copies, which nothing kept in step -- issue #167.
 // Extracted so the term-presence test can reconstruct individual terms
 // without duplicating the series (A.1 steps 3-5, 9, 11).
-func solarIntermediates(jd float64) (l0, m, e, y float64) {
+func solarIntermediates(jd float64) (l0, m, e, y, eps float64) {
 	t := (jd - 2451545.0) / 36525.0
 
 	// Step 3: geometric mean longitude, normalised to [0, 360).
@@ -136,8 +138,8 @@ func solarIntermediates(jd float64) (l0, m, e, y float64) {
 	omega := 125.04 - 1934.136*t
 	sec := 21.448 - t*(46.8150+t*(0.00059-t*0.001813))
 	eps0 := 23.0 + (26.0+sec/60.0)/60.0
-	eps := eps0 + 0.00256*math.Cos(rad(omega))
+	eps = eps0 + 0.00256*math.Cos(rad(omega))
 	y = math.Tan(rad(eps/2)) * math.Tan(rad(eps/2))
 
-	return l0, m, e, y
+	return l0, m, e, y, eps
 }
