@@ -5,6 +5,93 @@ import type { WeatherData } from './hooks/useWeatherData';
 import type { CurrentObservation, ForecastDay, RecordsSummary, StationAlmanac, StationMeta } from './types/weather';
 import { PrecipitationType, PressureTrend } from './types/weather';
 
+// --- MapLibre GL mock -------------------------------------------------
+// jsdom has no WebGL, so the real maplibre-gl Map would throw on
+// construction. We replace the whole module with lightweight fakes that
+// record calls so behavior (protocol registration, layer styling,
+// attribution, pan calls) can be asserted without a real GL context.
+// vi.mock factories are hoisted above all other module code, so anything
+// they reference must be created via vi.hoisted rather than a plain
+// top-level const/class.
+//
+// Copied from RadarCard.test.tsx: these two tests are the first App tests
+// that actually mount RadarCard with a `site` (every prior radar test
+// asserts the card is absent), and the real maplibre-gl module throws in
+// jsdom on unmount even though RadarCard's construction try/catch survives.
+// Only MockMap/MockAttributionControl/addProtocolMock are consumed below
+// (these App-level tests assert text, not map internals) -- the other
+// returned fields exist so this block can be a straight copy of the
+// RadarCard.test.tsx factory rather than a forked one.
+const { addProtocolMock, MockMap, MockAttributionControl } =
+  vi.hoisted(() => {
+    const mapInstances: Array<{
+      options: Record<string, unknown>;
+      handlers: Record<string, Array<(...args: unknown[]) => void>>;
+      addSource: ReturnType<typeof vi.fn>;
+      addLayer: ReturnType<typeof vi.fn>;
+      getSource: ReturnType<typeof vi.fn>;
+      easeTo: ReturnType<typeof vi.fn>;
+      addControl: ReturnType<typeof vi.fn>;
+      remove: ReturnType<typeof vi.fn>;
+      fire: (event: string) => void;
+    }> = [];
+
+    const setDataMock = vi.fn();
+    const addProtocolMock = vi.fn();
+    const attributionControlInstances: Array<Record<string, unknown>> = [];
+
+    class MockMap {
+      options: Record<string, unknown>;
+      handlers: Record<string, Array<(...args: unknown[]) => void>> = {};
+      addSource = vi.fn();
+      addLayer = vi.fn();
+      getSource = vi.fn(() => ({ setData: setDataMock }));
+      easeTo = vi.fn();
+      addControl = vi.fn();
+      remove = vi.fn();
+
+      constructor(options: Record<string, unknown>) {
+        this.options = options;
+        mapInstances.push(this);
+      }
+
+      on(event: string, cb: (...args: unknown[]) => void) {
+        this.handlers[event] = [...(this.handlers[event] ?? []), cb];
+      }
+
+      // Test helper: fires all handlers registered for `event`.
+      fire(event: string) {
+        (this.handlers[event] ?? []).forEach((cb) => cb());
+      }
+    }
+
+    class MockAttributionControl {
+      options: Record<string, unknown>;
+      constructor(options: Record<string, unknown> = {}) {
+        this.options = options;
+        attributionControlInstances.push(options);
+      }
+    }
+
+    return { mapInstances, attributionControlInstances, setDataMock, addProtocolMock, MockMap, MockAttributionControl };
+  });
+
+// Flat, not wrapped in `default`: RadarCard now uses a namespace import, so
+// `maplibregl.Map` resolves against the module's top-level exports. Leaving the
+// `default: {...}` shape here would typecheck fine and then fail at run time
+// with "maplibregl.Map is not a constructor".
+vi.mock('maplibre-gl', () => ({
+  Map: MockMap,
+  AttributionControl: MockAttributionControl,
+  addProtocol: addProtocolMock,
+}));
+
+vi.mock('pmtiles', () => ({
+  Protocol: class MockProtocol {
+    tile = vi.fn();
+  },
+}));
+
 const mockCurrent: CurrentObservation = {
   timestamp: 1_700_000_000,
   windLull: 0.5,
@@ -67,23 +154,19 @@ const mockAlmanac: StationAlmanac = {
   week: { high: 28, highDate: 'Mon', low: 12, lowDate: 'Tue' },
   month: { high: 30, highDate: 'Jul 1', low: 10, lowDate: 'Jul 15' },
   year: { high: 32, highDate: 'Aug 1', low: 5, lowDate: 'Jan 1' },
-  sunrise: Math.floor(Date.now() / 1000),
-  sunset: Math.floor(Date.now() / 1000) + 36000,
+  sunrise: '5:47 AM',
+  sunset: '8:17 PM',
+  daylightMinutes: 14 * 60 + 30,
   moonPhase: 0.5,
   moonPhaseName: 'Full Moon',
   moonIllumination: 1,
 };
 
 const mockStationWithCoords: StationMeta = {
-  station_id: 1,
   name: 'Test Station',
   latitude: 40.7128,
   longitude: -74.006,
   elevation: 10,
-  timezone: 'America/New_York',
-  firmware_revision: '1.0',
-  serial_number: 'ST-00000001',
-  device_id: 1,
 };
 
 const mockWeatherData: WeatherData = {
@@ -220,5 +303,25 @@ describe('App optional card gating', () => {
     render(<App />);
 
     expect(screen.queryByText('Radar')).toBeNull();
+  });
+
+  it('passes the station radarSite through to the radar card', () => {
+    // The not-configured message is the observable proxy for "no site
+    // reached RadarCard" -- it is exactly the state an absent prop produces.
+    mockWeatherData.capabilities = { forecast: false, radar: true, almanac: false };
+    mockWeatherData.station = { ...mockStationWithCoords, radarSite: 'TLX' };
+
+    render(<App />);
+
+    expect(screen.queryByText('Radar not configured for this station.')).toBeNull();
+  });
+
+  it('leaves the radar card unconfigured when the station carries no radarSite', () => {
+    mockWeatherData.capabilities = { forecast: false, radar: true, almanac: false };
+    mockWeatherData.station = mockStationWithCoords;
+
+    render(<App />);
+
+    expect(screen.getByText('Radar not configured for this station.')).toBeInTheDocument();
   });
 });

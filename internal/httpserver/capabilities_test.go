@@ -45,20 +45,14 @@ func compactJSON(b []byte) ([]byte, error) {
 
 func TestCapabilities_Document(t *testing.T) {
 	tests := []struct {
-		name     string
-		forecast bool
-		almanac  bool
-		radar    RadarProxy
-		want     string
+		name    string
+		almanac bool
+		radar   RadarProxy
+		want    string
 	}{
 		{
 			name: "all disabled is the default",
 			want: `{"forecast":false,"radar":false,"almanac":false}`,
-		},
-		{
-			name:     "forecast only",
-			forecast: true,
-			want:     `{"forecast":true,"radar":false,"almanac":false}`,
 		},
 		{
 			name:    "almanac only",
@@ -71,18 +65,16 @@ func TestCapabilities_Document(t *testing.T) {
 			want:  `{"forecast":false,"radar":true,"almanac":false}`,
 		},
 		{
-			name:     "all enabled",
-			forecast: true,
-			almanac:  true,
-			radar:    stubRadarProxy(),
-			want:     `{"forecast":true,"radar":true,"almanac":true}`,
+			name:    "radar and almanac enabled",
+			almanac: true,
+			radar:   stubRadarProxy(),
+			want:    `{"forecast":false,"radar":true,"almanac":true}`,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			deps := testDepsForCapabilities()
-			deps.Forecast = tt.forecast
 			deps.Almanac = tt.almanac
 			deps.Radar = tt.radar
 
@@ -153,5 +145,27 @@ func TestCapabilities_RadarMatchesRoute(t *testing.T) {
 				t.Errorf("GET /api/radar/TLX = %d, want %d", routeRec.Code, tt.wantRouteCode)
 			}
 		})
+	}
+}
+
+// TestCapabilities_ForecastIsAlwaysFalse pins that there is no way to enable
+// the forecast card: its provider was the WeatherFlow proxy, which is gone,
+// and #81 restores the capability alongside a tokenless NWS provider.
+func TestCapabilities_ForecastIsAlwaysFalse(t *testing.T) {
+	caps := newCapabilities(Deps{Almanac: true})
+	if caps.Forecast {
+		t.Fatal("capabilities.forecast must be false until issue #81 supplies a provider")
+	}
+}
+
+// TestAPI_Forecast_IsNotRegistered proves the route is gone, not merely
+// disabled.
+func TestAPI_Forecast_IsNotRegistered(t *testing.T) {
+	srv := New(Deps{StaticFS: fstest.MapFS{"index.html": {Data: []byte("x")}}, Almanac: true})
+	rec := httptest.NewRecorder()
+	srv.Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/forecast", nil))
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", rec.Code)
 	}
 }

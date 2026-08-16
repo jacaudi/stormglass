@@ -88,15 +88,10 @@ describe('Header station location guard', () => {
 
   it('renders the location line for a station with real coordinates', () => {
     const station = {
-      station_id: 1,
       name: 'Test',
       latitude: 35.4676,
       longitude: -97.5164,
       elevation: 361,
-      timezone: 'America/Chicago',
-      firmware_revision: '1',
-      serial_number: 'ST-1',
-      device_id: 2,
     } satisfies StationMeta;
 
     render(
@@ -110,5 +105,28 @@ describe('Header station location guard', () => {
 
     expect(document.querySelector('.station-location')).not.toBeNull();
     expect(screen.queryByText(/NaN/)).toBeNull();
+  });
+});
+
+describe('Header fallbacks on omitted station fields', () => {
+  it('renders the default name when the server omits name', () => {
+    render(<Header station={{ latitude: 35.4, longitude: -97.6 }} status={null} lastUpdated={null} onSettingsClick={() => {}} />);
+    expect(screen.getByText('Tempest Station')).toBeInTheDocument();
+  });
+
+  it('renders an em-dash for the elevation when the server omits it', () => {
+    render(<Header station={{ latitude: 35.4, longitude: -97.6 }} status={null} lastUpdated={null} onSettingsClick={() => {}} />);
+    expect(screen.getByText(/—m/)).toBeInTheDocument();
+  });
+
+  // This is the failure the server's omit-don't-zero rule exists to prevent:
+  // hasCoordinates accepts 0 as finite, so zero-valued coordinates would
+  // render a real-looking location for an unconfigured station.
+  it('renders no location line at all when coordinates are omitted', () => {
+    const { container } = render(
+      <Header station={{ name: 'Backyard' }} status={null} lastUpdated={null} onSettingsClick={() => {}} />
+    );
+    expect(container.querySelector('.station-location')).toBeNull();
+    expect(screen.queryByText(/0\.0000°N/)).not.toBeInTheDocument();
   });
 });

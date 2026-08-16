@@ -23,7 +23,12 @@ type capabilities struct {
 // one), so a parallel bool could drift from the route it describes.
 func newCapabilities(deps Deps) capabilities {
 	return capabilities{
-		Forecast: deps.Forecast,
+		// Constant false: the forecast card's only provider was the
+		// WeatherFlow proxy, which is deleted, and a 7-day forecast is the
+		// one thing that genuinely cannot come from UDP or the local store.
+		// Issue #81 restores this alongside a tokenless NWS provider; the
+		// key stays on the wire so the UI contract does not churn.
+		Forecast: false,
 		Radar:    deps.Radar != nil,
 		Almanac:  deps.Almanac,
 	}

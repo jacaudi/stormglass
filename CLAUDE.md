@@ -132,9 +132,9 @@ The application switches modes based on presence of `TOKEN` environment variable
 - `JOB_NAME`: Job label for pushed metrics (default: "tempest")
 - `ENABLE_PROMETHEUS_METRICS`: Set to "true" or "1" to expose `/metrics` endpoint for Prometheus scraping
 - `PROMETHEUS_METRICS_PORT`: Port for the metrics endpoint (default: 9000)
-- `ENABLE_RADAR`: Set to "true" or "1" to advertise the radar capability and register `GET /api/radar/{site}` (default: false; requires the radar sidecar). It does not produce a radar overlay on its own — the UI also needs station coordinates and the deferred RADAR_SITE→UI wiring
-- `ENABLE_FORECAST`: Set to "true" or "1" to enable the 7-day forecast card and register `GET /api/forecast` (default: false)
-- `ENABLE_ALMANAC`: Set to "true" or "1" to enable the station almanac card and register `GET /api/almanac` (default: false)
+- `ENABLE_RADAR`: Set to "true" or "1" to render the radar card and register `GET /api/radar/{site}` (default: false). `RADAR_SITE` and `STATION_LATITUDE`/`STATION_LONGITUDE` are checked at startup: if either is missing the card is not mounted and an ERROR names it — the process still starts and keeps ingesting. The radar sidecar must also be running to serve tiles, but its absence is **not** checked at startup; it surfaces as failing tile requests at runtime.
+- `ENABLE_FORECAST`: Set to "true" or "1" to enable the 7-day forecast card (default: false). **There is no forecast provider yet.** The WeatherFlow proxy was removed (issue #62, closed won't-do) and the tokenless NWS replacement is issue #81, so enabling this today logs an ERROR and mounts nothing.
+- `ENABLE_ALMANAC`: Set to "true" or "1" to render the station almanac card and register `GET /api/almanac` (default: false). Requires `STATION_LATITUDE`/`STATION_LONGITUDE` and an observation store (SQLite is the default).
 - `ENABLE_POSTGRES`: Set to "true" or "1" to enable writing metrics to PostgreSQL (opt-in; SQLite is the default store — see below)
 - `SQLITE_PATH`: Path to the default SQLite database file (default: `/data/tempest.db`)
 - `SQLITE_BATCH_SIZE`: SQLite insert batch size (default: 100)
@@ -145,6 +145,21 @@ The application switches modes based on presence of `TOKEN` environment variable
 - `TOKEN`: Optional. When set, switches to API export mode for historical data
 
 **Note:** In UDP mode, **SQLite is the default store**. If you set none of `ENABLE_PROMETHEUS_PUSHGATEWAY`, `ENABLE_PROMETHEUS_METRICS`, or `ENABLE_POSTGRES`, observations are still persisted to SQLite at `SQLITE_PATH` (default `/data/tempest.db`). SQLite is written only in UDP mode, and is disabled only when `ENABLE_POSTGRES` is the sole configured store **and** `SQLITE_PATH` is unset. See **SQLite Storage (default store)** below.
+
+### Station Identity
+
+The store holds no coordinates and no UDP message carries any, so station
+identity is configuration. No value is ever required, and no combination of
+absent values can prevent the process from starting. A **malformed** value —
+unparseable, out of range, non-finite, an unknown timezone, or a half-set
+coordinate pair — is a fatal startup error naming every offending variable at
+once.
+
+- `STATION_LATITUDE` / `STATION_LONGITUDE`: decimal degrees, −90..90 and −180..180. Must be set **together**. Needed by the almanac and the radar card. Absent means those cards are not mounted.
+- `STATION_ELEVATION`: metres. Display only; absent renders `—`.
+- `STATION_NAME`: display only; absent renders `Tempest Station`.
+- `STATION_TIMEZONE`: IANA name (e.g. `America/Denver`). **Defaults to `UTC`**, so an operator who sets coordinates but not a timezone gets calendar windows on UTC boundaries — correct per the default, and surprising. Server-side only; it never appears on the wire, because the server preformats every timezone-dependent value.
+- `RADAR_SITE`: WSR-88D site code (e.g. `TLX`). Read only when `ENABLE_RADAR` is true.
 
 ## SQLite Storage (default store)
 
@@ -225,13 +240,30 @@ All tables use UUIDv7 primary keys (generated in Go, no PostgreSQL extensions re
 > is not registered at all (it 404s). All three default to false, so a
 > deployment that sets none renders only the core dashboard.
 >
-> **Enabling a flag does not yet make its card work.** The container only
-> serves the UI when `TOKEN` is unset (a set `TOKEN` switches it to
-> API-export mode), so the WeatherFlow-backed routes have no credential:
-> issues #62 (a UDP-mode token source) and #61 (response shaping) must land
-> before Forecast and Almanac render real data, and Radar additionally needs
-> the deferred RADAR_SITE→UI wiring. Leave all three false until then. The
-> same caveat is stated in `deploy/.env.example` and `deploy/docker-compose.yml`.
+> **The UI's optional cards no longer need a WeatherFlow credential.**
+> `/api/station` is served from `STATION_*` configuration and `/api/almanac`
+> from the local store plus computed astronomy, so both work in UDP mode with
+> no token — issue #62 is closed as won't-do and #61 is resolved. The
+> forecast card is the exception: a 7-day forecast is the one thing that
+> cannot come from UDP or the store, and its tokenless NWS provider is issue
+> #81. Leave `ENABLE_FORECAST` false until then.
+>
+> An unmet precondition is never fatal. `ENABLE_ALMANAC=true` without
+> coordinates, or `ENABLE_RADAR=true` without `RADAR_SITE`, logs an ERROR
+> naming the missing variables, leaves the route unregistered and reports the
+> capability false. The process starts and keeps ingesting — a card flag must
+> never be able to stop the data path.
+
+> **Migration note (upgrading from a pre-tokenless build):** a deployment
+> running `ENABLE_FORECAST=true` or `ENABLE_RADAR=true` today is up and
+> ingesting with a dead card. After this change it stays up and ingesting,
+> the card is not mounted at all, and an ERROR names what is missing. **No
+> configuration that starts today becomes unstartable.** A malformed
+> `STATION_*` value or a malformed `ENABLE_*` boolean is still a fatal
+> startup error — that is an operator error, not an unconfigured feature. To
+> get the almanac and radar cards working, set
+> `STATION_LATITUDE`/`STATION_LONGITUDE` (and `RADAR_SITE` for radar).
+> `TOKEN`'s meaning is unchanged: it still selects API-export mode.
 
 > **Subcommands bypass mode selection.** `backfill` and `healthcheck` are chosen
 > by the first CLI argument, not by environment variables, and neither starts the

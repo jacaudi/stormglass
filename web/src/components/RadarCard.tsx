@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Protocol } from 'pmtiles';
-import type { StationMeta } from '../types/weather';
+import type { LocatedStation } from '../types/weather';
 import { GlassCard } from './GlassCard';
 
 /**
@@ -39,7 +39,7 @@ const DEFAULT_ZOOM = 7;
 type RadarStatus = 'loading' | 'ok' | 'unavailable' | 'not-configured';
 
 export interface RadarCardProps {
-  station: StationMeta;
+  station: LocatedStation;
   // WSR-88D site code for /api/radar/{site} (e.g. "TLX"). There is currently
   // no client-side nearest-site lookup (flagged as a follow-up -- see the
   // task report); callers that don't have one yet should omit this prop and

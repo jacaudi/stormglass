@@ -49,21 +49,16 @@ function MoonPhase({ phase, size = 52 }: { phase: number; size?: number }) {
   );
 }
 
-/* ---- Sunrise / Sunset time formatting ---- */
-function formatTime(epoch: number): string {
-  return new Date(epoch * 1000).toLocaleTimeString([], {
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-}
+/** Rendered in place of any value the station cannot supply. */
+const EM_DASH = '—';
 
 /* ---- Individual record column ---- */
 interface RecordColumnProps {
   label: string;
-  high: number;
-  highDate: string;
-  low: number;
-  lowDate: string;
+  high: number | null;
+  highDate: string | null;
+  low: number | null;
+  lowDate: string | null;
   unit: TemperatureUnit;
 }
 
@@ -73,22 +68,28 @@ function RecordColumn({ label, high, highDate, low, lowDate, unit }: RecordColum
       <span className="almanac-period">{label}</span>
       <div className="almanac-high">
         <span className="almanac-hl-label almanac-hl-high">H ↑</span>
-        <span className="almanac-temp-value almanac-temp-high">{formatTemp(high, unit)}</span>
-        <span className="almanac-temp-date">{highDate}</span>
+        <span className="almanac-temp-value almanac-temp-high">
+          {high === null ? EM_DASH : formatTemp(high, unit)}
+        </span>
+        <span className="almanac-temp-date">{highDate ?? EM_DASH}</span>
       </div>
       <div className="almanac-divider" />
       <div className="almanac-low">
         <span className="almanac-hl-label almanac-hl-low">L ↓</span>
-        <span className="almanac-temp-value almanac-temp-low">{formatTemp(low, unit)}</span>
-        <span className="almanac-temp-date">{lowDate}</span>
+        <span className="almanac-temp-value almanac-temp-low">
+          {low === null ? EM_DASH : formatTemp(low, unit)}
+        </span>
+        <span className="almanac-temp-date">{lowDate ?? EM_DASH}</span>
       </div>
     </div>
   );
 }
 
 /* ---- Daylight duration ---- */
-function daylightDuration(sunrise: number, sunset: number): string {
-  const totalMin = Math.round((sunset - sunrise) / 60);
+// A pure h/m split of the server's integer, not an epoch subtraction: the
+// server sends daylightMinutes precisely so the client never does timezone
+// arithmetic.
+function daylightDuration(totalMin: number): string {
   const h = Math.floor(totalMin / 60);
   const m = String(totalMin % 60).padStart(2, '0');
   return `${h}h ${m}m daylight`;
@@ -125,7 +126,7 @@ function AlmanacCardImpl({ almanac, unit }: AlmanacCardProps) {
           </svg>
           <div className="almanac-sun-info">
             <span className="almanac-sun-label">Sunrise</span>
-            <span className="almanac-sun-time">{formatTime(almanac.sunrise)}</span>
+            <span className="almanac-sun-time">{almanac.sunrise ?? EM_DASH}</span>
           </div>
         </div>
 
@@ -144,7 +145,7 @@ function AlmanacCardImpl({ almanac, unit }: AlmanacCardProps) {
         <div className="almanac-sun almanac-sun-right">
           <div className="almanac-sun-info almanac-sun-info-right">
             <span className="almanac-sun-label">Sunset</span>
-            <span className="almanac-sun-time">{formatTime(almanac.sunset)}</span>
+            <span className="almanac-sun-time">{almanac.sunset ?? EM_DASH}</span>
           </div>
           {/* Sun above horizon + downward arrow */}
           <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
@@ -160,9 +161,11 @@ function AlmanacCardImpl({ almanac, unit }: AlmanacCardProps) {
         </div>
       </div>
 
-      <div className="almanac-daylight-row">
-        {daylightDuration(almanac.sunrise, almanac.sunset)}
-      </div>
+      {almanac.daylightMinutes !== null && (
+        <div className="almanac-daylight-row">
+          {daylightDuration(almanac.daylightMinutes)}
+        </div>
+      )}
 
       <div className="almanac-section-divider" />
 

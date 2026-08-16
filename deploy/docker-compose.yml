@@ -51,20 +51,25 @@ services:
       HTTP_ADDR: ":8080"
       ENABLE_RADAR: ${ENABLE_RADAR:-false}
       RADAR_SIDECAR_URL: http://localhost:8081 # see host-networking note above
-      # RADAR_SITE is documented here for operators, but the app does not yet
-      # read it from the environment: radar site selection is currently a
-      # per-request URL path parameter (/api/radar/{site}) driven by the UI.
-      # Wiring RADAR_SITE into the UI is a known deferred item. Since #145 the
-      # card is also gated on station coordinates, which /api/station cannot
-      # supply with TOKEN unset — so the card is not rendered at all here, not
-      # even as a "not configured" placeholder.
+      # RADAR_SITE is read from the environment and wired through to the radar
+      # card. Enabling ENABLE_RADAR also requires STATION_LATITUDE/
+      # STATION_LONGITUDE below — without them, or without RADAR_SITE, the
+      # card is not mounted, an ERROR names what's missing, and the app keeps
+      # running and ingesting.
       RADAR_SITE: ${RADAR_SITE:-}
-      # Opt-in WeatherFlow-backed cards (#145). Both default to false. They do
-      # not work yet in this deployment: the UI only runs with TOKEN unset, so
-      # the WeatherFlow proxy is unauthenticated (#62) and its response is not
-      # yet shaped to the UI's contract (#61).
+      # Opt-in cards (#145). Both default to false. ENABLE_ALMANAC works with
+      # no token — it's computed from the local store and from computed
+      # astronomy — given STATION_LATITUDE/STATION_LONGITUDE below.
+      # ENABLE_FORECAST has no provider yet: the WeatherFlow proxy that used
+      # to back it was removed (#62, closed won't-do); its tokenless NWS
+      # replacement is #81.
       ENABLE_FORECAST: ${ENABLE_FORECAST:-false}
       ENABLE_ALMANAC: ${ENABLE_ALMANAC:-false}
+      STATION_NAME: ${STATION_NAME:-}
+      STATION_LATITUDE: ${STATION_LATITUDE:-}
+      STATION_LONGITUDE: ${STATION_LONGITUDE:-}
+      STATION_ELEVATION: ${STATION_ELEVATION:-}
+      STATION_TIMEZONE: ${STATION_TIMEZONE:-}
       TOKEN: ${TOKEN:-}
       TEMPEST_SERIAL: ${TEMPEST_SERIAL:-}
     restart: unless-stopped
@@ -146,7 +151,8 @@ services:
 
   # --- Radar sidecar (opt-in) ---------------------------------------------
   # Off by default. Enable with: docker compose --profile radar up -d
-  # and set ENABLE_RADAR=true (+ RADAR_SITE once UI wiring lands) on tempestwx.
+  # and set ENABLE_RADAR=true, RADAR_SITE, and STATION_LATITUDE/
+  # STATION_LONGITUDE on tempestwx — all three are required for the card.
   radar-sidecar:
     build:
       context: ../radar

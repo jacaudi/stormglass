@@ -55,6 +55,11 @@ type ObservationReader interface {
 	// SummarizeObservations returns the windowed min/max/total aggregates
 	// over [from, to] backing GET /api/observations/summary.
 	SummarizeObservations(ctx context.Context, from, to int64) (sqlite.Summary, error)
+	// TemperatureExtremes returns the max and min air temperature in
+	// [from, to] with the timestamp at which each occurred, backing
+	// GET /api/almanac's four record columns. Every field is invalid when
+	// the window holds no row with a non-NULL temp_air.
+	TemperatureExtremes(ctx context.Context, from, to int64) (sqlite.TempExtremes, error)
 }
 
 // currentObservation is the wire shape for GET /api/observations/current.

@@ -34,6 +34,28 @@ type fakeObservationReader struct {
 	// TestHandleSummary_*.
 	summary    sqlite.Summary
 	summaryErr error
+
+	// extremes is consumed in CALL ORDER: handleAlmanac queries today, week,
+	// month, year in that fixed order, so element 0 answers today and so on.
+	// A call past the end yields an all-invalid TempExtremes -- the real
+	// writer's empty-window behaviour.
+	//
+	// Deliberately NOT a map keyed on the window's From timestamp. Those keys
+	// COLLIDE: today.From == week.From on every Sunday (that is what
+	// week-to-date means) and today.From == month.From on the 1st of every
+	// month. Duplicate runtime keys in a Go map literal are legal and
+	// silently last-wins, so a map would quietly collapse two windows onto
+	// one answer and the test would fail on roughly one day in six.
+	extremes    []sqlite.TempExtremes
+	extremesN   int
+	extremesErr error
+
+	// extremesCalls records the (from, to) window of every TemperatureExtremes
+	// call, in call order -- so a test can pin that handleAlmanac queries four
+	// DISTINCT windows (today, week, month, year) rather than the same window
+	// four times. Recorded unconditionally, including on the error path, so a
+	// test can inspect how many calls happened before a failure.
+	extremesCalls []almanacWindow
 }
 
 func (f *fakeObservationReader) LatestObservationAny(context.Context) (sqlite.Observation, error) {
@@ -49,6 +71,19 @@ func (f *fakeObservationReader) HistoryPoints(_ context.Context, field string, _
 
 func (f *fakeObservationReader) SummarizeObservations(context.Context, int64, int64) (sqlite.Summary, error) {
 	return f.summary, f.summaryErr
+}
+
+func (f *fakeObservationReader) TemperatureExtremes(_ context.Context, from, to int64) (sqlite.TempExtremes, error) {
+	f.extremesCalls = append(f.extremesCalls, almanacWindow{From: from, To: to})
+	if f.extremesErr != nil {
+		return sqlite.TempExtremes{}, f.extremesErr
+	}
+	if f.extremesN >= len(f.extremes) {
+		return sqlite.TempExtremes{}, nil
+	}
+	te := f.extremes[f.extremesN]
+	f.extremesN++
+	return te, nil
 }
 
 func testDepsWithObservations(reader ObservationReader) Deps {

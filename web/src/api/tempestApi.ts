@@ -7,12 +7,12 @@
  *   - fetchCurrentObservation is the core: GET /api/observations/current
  *     reads this station's own SQLite store and works in UDP mode with no
  *     TOKEN configured.
- *   - fetchStationMeta/fetchForecast/fetchStationAlmanac
- *     are best-effort passthrough proxies to WeatherFlow (GET /api/station,
- *     /api/forecast, /api/almanac). They require a server-held TOKEN this
- *     appliance may not have, and the proxy forwards WeatherFlow's response
- *     shape unchanged -- it may not match this file's declared return types.
- *     Callers (useWeatherData) are expected to tolerate these failing.
+ *   - fetchStationMeta/fetchStationAlmanac read this server's own
+ *     configuration and SQLite store (GET /api/station, /api/almanac). They
+ *     are tokenless and return this file's declared types exactly.
+ *   - fetchForecast has no provider until issue #81; /api/forecast is not
+ *     registered and capabilities.forecast is false, so useWeatherData never
+ *     calls it.
  */
 
 import type {
@@ -57,7 +57,8 @@ async function getJSON<T>(url: string, signal?: AbortSignal): Promise<T> {
 }
 
 // ---------------------------------------------------------------------------
-// Station metadata -- best-effort WeatherFlow proxy (GET /api/station).
+// Station metadata -- this server's own STATION_* configuration
+// (GET /api/station). Tokenless.
 // ---------------------------------------------------------------------------
 export async function fetchStationMeta(
   _stationId?: number,
@@ -77,7 +78,10 @@ export async function fetchCurrentObservation(
 }
 
 // ---------------------------------------------------------------------------
-// Forecast -- best-effort WeatherFlow proxy (GET /api/forecast).
+// Forecast -- has no provider until issue #81. GET /api/forecast is not
+// registered and capabilities.forecast is a constant false, so
+// useWeatherData never calls this function; it exists for when a provider
+// lands.
 // ---------------------------------------------------------------------------
 export async function fetchForecast(
   _stationId?: number,
@@ -113,8 +117,8 @@ export async function fetchStationStatus(
 }
 
 // ---------------------------------------------------------------------------
-// Station almanac (historical highs/lows) -- best-effort WeatherFlow proxy
-// (GET /api/almanac).
+// Station almanac (historical highs/lows) -- computed from the local SQLite
+// store plus computed astronomy (GET /api/almanac). Tokenless.
 // ---------------------------------------------------------------------------
 export async function fetchStationAlmanac(
   _stationId?: number,

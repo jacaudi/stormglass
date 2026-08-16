@@ -1,0 +1,246 @@
+package astro
+
+import (
+	"maps"
+	"math"
+	"slices"
+	"testing"
+	"time"
+)
+
+// tolerance is an ACCURACY bound, not a transcription check: a literal
+// transcription of A.1 deviates from USNO by up to ~65 s over every non-nil
+// value in A.3 -- the worst case being row 17, at 71.29° latitude, which is
+// outside NOAA's own +/-1 min claim (NOAA scopes that to |lat| < 72°). USNO
+// publishes whole minutes on top of that. It is deliberately NOT tightened:
+// seven of the ten solar correction terms could be dropped and every row
+// below would still pass, so term presence is checked structurally by
+// TestSolarPosition_TermsAreAllPresent instead (design §7.1).
+const tolerance = 90 * time.Second
+
+func mustTime(s string) *time.Time {
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		panic(err)
+	}
+	return &t
+}
+
+// vectors is Appendix A.3, transcribed verbatim. datePassed is the calendar
+// date the row asks about; the test drives SunriseSunset with noon UTC on
+// that date, so t.Date() in t's own location is exactly datePassed.
+var vectors = []struct {
+	name     string
+	lat, lon float64
+	year     int
+	month    time.Month
+	day      int
+	wantRise *time.Time
+	wantSet  *time.Time
+}{
+	{"denver_june_solstice_set_on_next_day", 39.74, -104.98, 2026, time.June, 21,
+		mustTime("2026-06-21T11:32:00Z"), mustTime("2026-06-22T02:31:00Z")},
+	{"denver_december_solstice", 39.74, -104.98, 2026, time.December, 21,
+		mustTime("2026-12-21T14:17:00Z"), mustTime("2026-12-21T23:39:00Z")},
+	{"denver_march_equinox_set_on_next_day", 39.74, -104.98, 2026, time.March, 20,
+		mustTime("2026-03-20T13:03:00Z"), mustTime("2026-03-21T01:12:00Z")},
+	{"london_june_solstice_both_on_day", 51.5074, -0.1278, 2026, time.June, 21,
+		mustTime("2026-06-21T03:43:00Z"), mustTime("2026-06-21T20:22:00Z")},
+	{"sydney_june_solstice_sunrise_on_prior_day", -33.8688, 151.2093, 2026, time.June, 21,
+		mustTime("2026-06-20T21:00:00Z"), mustTime("2026-06-21T06:54:00Z")},
+	{"sydney_december_solstice_summer_sunrise_on_prior_day", -33.8688, 151.2093, 2026, time.December, 21,
+		mustTime("2026-12-20T18:41:00Z"), mustTime("2026-12-21T09:05:00Z")},
+	{"quito_march_equinox_equator_west", -0.1807, -78.4678, 2026, time.March, 20,
+		mustTime("2026-03-20T11:18:00Z"), mustTime("2026-03-20T23:24:00Z")},
+	{"singapore_september_equinox_equator_east_sunrise_on_prior_day", 1.3521, 103.8198, 2026, time.September, 23,
+		mustTime("2026-09-22T22:54:00Z"), mustTime("2026-09-23T11:00:00Z")},
+	{"utqiagvik_polar_night", 71.2906, -156.7887, 2026, time.December, 21, nil, nil},
+	{"utqiagvik_midnight_sun", 71.2906, -156.7887, 2026, time.June, 21, nil, nil},
+	{"longyearbyen_high_arctic_no_sunrise", 78.2232, 15.6469, 2026, time.January, 15, nil, nil},
+	{"longyearbyen_high_arctic_no_sunset", 78.2232, 15.6469, 2026, time.June, 21, nil, nil},
+	// UTC rise/set is unaffected by DST; these rows exist to prove
+	// SunriseSunset never consults t.Location() (design Appendix A.3).
+	{"new_york_dst_spring_forward_utc_unaffected", 40.7128, -74.0060, 2026, time.March, 8,
+		mustTime("2026-03-08T11:19:00Z"), mustTime("2026-03-08T22:55:00Z")},
+	{"new_york_dst_fall_back_utc_unaffected", 40.7128, -74.0060, 2026, time.November, 1,
+		mustTime("2026-11-01T11:26:00Z"), mustTime("2026-11-01T21:52:00Z")},
+	{"utqiagvik_last_sunrise_before_polar_night", 71.2906, -156.7887, 2026, time.November, 18,
+		mustTime("2026-11-18T21:42:00Z"), mustTime("2026-11-18T22:42:00Z")},
+	{"utqiagvik_first_polar_night_day", 71.2906, -156.7887, 2026, time.November, 19, nil, nil},
+	// Row 17 -- the half-populated pair. A build that collapses an asymmetric
+	// result to (nil, nil) fails HERE and passes everything else (design §6.4).
+	{"utqiagvik_sunrise_without_sunset", 71.2906, -156.7887, 2026, time.May, 10,
+		mustTime("2026-05-10T10:58:00Z"), nil},
+}
+
+func TestSunriseSunset_USNOVectors(t *testing.T) {
+	for _, v := range vectors {
+		t.Run(v.name, func(t *testing.T) {
+			at := time.Date(v.year, v.month, v.day, 12, 0, 0, 0, time.UTC)
+			rise, set := SunriseSunset(v.lat, v.lon, at)
+			assertInstant(t, "sunrise", rise, v.wantRise)
+			assertInstant(t, "sunset", set, v.wantSet)
+		})
+	}
+}
+
+// assertInstant compares an optional instant: nil is an exact comparison,
+// non-nil is compared within tolerance.
+func assertInstant(t *testing.T, label string, got, want *time.Time) {
+	t.Helper()
+	switch {
+	case want == nil && got == nil:
+		return
+	case want == nil:
+		t.Fatalf("%s: got %s, want nil", label, got.UTC().Format(time.RFC3339))
+	case got == nil:
+		t.Fatalf("%s: got nil, want %s", label, want.UTC().Format(time.RFC3339))
+	}
+	if d := got.Sub(*want); d < -tolerance || d > tolerance {
+		t.Fatalf("%s: got %s, want %s (off by %s, tolerance %s)",
+			label, got.UTC().Format(time.RFC3339), want.UTC().Format(time.RFC3339), d, tolerance)
+	}
+}
+
+// TestSunriseSunset_UsesLocalDateNotUTCDate proves SunriseSunset reads the
+// calendar date from t's OWN location. The instant below is 2026-11-18
+// 16:00 in a UTC-9 zone, which is 2026-11-19 01:00 UTC. A.3 row 15 says
+// Utqiagvik has a sunrise on the 18th; row 16 says the 19th is the first
+// polar-night day. An implementation calling t.UTC().Date() returns nil.
+func TestSunriseSunset_UsesLocalDateNotUTCDate(t *testing.T) {
+	akst := time.FixedZone("AKST", -9*3600)
+	at := time.Date(2026, time.November, 18, 16, 0, 0, 0, akst)
+
+	rise, _ := SunriseSunset(71.2906, -156.7887, at)
+	if rise == nil {
+		t.Fatal("sunrise: got nil -- the date was taken from t.UTC(), not from t's own location")
+	}
+	assertInstant(t, "sunrise", rise, mustTime("2026-11-18T21:42:00Z"))
+}
+
+// eqTimeTerms returns A.1 step 11's five equation-of-time terms by name, in
+// the radian scale solarPosition sums them in.
+func eqTimeTerms(l0, m, e, y float64) map[string]float64 {
+	return map[string]float64{
+		"y_sin_2L0":              y * math.Sin(rad(2*l0)),
+		"minus_2e_sin_M":         -2 * e * math.Sin(rad(m)),
+		"plus_4ey_sin_M_cos_2L0": 4 * e * y * math.Sin(rad(m)) * math.Cos(rad(2*l0)),
+		"minus_half_y2_sin_4L0":  -0.5 * y * y * math.Sin(rad(4*l0)),
+		"minus_1p25_e2_sin_2M":   -1.25 * e * e * math.Sin(rad(2*m)),
+	}
+}
+
+// referenceEqTime sums the terms with one optionally omitted, converting to
+// minutes exactly as A.1 step 11 does. omit == "" builds the full sum.
+func referenceEqTime(terms map[string]float64, omit string) float64 {
+	var sum float64
+	for name, v := range terms {
+		if name != omit {
+			sum += v
+		}
+	}
+	return deg(sum) * 4.0
+}
+
+// eqCentreTerms returns A.1 step 6's three equation-of-centre terms. These
+// reach the result through the declination rather than the equation of time,
+// so they need their own reference chain below.
+func eqCentreTerms(tc, m float64) map[string]float64 {
+	return map[string]float64{
+		"sin_M_1p914602":  math.Sin(rad(m)) * (1.914602 - tc*(0.004817+0.000014*tc)),
+		"sin_2M_0p019993": math.Sin(rad(2*m)) * (0.019993 - 0.000101*tc),
+		"sin_3M_0p000289": math.Sin(rad(3*m)) * 0.000289,
+	}
+}
+
+// referenceDeclination rebuilds A.1 steps 6-10 with one equation-of-centre
+// term optionally omitted. The chain is duplicated from solarPosition
+// deliberately: the anchor assertion fails loudly if the two ever drift,
+// which is exactly what makes the per-term checks trustworthy.
+func referenceDeclination(jd float64, omit string) float64 {
+	tc := (jd - 2451545.0) / 36525.0
+	l0, m, _, _ := solarIntermediates(jd)
+
+	var c float64
+	for name, v := range eqCentreTerms(tc, m) {
+		if name != omit {
+			c += v
+		}
+	}
+
+	omega := 125.04 - 1934.136*tc
+	lambda := l0 + c - 0.00569 - 0.00478*math.Sin(rad(omega))
+	sec := 21.448 - tc*(46.8150+tc*(0.00059-tc*0.001813))
+	eps0 := 23.0 + (26.0+sec/60.0)/60.0
+	eps := eps0 + 0.00256*math.Cos(rad(omega))
+	return deg(math.Asin(math.Sin(rad(eps)) * math.Sin(rad(lambda))))
+}
+
+// probeDates spans the year: a single instant can drive a sin/cos factor to
+// zero and make a present term look absent, so every per-term assertion
+// below is over the MAXIMUM divergence across all four.
+var probeDates = []float64{
+	julianDay0(2026, 3, 20) + 0.5,
+	julianDay0(2026, 6, 21) + 0.5,
+	julianDay0(2026, 9, 23) + 0.5,
+	julianDay0(2026, 12, 21) + 0.5,
+}
+
+func TestSolarPosition_TermsAreAllPresent(t *testing.T) {
+	// ANCHOR. Without this the per-term checks would compare the reference
+	// against itself and pass against an implementation missing terms.
+	for _, jd := range probeDates {
+		l0, m, e, y := solarIntermediates(jd)
+		gotEqTime, gotDecl := solarPosition(jd)
+
+		if full := referenceEqTime(eqTimeTerms(l0, m, e, y), ""); math.Abs(gotEqTime-full) > 1e-9 {
+			t.Fatalf("jd %.1f: solarPosition eqTime = %.12f, reference sum = %.12f.\n"+
+				"A TERM MISSING FROM sun.go FIRES THIS ANCHOR FIRST, before any per-term "+
+				"subtest runs -- so check solarPosition against A.1 step 11 BEFORE touching "+
+				"this test. Reconcile eqTimeTerms only once sun.go is provably correct: "+
+				"editing the reference to match a broken implementation defeats this check "+
+				"entirely.", jd, gotEqTime, full)
+		}
+		if full := referenceDeclination(jd, ""); math.Abs(gotDecl-full) > 1e-9 {
+			t.Fatalf("jd %.1f: solarPosition decl = %.12f, reference = %.12f.\n"+
+				"As above: check solarPosition's equation-of-centre terms against A.1 step 6 "+
+				"BEFORE editing referenceDeclination.", jd, gotDecl, full)
+		}
+	}
+
+	l0, m, e, y := solarIntermediates(probeDates[0])
+
+	// Sorted, so subtest order is deterministic -- map iteration is not.
+	for _, name := range slices.Sorted(maps.Keys(eqTimeTerms(l0, m, e, y))) {
+		t.Run("eqtime_"+name, func(t *testing.T) {
+			var maxDelta float64
+			for _, jd := range probeDates {
+				a, b, c, d := solarIntermediates(jd)
+				got, _ := solarPosition(jd)
+				without := referenceEqTime(eqTimeTerms(a, b, c, d), name)
+				maxDelta = max(maxDelta, math.Abs(got-without))
+			}
+			// An implementation missing this term would produce exactly the
+			// one-term-short sum at every date.
+			if maxDelta < 1e-9 {
+				t.Fatalf("solarPosition's eqTime matches a sum with %s removed at every probe "+
+					"date (max divergence %.12g) -- the term is missing", name, maxDelta)
+			}
+		})
+	}
+
+	tc := (probeDates[0] - 2451545.0) / 36525.0
+	for _, name := range slices.Sorted(maps.Keys(eqCentreTerms(tc, m))) {
+		t.Run("eqcentre_"+name, func(t *testing.T) {
+			var maxDelta float64
+			for _, jd := range probeDates {
+				_, got := solarPosition(jd)
+				maxDelta = max(maxDelta, math.Abs(got-referenceDeclination(jd, name)))
+			}
+			if maxDelta < 1e-9 {
+				t.Fatalf("solarPosition's declination matches a chain with %s removed at every "+
+					"probe date (max divergence %.12g) -- the term is missing", name, maxDelta)
+			}
+		})
+	}
+}

@@ -205,11 +205,11 @@ export function useWeatherData(
     applySettled(statusResult, setStatus);
     applySettled(almanacResult, setAlmanac);
 
-    // isStale/error track only the core observation fetch -- the one
-    // endpoint that actually works with no server TOKEN configured. The
-    // WeatherFlow-backed slices (station/forecast/almanac) are documented
-    // best-effort (design §11) and degrade silently: applySettled above
-    // already left their prior value in place on failure.
+    // isStale/error track only the core observation fetch: it is the reason
+    // this dashboard exists, and the only slice whose failure means the
+    // station is not reporting. station/almanac are also tokenless and
+    // locally served now, but a failure there is cosmetic -- applySettled
+    // above already left their prior value in place.
     if (obsResult.status === 'fulfilled') {
       setCurrent(obsResult.value);
       setIsStale(false);

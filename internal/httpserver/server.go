@@ -1,6 +1,9 @@
 // Package httpserver builds the HTTP server that serves the embedded React
-// UI (from tempestwx-utilities/web) alongside the JSON API added by later
-// tasks (observations from SQLite, WeatherFlow proxy — see Deps).
+// UI (from tempestwx-utilities/web) alongside the tokenless JSON API:
+// observations and the station almanac from the local SQLite store, station
+// identity from configuration, and the radar sidecar proxy — see Deps. No
+// handler here makes an outbound WeatherFlow call; in UDP mode the process
+// holds no code path capable of using a WeatherFlow credential at all.
 package httpserver
 
 import (
@@ -13,6 +16,8 @@ import (
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/trace"
+
+	"tempestwx-utilities/internal/config"
 )
 
 const (
@@ -37,9 +42,8 @@ const cspPolicy = "default-src 'self'; img-src 'self' data: blob:; worker-src 's
 
 // Deps carries the dependencies New's handlers need. It is the seam future
 // tasks extend: Task 1.4 adds a SQLite reader field + a registerObservations
-// call in New; Task 1.5 adds a WeatherFlow client field + its own register
-// call. Adding a field and a register call is additive — it does not require
-// touching the handlers already registered here.
+// call in New. Adding a field and a register call is additive — it does not
+// require touching the handlers already registered here.
 type Deps struct {
 	// StaticFS serves the embedded UI build (web.DistFS() in production; an
 	// in-memory fstest.MapFS in tests, so tests never need a real UI build).
@@ -50,26 +54,26 @@ type Deps struct {
 	// ObservationReader); tests pass a fake.
 	Observations ObservationReader
 
-	// WeatherFlow backs GET /api/station, /api/forecast, and /api/almanac
-	// (Task 1.5). Production passes a *tempestapi.Client constructed from
-	// the server-held TOKEN (which satisfies WeatherFlowProxy); tests pass a
-	// fake or a *tempestapi.Client pointed at an httptest.Server.
-	WeatherFlow WeatherFlowProxy
+	// Station is the operator-supplied station identity backing
+	// GET /api/station, and the source of the coordinates and timezone
+	// GET /api/almanac computes from. It is plain configuration, not a
+	// backing service: the store holds no coordinates and no UDP message
+	// carries any. main fills it from config.LoadStation.
+	Station config.StationConfig
 
 	// Radar backs GET /api/radar/{site} (Task 2.5). Left nil disables the
 	// route entirely (main.go sets it only when ENABLE_RADAR=true) -- see
-	// registerRadar's doc comment for why this differs from Observations/
-	// WeatherFlow's "register unconditionally, 503 on nil" pattern.
+	// registerRadar's doc comment for why this differs from Observations'
+	// "register unconditionally, 503 on nil" pattern.
 	// Production wires *radar.Proxy (which satisfies RadarProxy); tests pass
 	// a fake.
 	Radar RadarProxy
 
-	// Forecast and Almanac gate GET /api/forecast and GET /api/almanac, and
-	// the matching entries in GET /api/capabilities. main.go sets them from
-	// ENABLE_FORECAST / ENABLE_ALMANAC; both default to false, so a server
-	// built from a zero Deps serves neither route (issue #145).
-	Forecast bool
-	Almanac  bool
+	// Almanac gates GET /api/almanac and the matching entry in
+	// GET /api/capabilities. main.go sets it from ENABLE_ALMANAC; it
+	// defaults to false, so a server built from a zero Deps does not serve
+	// the route (issue #145).
+	Almanac bool
 
 	// TracerProvider is the otelhttp middleware's span source (Task 1.6).
 	// Nil means "use the OTel global TracerProvider" -- otelhttp.WithTracerProvider
@@ -90,7 +94,8 @@ func New(deps Deps) *http.Server {
 	registerHealthz(mux)
 	registerCapabilities(mux, newCapabilities(deps))
 	registerObservations(mux, deps)
-	registerProxy(mux, deps)
+	registerStation(mux, deps)
+	registerAlmanac(mux, deps)
 	registerRadar(mux, deps)
 	registerStatic(mux, deps)
 

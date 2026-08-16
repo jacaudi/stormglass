@@ -445,45 +445,117 @@ func resolveModeAndValidate(token string, writerCount int) Mode {
 	return mode
 }
 
+// uiFlags are the three ENABLE_* opt-ins for the optional UI cards, already
+// parsed. They are inputs to decideUI, not decisions.
+type uiFlags struct {
+	Forecast bool
+	Almanac  bool
+	Radar    bool
+}
+
+// uiDecision is what the server can actually serve, plus one
+// operator-facing reason per flag that is enabled and cannot be honoured.
+type uiDecision struct {
+	Almanac bool
+	Radar   bool
+	// RadarSite is the site code to advertise on /api/station, or nil.
+	// LoadStation decodes RADAR_SITE unconditionally because it is a pure
+	// environment decoder; this is where the feature flag is applied.
+	RadarSite *string
+	// Reasons are logged at ERROR, one per unmet precondition. They are
+	// never returned as an error, because there is no caller that should
+	// treat them as fatal -- see decideUI's doc comment.
+	Reasons []string
+}
+
+// decideUI resolves which optional cards this process can serve and why any
+// enabled card cannot be.
+//
+// It NEVER fails and never exits, and that is the whole point. startAPIServer
+// runs before listenAndPushWithSink; log.Fatal exits past the deferred
+// cleanupResources; and the compose deployment sets restart: unless-stopped.
+// A fatal path for a flag that only decides whether a card renders would be a
+// crash loop that stops UDP ingest into SQLite and Litestream -- the
+// appliance's primary function. docker-compose.yml already ships RADAR_SITE
+// empty, so under a fatal rule, flipping ENABLE_RADAR=true and nothing else
+// would turn a dead card into a permanent data outage.
+//
+// Loud without being fatal: every unmet precondition produces an ERROR log
+// naming the missing variables, the route is left unregistered, and
+// /api/capabilities reports the feature false -- the mechanism issue #145
+// built, where one value gates both the routing and the document so they
+// cannot disagree.
+//
+// A MALFORMED value is a different matter and is already fatal, in
+// config.LoadStation: absent means "the operator did not configure this
+// feature", malformed means "the operator tried and got it wrong".
+func decideUI(flags uiFlags, station config.StationConfig, hasStore bool) uiDecision {
+	var d uiDecision
+	hasCoords := station.Latitude != nil && station.Longitude != nil
+
+	if flags.Forecast {
+		d.Reasons = append(d.Reasons,
+			"ENABLE_FORECAST is true but no forecast provider exists: the WeatherFlow proxy was removed "+
+				"(issue #62, won't-do) and the tokenless NWS replacement is issue #81. "+
+				"The forecast card will not be mounted.")
+	}
+
+	if flags.Almanac {
+		switch {
+		case !hasCoords:
+			d.Reasons = append(d.Reasons,
+				"ENABLE_ALMANAC is true but STATION_LATITUDE and STATION_LONGITUDE are not both set, "+
+					"so sunrise and sunset cannot be computed. The almanac card will not be mounted.")
+		case !hasStore:
+			d.Reasons = append(d.Reasons,
+				"ENABLE_ALMANAC is true but no observation store is configured, so the temperature "+
+					"records have no source. SQLite is the default store; this is the Postgres-only "+
+					"configuration. The almanac card will not be mounted.")
+		default:
+			d.Almanac = true
+		}
+	}
+
+	if flags.Radar {
+		switch {
+		case station.RadarSite == nil:
+			d.Reasons = append(d.Reasons,
+				"ENABLE_RADAR is true but RADAR_SITE is not set, so no WSR-88D site can be requested. "+
+					"The radar card will not be mounted.")
+		case !hasCoords:
+			d.Reasons = append(d.Reasons,
+				"ENABLE_RADAR is true but STATION_LATITUDE and STATION_LONGITUDE are not both set, "+
+					"so the map has no centre. The radar card will not be mounted.")
+		default:
+			d.Radar = true
+			d.RadarSite = station.RadarSite
+		}
+	}
+
+	return d
+}
+
 // startAPIServer starts the UI/JSON-API HTTP server for UDP mode and
 // returns it; it returns nil when mode is not ModeUDP. API-export mode is a
-// batch job that runs to completion and exits (exportWithSink), so a
-// long-running server has no place there. deps.Observations is left nil
-// when sqlite is disabled (postgres-only edge case) -- assigning sw
-// directly would wrap a nil *sqlite.Writer in a non-nil ObservationReader
-// interface, defeating the handlers' nil guard, so it is only set when sw
-// is actually non-nil.
+// batch job that runs to completion and exits, so a long-running server has
+// no place there.
 //
-// TOKEN-in-UDP-mode limitation (flagged, not fixed here): token is always
-// empty when mode is ModeUDP (a non-empty TOKEN switches to ModeAPIExport),
-// so the WeatherFlow proxy (/api/forecast|almanac|station) has no
-// credential to authenticate with and degrades to an upstream 401. Wiring
-// a separate token source for UDP mode is a design decision for a
-// follow-up task, not this one -- see the task report.
+// Every endpoint it serves is tokenless: observations and the almanac come
+// from the local SQLite store, station identity from configuration, radar
+// from the sidecar. There is no WeatherFlow credential in UDP mode and no
+// code path that could use one -- issue #62 is closed as won't-do.
 //
-// ENABLE_FORECAST and ENABLE_ALMANAC gate the two routes that depend on that
-// credential, and ENABLE_RADAR gates the sidecar-backed one; all three
-// default to false, and GET /api/capabilities reports them to the UI so a
-// disabled feature's card is never mounted (issue #145).
-func startAPIServer(mode Mode, token string, sw *sqlite.Writer) *http.Server {
+// deps.Observations is left nil when sqlite is disabled (the postgres-only
+// edge case) -- assigning sw directly would wrap a nil *sqlite.Writer in a
+// non-nil ObservationReader interface, defeating the handlers' nil guard.
+func startAPIServer(mode Mode, station config.StationConfig, sw *sqlite.Writer) *http.Server {
 	if mode != ModeUDP {
 		return nil
 	}
-	deps := httpserver.Deps{
-		StaticFS:    web.DistFS(),
-		WeatherFlow: tempestapi.NewClient(token),
-	}
-	if sw != nil {
-		deps.Observations = sw
-	}
-	enableRadar, err := config.ParseBoolEnv("ENABLE_RADAR")
-	if err != nil {
-		log.Fatal(err)
-	}
-	if enableRadar {
-		sidecarURL := cmp.Or(os.Getenv("RADAR_SIDECAR_URL"), "http://radar-sidecar:8081")
-		deps.Radar = radar.NewProxy(sidecarURL)
-	}
+
+	// A malformed boolean stays fatal -- pre-existing behaviour, and the same
+	// operator-error-versus-unconfigured-feature distinction LoadStation
+	// draws. It is the flag VALUE being wrong, not a precondition being unmet.
 	enableForecast, err := config.ParseBoolEnv("ENABLE_FORECAST")
 	if err != nil {
 		log.Fatal(err)
@@ -492,18 +564,34 @@ func startAPIServer(mode Mode, token string, sw *sqlite.Writer) *http.Server {
 	if err != nil {
 		log.Fatal(err)
 	}
-	deps.Forecast = enableForecast
-	deps.Almanac = enableAlmanac
+	enableRadar, err := config.ParseBoolEnv("ENABLE_RADAR")
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	// A token is what these two routes need to return anything useful, and
-	// there is no way to have one here today: a non-empty TOKEN selects
-	// API-export mode, which never starts this server. Warn rather than
-	// silently serving a card that renders nothing. Written as the real
-	// predicate so it stops firing on its own once issue #62 supplies a
-	// UDP-mode token source.
-	if (enableForecast || enableAlmanac) && token == "" {
-		slog.Warn("forecast/almanac enabled but no WeatherFlow token is available while the UI is served; " +
-			"upstream calls will be unauthenticated and the cards will render no data (see issue #62)")
+	decision := decideUI(
+		uiFlags{Forecast: enableForecast, Almanac: enableAlmanac, Radar: enableRadar},
+		station, sw != nil,
+	)
+	for _, reason := range decision.Reasons {
+		slog.Error("optional UI card not mounted", "reason", reason)
+	}
+
+	// RADAR_SITE reaches the wire only when the radar card is actually
+	// served, so /api/station never advertises a site for a card that is off.
+	station.RadarSite = decision.RadarSite
+
+	deps := httpserver.Deps{
+		StaticFS: web.DistFS(),
+		Station:  station,
+		Almanac:  decision.Almanac,
+	}
+	if sw != nil {
+		deps.Observations = sw
+	}
+	if decision.Radar {
+		sidecarURL := cmp.Or(os.Getenv("RADAR_SIDECAR_URL"), "http://radar-sidecar:8081")
+		deps.Radar = radar.NewProxy(sidecarURL)
 	}
 
 	srv := httpserver.New(deps)
@@ -519,6 +607,18 @@ func startAPIServer(mode Mode, token string, sw *sqlite.Writer) *http.Server {
 
 func main() {
 	dispatchSubcommand()
+
+	// Station identity is validated at the boundary, ahead of any resource
+	// attachment (go-standards §15.3, 12-Factor III). Validating after the
+	// store and OTel are open would mean a malformed value produces a partial
+	// startup that then exits past the deferred cleanupResources.
+	//
+	// Runs in both modes. A malformed STATION_* value is an operator error
+	// wherever it appears; absent values are never an error.
+	stationCfg, err := config.LoadStation()
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	ctx, done := signalContext(context.Background(), signal.NotifyContext)
 	defer done()
@@ -578,7 +678,7 @@ func main() {
 	mode := resolveModeAndValidate(token, metricsSink.WriterCount())
 
 	// Start the UI/JSON-API HTTP server (UDP mode only)
-	srv = startAPIServer(mode, token, sw)
+	srv = startAPIServer(mode, stationCfg, sw)
 
 	// Choose operational mode
 	if token != "" {

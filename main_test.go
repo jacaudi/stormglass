@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"testing"
 
+	"tempestwx-utilities/internal/config"
 	"tempestwx-utilities/internal/otel"
 
 	sdklog "go.opentelemetry.io/otel/sdk/log"
@@ -222,5 +223,135 @@ func TestRequireWriters(t *testing.T) {
 				t.Fatalf("requireWriters(%v,%d,%v) err=%v want err=%v", tc.mode, tc.writerCount, tc.keepFiles, err, tc.wantErr)
 			}
 		})
+	}
+}
+
+// TestDecideUI covers every row of the design's degrade-loudly table. The
+// load-bearing assertion in every case is the same: decideUI RETURNS a
+// decision, it never exits. startAPIServer runs before the UDP listener and
+// compose restarts on exit, so a fatal path for a cosmetic card flag is a
+// crash loop that stops weather ingest entirely.
+func TestDecideUI(t *testing.T) {
+	lat, lon := 39.74, -104.98
+	site := "TLX"
+	located := config.StationConfig{Latitude: &lat, Longitude: &lon, RadarSite: &site}
+	locatedNoSite := config.StationConfig{Latitude: &lat, Longitude: &lon}
+	siteNoCoords := config.StationConfig{RadarSite: &site}
+
+	tests := []struct {
+		name        string
+		flags       uiFlags
+		station     config.StationConfig
+		hasStore    bool
+		wantAlmanac bool
+		wantRadar   bool
+		wantReasons []string // substrings each ERROR reason must contain
+	}{
+		{
+			name:        "everything_configured",
+			flags:       uiFlags{Almanac: true, Radar: true},
+			station:     located,
+			hasStore:    true,
+			wantAlmanac: true, wantRadar: true,
+		},
+		{
+			name:     "nothing_enabled_is_silent",
+			flags:    uiFlags{},
+			station:  config.StationConfig{},
+			hasStore: true,
+		},
+		{
+			name:        "forecast_has_no_provider",
+			flags:       uiFlags{Forecast: true},
+			station:     located,
+			hasStore:    true,
+			wantReasons: []string{"ENABLE_FORECAST", "#81"},
+		},
+		{
+			name:        "almanac_without_coordinates",
+			flags:       uiFlags{Almanac: true},
+			station:     config.StationConfig{},
+			hasStore:    true,
+			wantAlmanac: false,
+			wantReasons: []string{"ENABLE_ALMANAC", "STATION_LATITUDE", "STATION_LONGITUDE"},
+		},
+		{
+			name:        "almanac_without_a_store",
+			flags:       uiFlags{Almanac: true},
+			station:     located,
+			hasStore:    false,
+			wantAlmanac: false,
+			wantReasons: []string{"ENABLE_ALMANAC", "observation store"},
+		},
+		{
+			name:        "radar_without_a_site",
+			flags:       uiFlags{Radar: true},
+			station:     locatedNoSite,
+			hasStore:    true,
+			wantRadar:   false,
+			wantReasons: []string{"ENABLE_RADAR", "RADAR_SITE"},
+		},
+		{
+			name:        "radar_without_coordinates",
+			flags:       uiFlags{Radar: true},
+			station:     siteNoCoords,
+			hasStore:    true,
+			wantRadar:   false,
+			wantReasons: []string{"ENABLE_RADAR", "STATION_LATITUDE", "STATION_LONGITUDE"},
+		},
+		{
+			// RADAR_SITE is decoded unconditionally by LoadStation; the flag
+			// is what decides whether it reaches the wire, so a site set with
+			// the flag off must be cleared -- not merely ignored -- or
+			// /api/station would advertise a site for a card that is off.
+			name:     "radar_site_is_cleared_when_the_flag_is_off",
+			flags:    uiFlags{},
+			station:  located,
+			hasStore: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := decideUI(tc.flags, tc.station, tc.hasStore)
+
+			if got.Almanac != tc.wantAlmanac {
+				t.Errorf("Almanac = %v, want %v", got.Almanac, tc.wantAlmanac)
+			}
+			if got.Radar != tc.wantRadar {
+				t.Errorf("Radar = %v, want %v", got.Radar, tc.wantRadar)
+			}
+			if !tc.flags.Radar && got.RadarSite != nil {
+				t.Errorf("RadarSite = %v, want nil when ENABLE_RADAR is false", *got.RadarSite)
+			}
+			if len(tc.wantReasons) == 0 {
+				if len(got.Reasons) != 0 {
+					t.Errorf("Reasons = %v, want none", got.Reasons)
+				}
+				return
+			}
+			joined := strings.Join(got.Reasons, " | ")
+			for _, want := range tc.wantReasons {
+				if !strings.Contains(joined, want) {
+					t.Errorf("reasons %q must mention %q", joined, want)
+				}
+			}
+		})
+	}
+}
+
+// TestDecideUI_ReportsEveryUnmetPrecondition proves an operator with three
+// broken flags learns all three from one startup, not one per restart.
+func TestDecideUI_ReportsEveryUnmetPrecondition(t *testing.T) {
+	got := decideUI(uiFlags{Forecast: true, Almanac: true, Radar: true}, config.StationConfig{}, false)
+
+	if got.Almanac || got.Radar {
+		t.Fatalf("nothing can be served here, got %+v", got)
+	}
+	joined := strings.Join(got.Reasons, " | ")
+	for _, want := range []string{"ENABLE_FORECAST", "ENABLE_ALMANAC", "ENABLE_RADAR"} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("reasons %q must mention %q -- all three must be reported in one startup", joined, want)
+		}
 	}
 }
