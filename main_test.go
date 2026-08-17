@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strconv"
@@ -16,9 +17,11 @@ import (
 	"sync"
 	"syscall"
 	"testing"
+	"time"
 
 	"tempestwx-utilities/internal/config"
 	"tempestwx-utilities/internal/otel"
+	"tempestwx-utilities/internal/sqlite"
 
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 )
@@ -442,5 +445,96 @@ func TestUnknownRadarSiteReason_RendersWholeKilometres(t *testing.T) {
 	// sentence must be absent rather than wrong.
 	if noCoords := unknownRadarSiteReason("KTLX", nil, nil); strings.Contains(noCoords, "nearest site") {
 		t.Errorf("with no coordinates the reason must not mention a nearest site; got %q", noCoords)
+	}
+}
+
+// TestStartAPIServer_EmitsDecisionDiagnostics closes the gap issue #170 was
+// filed for: every assertion in TestDecideUI is on decideUI's RETURN VALUE, so
+// deleting either log loop in startAPIServer broke no test -- while the entire
+// user-visible deliverable of issue #165 is that log line.
+//
+// It drives the real function with a real listener rather than testing an
+// extracted helper, because the acceptance criterion is that deleting a loop
+// FROM startAPIServer fails a test. A helper-level test would stay green if the
+// call to the helper were deleted.
+func TestStartAPIServer_EmitsDecisionDiagnostics(t *testing.T) {
+	// These four are the only names startAPIServer reads unconditionally; it
+	// also reads RADAR_SIDECAR_URL, but only when the radar card mounts.
+	// Station identity is NOT read from the environment here -- it arrives as
+	// the `station` parameter, filled by config.LoadStation() in main.
+	t.Setenv("HTTP_ADDR", "127.0.0.1:0")
+	t.Setenv("ENABLE_FORECAST", "true")
+	t.Setenv("ENABLE_ALMANAC", "true")
+	// Hermeticity, not decoration: left unset, an ambient ENABLE_RADAR=yes
+	// makes ParseBoolEnv error and startAPIServer log.Fatal, which kills the
+	// whole test binary with no output.
+	t.Setenv("ENABLE_RADAR", "false")
+
+	// The WARN case (an almanac that mounts but has no timezone) is only
+	// reachable with a store, so build a real one. A bare &sqlite.Writer{}
+	// also passes today -- nothing dereferences it at construction -- but that
+	// would make this test silently depend on httpserver.New never touching it.
+	cfg := sqlite.LoadConfig(func(string) string { return "" })
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "test.db"), cfg)
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	sw := sqlite.NewWriter(t.Context(), db, cfg)
+	// context.Background(), not t.Context(): t.Context() is cancelled just
+	// BEFORE cleanup funcs run, and Close needs a live context to drain.
+	t.Cleanup(func() { _ = sw.Close(context.Background()) })
+
+	lat, lon := 39.7392, -104.9903
+	station := config.StationConfig{
+		Latitude:  &lat,
+		Longitude: &lon,
+		Location:  time.UTC,
+		// TimezoneConfigured deliberately left false: that is the degraded-but-
+		// mounted case, which is what produces a WARN rather than a reason.
+	}
+
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, nil))
+
+	srv := startAPIServer(ModeUDP, station, sw, logger)
+	if srv == nil {
+		t.Fatal("startAPIServer returned nil for ModeUDP")
+	}
+	// Close BEFORE reading the buffer. The serve goroutine logs through the
+	// same logger, and bytes.Buffer is not safe for concurrent use; in practice
+	// that record only fires if Listen fails, but the ordering assertion below
+	// must not race a second writer.
+	if err := srv.Close(); err != nil {
+		t.Fatalf("close server: %v", err)
+	}
+
+	out := buf.String()
+
+	errIdx := strings.Index(out, `level=ERROR msg="optional UI card not mounted"`)
+	if errIdx < 0 {
+		t.Fatalf("no ERROR record for an unmet precondition -- the reason loop did not run.\ngot:\n%s", out)
+	}
+	// Anchored on the attribute key so this asserts the payload of the ERROR
+	// record, not merely that the string appears somewhere in the buffer.
+	if !strings.Contains(out, `reason="ENABLE_FORECAST`) {
+		t.Errorf("the ERROR record must carry a reason attribute naming ENABLE_FORECAST.\ngot:\n%s", out)
+	}
+
+	warnIdx := strings.Index(out, `level=WARN msg="optional UI card degraded"`)
+	if warnIdx < 0 {
+		t.Fatalf("no WARN record for a degraded card -- the warning loop did not run.\ngot:\n%s", out)
+	}
+	if !strings.Contains(out, `warning="ENABLE_ALMANAC`) || !strings.Contains(out, "STATION_TIMEZONE") {
+		t.Errorf("the WARN record must carry a warning attribute naming STATION_TIMEZONE.\ngot:\n%s", out)
+	}
+
+	// Ordering is deliberate: a startup with both prints every not-mounted
+	// card before every degraded one. Neither deletion mutation can fail this
+	// assertion -- only swapping the two loops can, which is why the swap is
+	// in the mutation matrix.
+	if errIdx > warnIdx {
+		t.Errorf("reasons must be emitted before warnings; ERROR at index %d, WARN at index %d.\ngot:\n%s",
+			errIdx, warnIdx, out)
 	}
 }

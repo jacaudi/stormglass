@@ -620,7 +620,15 @@ func decideUI(flags uiFlags, station config.StationConfig, hasStore bool) uiDeci
 // deps.Observations is left nil when sqlite is disabled (the postgres-only
 // edge case) -- assigning sw directly would wrap a nil *sqlite.Writer in a
 // non-nil ObservationReader interface, defeating the handlers' nil guard.
-func startAPIServer(mode Mode, station config.StationConfig, sw *sqlite.Writer) *http.Server {
+//
+// logger is injected rather than taken from slog.Default() so a test can
+// observe the two diagnostic loops below without mutating a process global
+// (slog.SetDefault also calls log.SetOutput and log.SetFlags(0), and restoring
+// the previous logger undoes neither). main passes slog.Default(), which is
+// equivalent to the previous implicit package-level calls for as long as
+// nothing calls slog.SetDefault AFTER startAPIServer returns -- true today:
+// the sole production SetDefault is in configureOTel, which main runs first.
+func startAPIServer(mode Mode, station config.StationConfig, sw *sqlite.Writer, logger *slog.Logger) *http.Server {
 	if mode != ModeUDP {
 		return nil
 	}
@@ -646,10 +654,10 @@ func startAPIServer(mode Mode, station config.StationConfig, sw *sqlite.Writer) 
 		station, sw != nil,
 	)
 	for _, reason := range decision.Reasons {
-		slog.Error("optional UI card not mounted", "reason", reason)
+		logger.Error("optional UI card not mounted", "reason", reason)
 	}
 	for _, warning := range decision.Warnings {
-		slog.Warn("optional UI card degraded", "warning", warning)
+		logger.Warn("optional UI card degraded", "warning", warning)
 	}
 
 	// RADAR_SITE reaches the wire only when the radar card is actually
@@ -673,10 +681,10 @@ func startAPIServer(mode Mode, station config.StationConfig, sw *sqlite.Writer) 
 	srv.Addr = cmp.Or(os.Getenv("HTTP_ADDR"), ":8080")
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			slog.Error("http server", "err", err)
+			logger.Error("http server", "err", err)
 		}
 	}()
-	slog.Info("http server listening", "addr", srv.Addr)
+	logger.Info("http server listening", "addr", srv.Addr)
 	return srv
 }
 
@@ -753,7 +761,10 @@ func main() {
 	mode := resolveModeAndValidate(token, metricsSink.WriterCount())
 
 	// Start the UI/JSON-API HTTP server (UDP mode only)
-	srv = startAPIServer(mode, stationCfg, sw)
+	// slog.Default() rather than a locally built logger: configureOTel has
+	// already run above, so when ENABLE_OTEL is set this is the teeHandler that
+	// fans records to both stderr and the OTel log bridge.
+	srv = startAPIServer(mode, stationCfg, sw, slog.Default())
 
 	// Choose operational mode
 	if token != "" {
