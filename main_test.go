@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -242,14 +243,15 @@ func TestDecideUI(t *testing.T) {
 	locatedBadSite := config.StationConfig{Latitude: &lat, Longitude: &lon, RadarSite: &badSite}
 
 	tests := []struct {
-		name         string
-		flags        uiFlags
-		station      config.StationConfig
-		hasStore     bool
-		wantAlmanac  bool
-		wantRadar    bool
-		wantReasons  []string // substrings each ERROR reason must contain
-		wantWarnings []string // substrings each WARN warning must contain
+		name           string
+		flags          uiFlags
+		station        config.StationConfig
+		hasStore       bool
+		wantAlmanac    bool
+		wantRadar      bool
+		wantReasons    []string // substrings each ERROR reason must contain
+		notWantReasons []string // substrings no ERROR reason may contain
+		wantWarnings   []string // substrings each WARN warning must contain
 	}{
 		{
 			name:        "everything_configured",
@@ -304,7 +306,22 @@ func TestDecideUI(t *testing.T) {
 			station:     locatedBadSite,
 			hasStore:    true,
 			wantRadar:   false,
-			wantReasons: []string{"ENABLE_RADAR", "KTLX", "sites.go"},
+			wantReasons: []string{"ENABLE_RADAR", "KTLX", "FTG"},
+		},
+		{
+			// Both radar preconditions unmet. decideUI reports EVERY unmet
+			// precondition in one startup rather than selecting the first, so
+			// this operator learns about the bad code AND the missing
+			// coordinates without restarting. There are no coordinates from
+			// which to compute a hint, so the nearest-site sentence must be
+			// absent -- not merely wrong.
+			name:           "radar_with_an_unknown_site_and_no_coordinates",
+			flags:          uiFlags{Radar: true},
+			station:        config.StationConfig{RadarSite: &badSite},
+			hasStore:       true,
+			wantRadar:      false,
+			wantReasons:    []string{"ENABLE_RADAR", "KTLX", "STATION_LATITUDE"},
+			notWantReasons: []string{"nearest site"},
 		},
 		{
 			name:        "radar_without_coordinates",
@@ -357,16 +374,21 @@ func TestDecideUI(t *testing.T) {
 			if !tc.wantRadar && got.RadarSite != nil {
 				t.Errorf("RadarSite = %q, want nil when the radar card is not mounted", *got.RadarSite)
 			}
+			joined := strings.Join(got.Reasons, " | ")
 			if len(tc.wantReasons) == 0 {
 				if len(got.Reasons) != 0 {
 					t.Errorf("Reasons = %v, want none", got.Reasons)
 				}
 			} else {
-				joined := strings.Join(got.Reasons, " | ")
 				for _, want := range tc.wantReasons {
 					if !strings.Contains(joined, want) {
 						t.Errorf("reasons %q must mention %q", joined, want)
 					}
+				}
+			}
+			for _, notWant := range tc.notWantReasons {
+				if strings.Contains(joined, notWant) {
+					t.Errorf("reasons %q must NOT mention %q", joined, notWant)
 				}
 			}
 
@@ -399,5 +421,26 @@ func TestDecideUI_ReportsEveryUnmetPrecondition(t *testing.T) {
 		if !strings.Contains(joined, want) {
 			t.Errorf("reasons %q must mention %q -- all three must be reported in one startup", joined, want)
 		}
+	}
+}
+
+// TestUnknownRadarSiteReason_RendersWholeKilometres guards the "%.0f km away"
+// rendering, which TestDecideUI deliberately cannot: its rows assert the site
+// CODE rather than a distance, because this repo has two Denver coordinate
+// pairs that render 37 and 38 km, and transcribing the wrong one produces a
+// red test with no explanation. This pins the SHAPE without pinning the number.
+func TestUnknownRadarSiteReason_RendersWholeKilometres(t *testing.T) {
+	lat, lon := 39.74, -104.98
+
+	got := unknownRadarSiteReason("KTLX", &lat, &lon)
+	want := regexp.MustCompile(`The nearest site to your coordinates is FTG, \d+ km away\.`)
+	if !want.MatchString(got) {
+		t.Errorf("reason %q must match %v -- whole kilometres, no decimal point", got, want)
+	}
+
+	// With no coordinates there is nothing to compute a hint from, so the
+	// sentence must be absent rather than wrong.
+	if noCoords := unknownRadarSiteReason("KTLX", nil, nil); strings.Contains(noCoords, "nearest site") {
+		t.Errorf("with no coordinates the reason must not mention a nearest site; got %q", noCoords)
 	}
 }
