@@ -17,9 +17,17 @@ type Site struct {
 // the exact radius value does not affect correctness.
 const earthRadiusKm = 6371.0
 
-// NearestSite returns the Code of the WSR-88D site closest to (lat, lon),
-// measured by great-circle (haversine) distance.
-func NearestSite(lat, lon float64) string {
+// NearestSite returns the Code of the WSR-88D site closest to (lat, lon) and
+// the great-circle (haversine) distance to it in kilometres.
+//
+// lat and lon are assumed finite and in range. config.LoadStation, via
+// parseFloatEnv (internal/config/station.go:146-165), rejects NaN, +/-Inf
+// and out-of-range values before any coordinate can reach this function's
+// only production caller, so no guard is duplicated here. The note is
+// worth stating because the precondition now lives across a package
+// boundary: given a non-finite input every distance comparison is false
+// and the zero Site is returned, i.e. ("", +Inf).
+func NearestSite(lat, lon float64) (code string, distanceKm float64) {
 	var nearest Site
 	minDist := math.Inf(1)
 	for _, s := range sites {
@@ -29,7 +37,7 @@ func NearestSite(lat, lon float64) string {
 			nearest = s
 		}
 	}
-	return nearest.Code
+	return nearest.Code, minDist
 }
 
 // haversineKm returns the great-circle distance in kilometers between two

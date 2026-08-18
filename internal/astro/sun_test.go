@@ -139,19 +139,30 @@ func TestSunriseSunset_UsesLocalDateNotUTCDate(t *testing.T) {
 	assertInstant(t, "sunrise", rise, mustTime("2026-11-18T21:42:00Z"))
 }
 
-// TestSunriseSunset_DatelineZones covers two IANA zones whose legal calendar
-// runs a day ahead of the sun (Kiritimati +14, Apia +13), plus one control,
-// Auckland in NZDT. Auckland's legal offset is also +13, but its solar
-// offset is +11.65, so its skew is only +1.35 and its anchor must NOT
-// shift -- it is the row that fails under issue #166's own suggested fix.
-// Tonga and Chatham share the same shift branch as Kiritimati and Apia but
-// are NOT covered by a row here.
+// TestSunriseSunset_DatelineZones covers four of the IANA zones whose legal
+// calendar runs a day ahead of the sun -- Kiritimati +14, Apia +13,
+// Tongatapu +13 and Chatham +12:45 -- plus one control, Auckland in NZDT.
+// Four is not the whole set: Pacific/Fakaofo and Pacific/Kanton are also +13
+// near 171 degrees W and take the same shift branch. Neither has a row,
+// deliberately -- Kanton sits within 0.02 degrees of longitude of Apia, so it
+// would add breadth without adding discrimination.
+// Auckland's legal offset is also +13, but its solar offset is +11.65, so its
+// skew is only +1.35 and its anchor must NOT shift -- it is the row that fails
+// under issue #166's own suggested fix.
 //
-// Values are USNO (aa.usno.navy.mil/api/rstt/oneday), transcribed from
-// design section 2.3. USNO's API had a transient outage after they were
-// captured; it is back up, and all three were re-queried live and returned
-// HTTP 200 with exact matches, so re-verifying them against USNO is
-// welcome. Do NOT substitute another provider: api.sunrise-sunset.org
+// The offset field is offsetSec rather than offsetHours because Chatham is
+// +12:45. Note that its row does not, on its own, demonstrate fractional-offset
+// handling: +12:00, +12:45 and +13:00 all land in the same floor bucket at that
+// longitude and produce byte-identical instants. It is a date-selection
+// regression guard. A test that genuinely exercises the fractional path needs
+// an (offset, lon) pair whose shift expression straddles a floor boundary
+// within 0.03125.
+//
+// Values are USNO (aa.usno.navy.mil/api/rstt/oneday). The first three were
+// transcribed from design section 2.3 and later re-queried live, returning
+// HTTP 200 with exact matches; the Chatham and Tongatapu rows were queried
+// live when they were added (issue #171). Re-verifying any of them against
+// USNO is welcome. Do NOT substitute another provider: api.sunrise-sunset.org
 // measured 160-230 s wide of USNO on day length, which would breach the
 // +-90 s tolerance this file must not relax.
 //
@@ -169,7 +180,7 @@ func TestSunriseSunset_DatelineZones(t *testing.T) {
 	tests := []struct {
 		name              string
 		lat, lon          float64
-		offsetHours       int
+		offsetSec         int
 		year              int
 		month             time.Month
 		day               int
@@ -177,14 +188,14 @@ func TestSunriseSunset_DatelineZones(t *testing.T) {
 	}{
 		{
 			// USNO: Rise 06:29, Set 18:40 local (+14).
-			name: "kiritimati_utc_plus_14", lat: 1.87, lon: -157.43, offsetHours: 14,
+			name: "kiritimati_utc_plus_14", lat: 1.87, lon: -157.43, offsetSec: 14 * 3600,
 			year: 2026, month: time.August, day: 14,
 			wantRise: mustTime("2026-08-13T16:29:00Z"),
 			wantSet:  mustTime("2026-08-14T04:40:00Z"),
 		},
 		{
 			// USNO: Rise 06:43, Set 18:21 local (+13).
-			name: "apia_utc_plus_13", lat: -13.83, lon: -171.77, offsetHours: 13,
+			name: "apia_utc_plus_13", lat: -13.83, lon: -171.77, offsetSec: 13 * 3600,
 			year: 2026, month: time.August, day: 14,
 			wantRise: mustTime("2026-08-13T17:43:00Z"),
 			wantSet:  mustTime("2026-08-14T05:21:00Z"),
@@ -196,16 +207,39 @@ func TestSunriseSunset_DatelineZones(t *testing.T) {
 			// suggested fix -- deriving the date from local CLOCK noon --
 			// passes the two rows above and FAILS this one, 190 days a year.
 			// USNO: Rise 06:18, Set 20:42 local (+13).
-			name: "auckland_nzdt_must_not_shift", lat: -36.85, lon: 174.76, offsetHours: 13,
+			name: "auckland_nzdt_must_not_shift", lat: -36.85, lon: 174.76, offsetSec: 13 * 3600,
 			year: 2026, month: time.January, day: 15,
 			wantRise: mustTime("2026-01-14T17:18:00Z"),
 			wantSet:  mustTime("2026-01-15T07:42:00Z"),
+		},
+		{
+			// USNO: Rise 07:29, Set 17:44 local (+12:45). Chatham is the only
+			// one of the four anomaly zones with a non-integer offset, which is
+			// why this table's field is offsetSec rather than offsetHours.
+			//
+			// What this row proves is anomaly-zone DATE SELECTION, not
+			// fractional arithmetic: measured, +12:00, +12:45 and +13:00 all
+			// fall in the same floor bucket for this longitude and return
+			// byte-identical instants, so the assertion cannot distinguish
+			// them. Pre-#166 code returned local 2026-08-15 here.
+			name: "chatham_utc_plus_12_45", lat: -43.95, lon: -176.55, offsetSec: 12*3600 + 45*60,
+			year: 2026, month: time.August, day: 14,
+			wantRise: mustTime("2026-08-13T18:44:00Z"),
+			wantSet:  mustTime("2026-08-14T04:59:00Z"),
+		},
+		{
+			// USNO: Rise 07:05, Set 18:27 local (+13). The fourth anomaly zone.
+			// Pre-#166 code returned local 2026-08-15 here too.
+			name: "tongatapu_utc_plus_13", lat: -21.13, lon: -175.20, offsetSec: 13 * 3600,
+			year: 2026, month: time.August, day: 14,
+			wantRise: mustTime("2026-08-13T18:05:00Z"),
+			wantSet:  mustTime("2026-08-14T05:27:00Z"),
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			loc := time.FixedZone("TEST", tc.offsetHours*3600)
+			loc := time.FixedZone("TEST", tc.offsetSec)
 			at := time.Date(tc.year, tc.month, tc.day, 0, 0, 0, 0, loc)
 
 			rise, set := SunriseSunset(tc.lat, tc.lon, at)

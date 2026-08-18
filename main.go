@@ -474,6 +474,40 @@ type uiDecision struct {
 	Warnings []string
 }
 
+// unknownRadarSiteReason builds the ERROR reason for a RADAR_SITE that is not
+// in the WSR-88D table. It names the offending value and, when the station's
+// coordinates are known, the nearest site and the distance to it.
+//
+// It names the answer rather than the lookup table because the deployment this
+// appliance ships as is a container: an operator cannot open
+// internal/radar/sites.go (issue #169).
+//
+// The phrasing is deliberately neutral -- it states a fact, it does not say
+// "try this". NearestSite has no distance ceiling, so for a station far from
+// the NEXRAD network the nearest site is thousands of km away and useless; a
+// London station is told about PLA in the Azores, 2540 km off. Stating the
+// distance lets the operator draw that conclusion without decideUI having to
+// rule on radar coverage physics, and without a threshold constant this
+// project could not justify from a primary source.
+//
+// lat and lon are nil together or set together (config.LoadStation enforces
+// it). The nil case is reachable and is why the guard lives here rather than
+// at the call site: decideUI reports an unknown code and missing coordinates
+// as two separate reasons, so this is called with no coordinates whenever both
+// are wrong.
+func unknownRadarSiteReason(site string, lat, lon *float64) string {
+	const base = "ENABLE_RADAR is true but RADAR_SITE=%q is not a known WSR-88D site code. " +
+		"Codes are three uppercase letters, usually not the ICAO form (TLX, not KTLX). "
+	if lat == nil || lon == nil {
+		return fmt.Sprintf(base+"The radar card will not be mounted.", site)
+	}
+	code, km := radar.NearestSite(*lat, *lon)
+	return fmt.Sprintf(
+		base+"The nearest site to your coordinates is %s, %.0f km away. "+
+			"The radar card will not be mounted.",
+		site, code, km)
+}
+
 // decideUI resolves which optional cards this process can serve and why any
 // enabled card cannot be.
 //
@@ -535,23 +569,36 @@ func decideUI(flags uiFlags, station config.StationConfig, hasStore bool) uiDeci
 	}
 
 	if flags.Radar {
+		// Sequential checks, not a switch: an operator with a bad site code
+		// AND no coordinates must learn both from one startup. A switch
+		// selects exactly one arm, so either ordering costs that operator two
+		// restarts to learn two things -- the property
+		// TestDecideUI_ReportsEveryUnmetPrecondition asserts across the three
+		// flags, now holding within this one too.
+		radarOK := true
 		switch {
 		case station.RadarSite == nil:
+			radarOK = false
 			d.Reasons = append(d.Reasons,
 				"ENABLE_RADAR is true but RADAR_SITE is not set, so no WSR-88D site can be requested. "+
 					"The radar card will not be mounted.")
 		case !radar.IsValidSite(*station.RadarSite):
-			d.Reasons = append(d.Reasons, fmt.Sprintf(
-				"ENABLE_RADAR is true but RADAR_SITE=%q is not a known WSR-88D site "+
-					"code. It must match one of the codes in internal/radar/sites.go "+
-					"exactly -- three uppercase letters, and usually not the ICAO form "+
-					"(TLX, not KTLX). The radar card will not be mounted.",
-				*station.RadarSite))
-		case !hasCoords:
+			radarOK = false
+			d.Reasons = append(d.Reasons,
+				unknownRadarSiteReason(*station.RadarSite, station.Latitude, station.Longitude))
+		}
+		// Checked independently of the site, not as a third arm of the switch
+		// above, because both must be reported in one startup. Note this is
+		// NOT a nil-guard for the coordinates: they are passed to
+		// unknownRadarSiteReason as pointers and nil-checked there, precisely
+		// so that the reason can still be produced when they are absent.
+		if !hasCoords {
+			radarOK = false
 			d.Reasons = append(d.Reasons,
 				"ENABLE_RADAR is true but STATION_LATITUDE and STATION_LONGITUDE are not both set, "+
 					"so the map has no centre. The radar card will not be mounted.")
-		default:
+		}
+		if radarOK {
 			d.Radar = true
 			d.RadarSite = station.RadarSite
 		}
@@ -573,7 +620,15 @@ func decideUI(flags uiFlags, station config.StationConfig, hasStore bool) uiDeci
 // deps.Observations is left nil when sqlite is disabled (the postgres-only
 // edge case) -- assigning sw directly would wrap a nil *sqlite.Writer in a
 // non-nil ObservationReader interface, defeating the handlers' nil guard.
-func startAPIServer(mode Mode, station config.StationConfig, sw *sqlite.Writer) *http.Server {
+//
+// logger is injected rather than taken from slog.Default() so a test can
+// observe the two diagnostic loops below without mutating a process global
+// (slog.SetDefault also calls log.SetOutput and log.SetFlags(0), and restoring
+// the previous logger undoes neither). main passes slog.Default(), which is
+// equivalent to the previous implicit package-level calls for as long as
+// nothing calls slog.SetDefault AFTER startAPIServer returns -- true today:
+// the sole production SetDefault is in configureOTel, which main runs first.
+func startAPIServer(mode Mode, station config.StationConfig, sw *sqlite.Writer, logger *slog.Logger) *http.Server {
 	if mode != ModeUDP {
 		return nil
 	}
@@ -599,10 +654,10 @@ func startAPIServer(mode Mode, station config.StationConfig, sw *sqlite.Writer) 
 		station, sw != nil,
 	)
 	for _, reason := range decision.Reasons {
-		slog.Error("optional UI card not mounted", "reason", reason)
+		logger.Error("optional UI card not mounted", "reason", reason)
 	}
 	for _, warning := range decision.Warnings {
-		slog.Warn("optional UI card degraded", "warning", warning)
+		logger.Warn("optional UI card degraded", "warning", warning)
 	}
 
 	// RADAR_SITE reaches the wire only when the radar card is actually
@@ -626,10 +681,10 @@ func startAPIServer(mode Mode, station config.StationConfig, sw *sqlite.Writer) 
 	srv.Addr = cmp.Or(os.Getenv("HTTP_ADDR"), ":8080")
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			slog.Error("http server", "err", err)
+			logger.Error("http server", "err", err)
 		}
 	}()
-	slog.Info("http server listening", "addr", srv.Addr)
+	logger.Info("http server listening", "addr", srv.Addr)
 	return srv
 }
 
@@ -706,7 +761,10 @@ func main() {
 	mode := resolveModeAndValidate(token, metricsSink.WriterCount())
 
 	// Start the UI/JSON-API HTTP server (UDP mode only)
-	srv = startAPIServer(mode, stationCfg, sw)
+	// slog.Default() rather than a locally built logger: configureOTel has
+	// already run above, so when ENABLE_OTEL is set this is the teeHandler that
+	// fans records to both stderr and the OTel log bridge.
+	srv = startAPIServer(mode, stationCfg, sw, slog.Default())
 
 	// Choose operational mode
 	if token != "" {
