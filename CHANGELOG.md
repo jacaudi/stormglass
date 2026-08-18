@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.1.0](https://github.com/jacaudi/tempestwx-utilities/compare/v4.0.0...v4.1.0) (2026-08-18)
+
+
+### Features
+
+* **radar:** name the nearest WSR-88D site when RADAR_SITE is rejected ([ca157f8](https://github.com/jacaudi/tempestwx-utilities/commit/ca157f8762d9034abdd0778e2fcc180f280e9a5b)), closes [#169](https://github.com/jacaudi/tempestwx-utilities/issues/169)
+* **radar:** name the nearest WSR-88D site when RADAR_SITE is rejected, and prove the startup diagnostics are emitted ([fb52e3f](https://github.com/jacaudi/tempestwx-utilities/commit/fb52e3fc7a8017f310424416a819bea8bc04f1d0))
+
 ## [4.0.0](https://github.com/jacaudi/tempestwx-utilities/compare/v3.1.2...v4.0.0) (2026-08-16)
 
 
