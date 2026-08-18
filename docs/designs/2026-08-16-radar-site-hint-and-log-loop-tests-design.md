@@ -309,8 +309,10 @@ serialises on a shared mutex; `sqlite.Writer`'s goroutine uses package-level
 to `LevelInfo`, so all three levels appear. **But** the serve goroutine's
 `http server` error (§4.1) writes the same unsynchronised `bytes.Buffer`. It
 only fires if `net.Listen` fails, so it is not observed in practice — the test
-nonetheless calls `srv.Close()` and waits before reading `buf.String()`, so
-there is never a second live writer during the read.
+calls `srv.Close()` before reading `buf.String()`, and no explicit wait is
+needed because once `Close` has run every path through
+`ListenAndServe`/`Serve` returns `http.ErrServerClosed`, which the goroutine
+filters out, so it never writes.
 
 ### 4.3 The non-vacuity proof
 

@@ -304,12 +304,13 @@ func TestDecideUI(t *testing.T) {
 			// KTLX is the ICAO form, which is what most operators know. It is
 			// not in the site table, so before this check the card mounted and
 			// every tile request 400'd with no startup diagnostic at all.
-			name:        "radar_with_an_unknown_site",
-			flags:       uiFlags{Radar: true},
-			station:     locatedBadSite,
-			hasStore:    true,
-			wantRadar:   false,
-			wantReasons: []string{"ENABLE_RADAR", "KTLX", "FTG"},
+			name:           "radar_with_an_unknown_site",
+			flags:          uiFlags{Radar: true},
+			station:        locatedBadSite,
+			hasStore:       true,
+			wantRadar:      false,
+			wantReasons:    []string{"ENABLE_RADAR", "KTLX", "FTG"},
+			notWantReasons: []string{"sites.go"},
 		},
 		{
 			// Both radar preconditions unmet. decideUI reports EVERY unmet
@@ -323,8 +324,8 @@ func TestDecideUI(t *testing.T) {
 			station:        config.StationConfig{RadarSite: &badSite},
 			hasStore:       true,
 			wantRadar:      false,
-			wantReasons:    []string{"ENABLE_RADAR", "KTLX", "STATION_LATITUDE"},
-			notWantReasons: []string{"nearest site"},
+			wantReasons:    []string{"ENABLE_RADAR", "KTLX", "STATION_LATITUDE", "not the ICAO form"},
+			notWantReasons: []string{"nearest site", "sites.go"},
 		},
 		{
 			name:        "radar_without_coordinates",

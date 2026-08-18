@@ -139,9 +139,13 @@ func TestSunriseSunset_UsesLocalDateNotUTCDate(t *testing.T) {
 	assertInstant(t, "sunrise", rise, mustTime("2026-11-18T21:42:00Z"))
 }
 
-// TestSunriseSunset_DatelineZones covers all four IANA zones whose legal
+// TestSunriseSunset_DatelineZones covers four of the IANA zones whose legal
 // calendar runs a day ahead of the sun -- Kiritimati +14, Apia +13,
 // Tongatapu +13 and Chatham +12:45 -- plus one control, Auckland in NZDT.
+// Four is not the whole set: Pacific/Fakaofo and Pacific/Kanton are also +13
+// near 171 degrees W and take the same shift branch. Neither has a row,
+// deliberately -- Kanton sits within 0.02 degrees of longitude of Apia, so it
+// would add breadth without adding discrimination.
 // Auckland's legal offset is also +13, but its solar offset is +11.65, so its
 // skew is only +1.35 and its anchor must NOT shift -- it is the row that fails
 // under issue #166's own suggested fix.

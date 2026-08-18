@@ -42,7 +42,7 @@ func SunriseSunset(lat, lon float64, t time.Time) (sunrise, sunset *time.Time) {
 	// that, and is 0 whenever -12 <= skew < 12, i.e. every ordinary zone.
 	// It is:
 	//   +1 where the legal calendar runs a day ahead of the sun -- the
-	//      deliberate dateline anomalies (Kiritimati, Apia, Tonga, Chatham) --
+	//      deliberate dateline anomalies (Kiritimati, Apia, Tonga and Chatham among others) --
 	//      and at lon == -180 exactly;
 	//   -1 where it runs a day behind, e.g. STATION_TIMEZONE=Etc/GMT+12 with
 	//      STATION_LONGITUDE=179.
