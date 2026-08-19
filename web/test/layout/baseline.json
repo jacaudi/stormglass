@@ -1049,7 +1049,7 @@
       },
       "docOverflow": 0,
       "widestOffender": {
-        "right": 588.2126312255859,
+        "right": 588.1456756591797,
         "cls": "orb orb-2"
       },
       "tracks": [
@@ -1263,7 +1263,7 @@
       },
       "docOverflow": 0,
       "widestOffender": {
-        "right": 649.7655029296875,
+        "right": 649.5923309326172,
         "cls": "orb orb-2"
       },
       "tracks": [
@@ -1617,7 +1617,7 @@
       },
       "docOverflow": 0,
       "widestOffender": {
-        "right": 713.4837036132812,
+        "right": 713.48388671875,
         "cls": "orb orb-2"
       },
       "tracks": [
@@ -1905,7 +1905,7 @@
       },
       "docOverflow": 0,
       "widestOffender": {
-        "right": 735.0189819335938,
+        "right": 735.0794067382812,
         "cls": "orb orb-2"
       },
       "tracks": [
@@ -2193,7 +2193,7 @@
       },
       "docOverflow": 0,
       "widestOffender": {
-        "right": 736.1536254882812,
+        "right": 736.15576171875,
         "cls": "orb orb-2"
       },
       "tracks": [
@@ -2481,7 +2481,7 @@
       },
       "docOverflow": 0,
       "widestOffender": {
-        "right": 756.6275634765625,
+        "right": 756.51513671875,
         "cls": "orb orb-2"
       },
       "tracks": [
@@ -2739,7 +2739,7 @@
       },
       "docOverflow": 0,
       "widestOffender": {
-        "right": 860.35693359375,
+        "right": 860.3590087890625,
         "cls": "orb orb-2"
       },
       "tracks": [
@@ -2961,7 +2961,7 @@
       },
       "docOverflow": 0,
       "widestOffender": {
-        "right": 1015.889892578125,
+        "right": 1015.832275390625,
         "cls": "orb orb-2"
       },
       "tracks": [
@@ -3164,7 +3164,7 @@
       },
       "docOverflow": 0,
       "widestOffender": {
-        "right": 1123.882568359375,
+        "right": 1123.8955078125,
         "cls": "orb orb-2"
       },
       "tracks": [
@@ -3367,7 +3367,7 @@
       },
       "docOverflow": 0,
       "widestOffender": {
-        "right": 1124.967529296875,
+        "right": 1124.8536376953125,
         "cls": "orb orb-2"
       },
       "tracks": [
@@ -3570,7 +3570,7 @@
       },
       "docOverflow": 0,
       "widestOffender": {
-        "right": 1231.727783203125,
+        "right": 1231.83251953125,
         "cls": "orb orb-2"
       },
       "tracks": [
@@ -3773,7 +3773,7 @@
       },
       "docOverflow": 0,
       "widestOffender": {
-        "right": 1426.28076171875,
+        "right": 1426.2227783203125,
         "cls": "orb orb-2"
       },
       "tracks": [
@@ -3976,7 +3976,7 @@
       },
       "docOverflow": 0,
       "widestOffender": {
-        "right": 1676.7281494140625,
+        "right": 1676.785888671875,
         "cls": "orb orb-2"
       },
       "tracks": [
@@ -4179,7 +4179,7 @@
       },
       "docOverflow": 0,
       "widestOffender": {
-        "right": 2117.4375,
+        "right": 2117.43310546875,
         "cls": "orb orb-2"
       },
       "tracks": [
@@ -4382,7 +4382,7 @@
       },
       "docOverflow": 0,
       "widestOffender": {
-        "right": 2809.0810546875,
+        "right": 2809.135986328125,
         "cls": "orb orb-2"
       },
       "tracks": [
@@ -5404,7 +5404,7 @@
     },
     "docOverflow": 0,
     "widestOffender": {
-      "right": 1674.8763427734375,
+      "right": 1674.88037109375,
       "cls": "orb orb-2"
     },
     "tracks": [
@@ -5672,17 +5672,17 @@
     },
     {
       "method": "GET",
-      "path": "/assets/inter-latin-wght-normal-Dx4kXJAl.woff2",
-      "status": 200
-    },
-    {
-      "method": "GET",
       "path": "/api/capabilities",
       "status": 200
     },
     {
       "method": "GET",
       "path": "/api/observations/summary",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/inter-latin-wght-normal-Dx4kXJAl.woff2",
       "status": 200
     },
     {
@@ -5697,12 +5697,12 @@
     },
     {
       "method": "GET",
-      "path": "/api/observations/current",
+      "path": "/api/almanac",
       "status": 200
     },
     {
       "method": "GET",
-      "path": "/api/almanac",
+      "path": "/api/observations/current",
       "status": 200
     },
     {
@@ -6662,12 +6662,12 @@
     },
     {
       "method": "GET",
-      "path": "/api/observations/current",
+      "path": "/api/almanac",
       "status": 200
     },
     {
       "method": "GET",
-      "path": "/api/almanac",
+      "path": "/api/observations/current",
       "status": 200
     },
     {

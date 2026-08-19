@@ -229,7 +229,7 @@ export async function probe(page) {
       // so nothing else here would see it.
       almanacSunMoonOverlap: (() => {
         const moon = q('.almanac-moon');
-        if (!moon) return 0;
+        if (!moon) return null;
         const mr = moon.getBoundingClientRect();
         return Array.from(document.querySelectorAll('.almanac-sun')).reduce((worst, sun) => {
           const sr = sun.getBoundingClientRect();
@@ -243,9 +243,9 @@ export async function probe(page) {
       // not clipped -- just visibly off-centre, which only this measures.
       almanacMoonOffset: (() => {
         const moon = q('.almanac-moon');
-        if (!moon) return 0;
+        if (!moon) return null;
         const card = cardOf(moon);
-        if (!card) return 0;
+        if (!card) return null;
         const p = padBox(card);
         const mr = moon.getBoundingClientRect();
         return Math.abs((mr.left + mr.right) / 2 - (p.left + p.right) / 2);
@@ -259,7 +259,7 @@ export async function probe(page) {
       humidityRingOverflow: (() => {
         const ring = q('.humidity-ring-container');
         const text = q('.humidity-ring-text');
-        if (!ring || !text) return 0;
+        if (!ring || !text) return null;
         const rr = ring.getBoundingClientRect();
         return Array.from(text.querySelectorAll('*')).reduce((worst, el) => {
           if (el.getClientRects().length === 0) return worst;

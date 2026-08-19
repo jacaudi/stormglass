@@ -269,12 +269,27 @@ CHECKS.push({
   id: 'almanac-sun-clears-the-moon',
   section: '§6.7',
   describe: (m) => {
-    const bad = WIDTHS.filter((w) => m.widths[w].almanacSunMoonOverlap > 1);
+    // null means .almanac-moon is gone -- Tasks 8/23 rewrite the almanac and
+    // could delete it outright, not just mispositioning it. A deleted moon
+    // must fail loudly here, not read as "0px overlap".
+    const bad = WIDTHS.filter((w) => {
+      const v = m.widths[w].almanacSunMoonOverlap;
+      return v === null || v > 1;
+    });
     return bad.length
-      ? bad.map((w) => `${w}:${m.widths[w].almanacSunMoonOverlap.toFixed(1)}px`).join(' ')
+      ? bad
+          .map((w) => {
+            const v = m.widths[w].almanacSunMoonOverlap;
+            return v === null ? `${w}:SELECTOR MISSING (.almanac-moon)` : `${w}:${v.toFixed(1)}px`;
+          })
+          .join(' ')
       : 'no overlap at any width';
   },
-  pass: (m) => WIDTHS.every((w) => m.widths[w].almanacSunMoonOverlap <= 1),
+  pass: (m) =>
+    WIDTHS.every((w) => {
+      const v = m.widths[w].almanacSunMoonOverlap;
+      return v !== null && v <= 1;
+    }),
 });
 
 // The moon must also be CENTRED, not merely clear of the sun blocks. With the
@@ -285,12 +300,26 @@ CHECKS.push({
   id: 'almanac-moon-centred',
   section: '§6.7',
   describe: (m) => {
-    const bad = WIDTHS.filter((w) => m.widths[w].almanacMoonOffset > 4);
+    // null means .almanac-moon (or its enclosing card) is gone -- see the
+    // sibling check above for why a deleted moon must fail loudly.
+    const bad = WIDTHS.filter((w) => {
+      const v = m.widths[w].almanacMoonOffset;
+      return v === null || v > 4;
+    });
     return bad.length
-      ? bad.map((w) => `${w}:${m.widths[w].almanacMoonOffset.toFixed(1)}px`).join(' ')
+      ? bad
+          .map((w) => {
+            const v = m.widths[w].almanacMoonOffset;
+            return v === null ? `${w}:SELECTOR MISSING (.almanac-moon)` : `${w}:${v.toFixed(1)}px`;
+          })
+          .join(' ')
       : 'centred at all 19 widths';
   },
-  pass: (m) => WIDTHS.every((w) => m.widths[w].almanacMoonOffset <= 4),
+  pass: (m) =>
+    WIDTHS.every((w) => {
+      const v = m.widths[w].almanacMoonOffset;
+      return v !== null && v <= 4;
+    }),
 });
 
 // --readout-primary reaches ~41px at 1512 inside a 140px ring. Design §6.5
@@ -300,12 +329,30 @@ CHECKS.push({
   id: 'humidity-ring-text-fits',
   section: '§6.5 Readout',
   describe: (m) => {
-    const bad = WIDTHS.filter((w) => m.widths[w].humidityRingOverflow > 1);
+    // null means .humidity-ring-container or .humidity-ring-text is gone --
+    // Task 18 rewrites HumidityCard and could delete the ring outright, not
+    // just mispositioning its text. A deleted ring must fail loudly here,
+    // not read as "0px overflow".
+    const bad = WIDTHS.filter((w) => {
+      const v = m.widths[w].humidityRingOverflow;
+      return v === null || v > 1;
+    });
     return bad.length
-      ? bad.map((w) => `${w}:${m.widths[w].humidityRingOverflow.toFixed(1)}px`).join(' ')
+      ? bad
+          .map((w) => {
+            const v = m.widths[w].humidityRingOverflow;
+            return v === null
+              ? `${w}:SELECTOR MISSING (.humidity-ring-container/.humidity-ring-text)`
+              : `${w}:${v.toFixed(1)}px`;
+          })
+          .join(' ')
       : 'fits at all 19 widths';
   },
-  pass: (m) => WIDTHS.every((w) => m.widths[w].humidityRingOverflow <= 1),
+  pass: (m) =>
+    WIDTHS.every((w) => {
+      const v = m.widths[w].humidityRingOverflow;
+      return v !== null && v <= 1;
+    }),
 });
 
 await main();
