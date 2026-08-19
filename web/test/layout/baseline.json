@@ -1,0 +1,7589 @@
+{
+  "widths": {
+    "320": {
+      "viewport": {
+        "width": 320,
+        "height": 900
+      },
+      "docOverflow": 17,
+      "widestOffender": {
+        "right": 509.03125,
+        "cls": "hero-details"
+      },
+      "tracks": [
+        272
+      ],
+      "trackSpread": 0,
+      "gutter": 48,
+      "cards": [
+        {
+          "className": "glass-card card-span-2 hero-card",
+          "top": 155,
+          "height": 173.96875,
+          "width": 272,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  wind-card",
+          "top": 349,
+          "height": 314.1875,
+          "width": 272,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  humidity-card",
+          "top": 684,
+          "height": 283.78125,
+          "width": 272,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  pressure-card",
+          "top": 987,
+          "height": 162.375,
+          "width": 272,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  solar-uv-card",
+          "top": 1170,
+          "height": 242.59375,
+          "width": 272,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  rain-card",
+          "top": 1432,
+          "height": 148.796875,
+          "width": 272,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  lightning-card ",
+          "top": 1601,
+          "height": 188.375,
+          "width": 272,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  station-health-card",
+          "top": 1809,
+          "height": 191.171875,
+          "width": 272,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  records-card",
+          "top": 2021,
+          "height": 918.5,
+          "width": 272,
+          "asym": 15.59375
+        },
+        {
+          "className": "glass-card card-span-3 ",
+          "top": 2959,
+          "height": 482.359375,
+          "width": 272,
+          "asym": 0
+        },
+        {
+          "className": "glass-card card-span-2 radar-card",
+          "top": 3462,
+          "height": 358,
+          "width": 272,
+          "asym": 11.59375
+        }
+      ],
+      "cardCount": 11,
+      "clipped": [
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "Heat Index"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-value",
+          "text": "74°F"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "Wind Chill"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-value",
+          "text": "74°F"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "Rain Chance"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-value",
+          "text": "0%"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "UV Index"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-value",
+          "text": "6.3"
+        },
+        {
+          "cardIndex": 9,
+          "card": "glass-card card-span-3 ",
+          "cls": "almanac-period",
+          "text": "This Year"
+        },
+        {
+          "cardIndex": 9,
+          "card": "glass-card card-span-3 ",
+          "cls": "almanac-hl-label almanac-hl-high",
+          "text": "H ↑"
+        },
+        {
+          "cardIndex": 9,
+          "card": "glass-card card-span-3 ",
+          "cls": "almanac-temp-value almanac-temp-high",
+          "text": "83°F"
+        },
+        {
+          "cardIndex": 9,
+          "card": "glass-card card-span-3 ",
+          "cls": "almanac-temp-date",
+          "text": "Aug 18"
+        },
+        {
+          "cardIndex": 9,
+          "card": "glass-card card-span-3 ",
+          "cls": "almanac-hl-label almanac-hl-low",
+          "text": "L ↓"
+        },
+        {
+          "cardIndex": 9,
+          "card": "glass-card card-span-3 ",
+          "cls": "almanac-temp-value almanac-temp-low",
+          "text": "56°F"
+        },
+        {
+          "cardIndex": 9,
+          "card": "glass-card card-span-3 ",
+          "cls": "almanac-temp-date",
+          "text": "Today"
+        }
+      ],
+      "clippedCount": 15,
+      "almanacClipped": 7,
+      "asymmetry": 27.1875,
+      "rowSpread": 0,
+      "hero": {
+        "height": 115.96875,
+        "scrollWidth": 456,
+        "clientWidth": 214,
+        "detailsWidth": 202.21875
+      },
+      "rainGrid": {
+        "marginTop": 0,
+        "marginBottom": 0,
+        "hasAnimation": false
+      },
+      "header": {
+        "height": 131.390625,
+        "nameOverflow": 0,
+        "locOverflow": 0,
+        "locText": "47.8601°N, 122.2043°W· 150m",
+        "nameText": "W0 Baseline"
+      },
+      "icons": [
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        }
+      ],
+      "titleFontPx": 12.8,
+      "rootFontPx": 16,
+      "records": {
+        "height": 918.5
+      },
+      "readouts": {
+        ".pressure-value": 25.6,
+        ".humidity-value": 25.6,
+        ".uv-number": 32,
+        ".lightning-count": 32,
+        ".lightning-distance": 32,
+        ".wind-speed-value": 35.2
+      },
+      "readoutCentre": {
+        ".pressure-value": 56.1171875,
+        ".humidity-value": 0,
+        ".uv-number": 89.78125,
+        ".lightning-count": 76.34375,
+        ".lightning-distance": 32.75,
+        ".wind-speed-value": 0.0078125
+      },
+      "align": {
+        "rain": "normal",
+        "health": "normal",
+        "lightning": "normal",
+        "humidity": "center"
+      },
+      "radarStatusMessage": false,
+      "almanacSunMoonOverlap": 0,
+      "almanacMoonOffset": 0,
+      "humidityRingOverflow": 0,
+      "cardText": [
+        "74°F|Sunny|Feels like 74°F|Heat Index|74°F|Wind Chill|74°F|Rain Chance|0%|UV Index|6.3",
+        "Wind|N|E|S|W|1.9 mph|NE (49°)|Lull|1.1 mph|Gust|2.6 mph",
+        "Humidity|61%|Humid|Dew Point|60°F|Wet Bulb|65°F",
+        "Pressure|999.8 mb|↓ Falling|Low|Normal|High",
+        "Solar & UV|6.3|High|0|3|6|8|11+|Solar Radiation|814 W/m²|Very High|Illuminance|97,653 lux",
+        "Precipitation|Current|0.00 in|None|Today|0.00 in",
+        "Lightning|0|strikes today|—|avg distance|No lightning detected|Range: up to 40 km",
+        "Station Health|Battery|2.77V · Good|Signal|0/4|Last Report|30s ago|Firmware",
+        "Records|Last 7 days|Temperature|High|83°F|Low|56°F|Humidity|High|94%|Low|47%|Pressure|High|1000.9 mb|Low|999.7 mb|Wind|Sustained|3.3 mph|Gust|6.6 mph|Rain|0.00 in|Lightning|strikes",
+        "Station Almanac|Sunrise|6:09 AM|First Quarter|47% illuminated|Sunset|8:14 PM|14h 04m daylight|Today|H ↑|74°F|Today|L ↓|56°F|Today|This Week|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Month|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Year|H ↑|83°F|Aug 18|L ↓|56°F|Today",
+        "Radar"
+      ]
+    },
+    "360": {
+      "viewport": {
+        "width": 360,
+        "height": 900
+      },
+      "docOverflow": 0,
+      "widestOffender": {
+        "right": 509.03125,
+        "cls": "hero-details"
+      },
+      "tracks": [
+        312
+      ],
+      "trackSpread": 0,
+      "gutter": 48,
+      "cards": [
+        {
+          "className": "glass-card card-span-2 hero-card",
+          "top": 155,
+          "height": 173.96875,
+          "width": 312,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  wind-card",
+          "top": 349,
+          "height": 314.1875,
+          "width": 312,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  humidity-card",
+          "top": 684,
+          "height": 283.78125,
+          "width": 312,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  pressure-card",
+          "top": 987,
+          "height": 162.375,
+          "width": 312,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  solar-uv-card",
+          "top": 1170,
+          "height": 224.59375,
+          "width": 312,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  rain-card",
+          "top": 1414,
+          "height": 148.796875,
+          "width": 312,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  lightning-card ",
+          "top": 1583,
+          "height": 188.375,
+          "width": 312,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  station-health-card",
+          "top": 1791,
+          "height": 191.171875,
+          "width": 312,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  records-card",
+          "top": 2003,
+          "height": 918.5,
+          "width": 312,
+          "asym": 15.59375
+        },
+        {
+          "className": "glass-card card-span-3 ",
+          "top": 2941,
+          "height": 482.359375,
+          "width": 312,
+          "asym": 0
+        },
+        {
+          "className": "glass-card card-span-2 radar-card",
+          "top": 3444,
+          "height": 358,
+          "width": 312,
+          "asym": 11.59375
+        }
+      ],
+      "cardCount": 11,
+      "clipped": [
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "Heat Index"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-value",
+          "text": "74°F"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "Wind Chill"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-value",
+          "text": "74°F"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "Rain Chance"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "UV Index"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-value",
+          "text": "6.3"
+        },
+        {
+          "cardIndex": 9,
+          "card": "glass-card card-span-3 ",
+          "cls": "almanac-period",
+          "text": "This Year"
+        },
+        {
+          "cardIndex": 9,
+          "card": "glass-card card-span-3 ",
+          "cls": "almanac-hl-label almanac-hl-high",
+          "text": "H ↑"
+        },
+        {
+          "cardIndex": 9,
+          "card": "glass-card card-span-3 ",
+          "cls": "almanac-temp-value almanac-temp-high",
+          "text": "83°F"
+        },
+        {
+          "cardIndex": 9,
+          "card": "glass-card card-span-3 ",
+          "cls": "almanac-temp-date",
+          "text": "Aug 18"
+        },
+        {
+          "cardIndex": 9,
+          "card": "glass-card card-span-3 ",
+          "cls": "almanac-hl-label almanac-hl-low",
+          "text": "L ↓"
+        },
+        {
+          "cardIndex": 9,
+          "card": "glass-card card-span-3 ",
+          "cls": "almanac-temp-value almanac-temp-low",
+          "text": "56°F"
+        },
+        {
+          "cardIndex": 9,
+          "card": "glass-card card-span-3 ",
+          "cls": "almanac-temp-date",
+          "text": "Today"
+        }
+      ],
+      "clippedCount": 14,
+      "almanacClipped": 7,
+      "asymmetry": 27.1875,
+      "rowSpread": 0,
+      "hero": {
+        "height": 115.96875,
+        "scrollWidth": 456,
+        "clientWidth": 254,
+        "detailsWidth": 202.21875
+      },
+      "rainGrid": {
+        "marginTop": 0,
+        "marginBottom": 0,
+        "hasAnimation": false
+      },
+      "header": {
+        "height": 131.390625,
+        "nameOverflow": 0,
+        "locOverflow": 0,
+        "locText": "47.8601°N, 122.2043°W· 150m",
+        "nameText": "W0 Baseline"
+      },
+      "icons": [
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        }
+      ],
+      "titleFontPx": 12.8,
+      "rootFontPx": 16,
+      "records": {
+        "height": 918.5
+      },
+      "readouts": {
+        ".pressure-value": 25.6,
+        ".humidity-value": 25.6,
+        ".uv-number": 32,
+        ".lightning-count": 32,
+        ".lightning-distance": 32,
+        ".wind-speed-value": 35.2
+      },
+      "readoutCentre": {
+        ".pressure-value": 76.1171875,
+        ".humidity-value": 0,
+        ".uv-number": 109.78125,
+        ".lightning-count": 96.34375,
+        ".lightning-distance": 12.75,
+        ".wind-speed-value": 0.0078125
+      },
+      "align": {
+        "rain": "normal",
+        "health": "normal",
+        "lightning": "normal",
+        "humidity": "center"
+      },
+      "radarStatusMessage": false,
+      "almanacSunMoonOverlap": 0,
+      "almanacMoonOffset": 0,
+      "humidityRingOverflow": 0,
+      "cardText": [
+        "74°F|Sunny|Feels like 74°F|Heat Index|74°F|Wind Chill|74°F|Rain Chance|0%|UV Index|6.3",
+        "Wind|N|E|S|W|1.9 mph|NE (49°)|Lull|1.1 mph|Gust|2.6 mph",
+        "Humidity|61%|Humid|Dew Point|60°F|Wet Bulb|65°F",
+        "Pressure|999.8 mb|↓ Falling|Low|Normal|High",
+        "Solar & UV|6.3|High|0|3|6|8|11+|Solar Radiation|814 W/m²|Very High|Illuminance|97,653 lux",
+        "Precipitation|Current|0.00 in|None|Today|0.00 in",
+        "Lightning|0|strikes today|—|avg distance|No lightning detected|Range: up to 40 km",
+        "Station Health|Battery|2.77V · Good|Signal|0/4|Last Report|30s ago|Firmware",
+        "Records|Last 7 days|Temperature|High|83°F|Low|56°F|Humidity|High|94%|Low|47%|Pressure|High|1000.9 mb|Low|999.7 mb|Wind|Sustained|3.3 mph|Gust|6.6 mph|Rain|0.00 in|Lightning|strikes",
+        "Station Almanac|Sunrise|6:09 AM|First Quarter|47% illuminated|Sunset|8:14 PM|14h 04m daylight|Today|H ↑|74°F|Today|L ↓|56°F|Today|This Week|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Month|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Year|H ↑|83°F|Aug 18|L ↓|56°F|Today",
+        "Radar"
+      ]
+    },
+    "390": {
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "docOverflow": 0,
+      "widestOffender": {
+        "right": 509.03125,
+        "cls": "hero-details"
+      },
+      "tracks": [
+        342
+      ],
+      "trackSpread": 0,
+      "gutter": 48,
+      "cards": [
+        {
+          "className": "glass-card card-span-2 hero-card",
+          "top": 155,
+          "height": 173.96875,
+          "width": 342,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  wind-card",
+          "top": 349,
+          "height": 314.1875,
+          "width": 342,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  humidity-card",
+          "top": 684,
+          "height": 283.78125,
+          "width": 342,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  pressure-card",
+          "top": 987,
+          "height": 162.375,
+          "width": 342,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  solar-uv-card",
+          "top": 1170,
+          "height": 224.59375,
+          "width": 342,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  rain-card",
+          "top": 1414,
+          "height": 148.796875,
+          "width": 342,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  lightning-card ",
+          "top": 1583,
+          "height": 188.375,
+          "width": 342,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  station-health-card",
+          "top": 1791,
+          "height": 191.171875,
+          "width": 342,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  records-card",
+          "top": 2003,
+          "height": 918.5,
+          "width": 342,
+          "asym": 15.59375
+        },
+        {
+          "className": "glass-card card-span-3 ",
+          "top": 2941,
+          "height": 482.359375,
+          "width": 342,
+          "asym": 0
+        },
+        {
+          "className": "glass-card card-span-2 radar-card",
+          "top": 3444,
+          "height": 358,
+          "width": 342,
+          "asym": 11.59375
+        }
+      ],
+      "cardCount": 11,
+      "clipped": [
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "Heat Index"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "Wind Chill"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-value",
+          "text": "74°F"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "Rain Chance"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "UV Index"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-value",
+          "text": "6.3"
+        }
+      ],
+      "clippedCount": 6,
+      "almanacClipped": 0,
+      "asymmetry": 27.1875,
+      "rowSpread": 0,
+      "hero": {
+        "height": 115.96875,
+        "scrollWidth": 456,
+        "clientWidth": 284,
+        "detailsWidth": 202.21875
+      },
+      "rainGrid": {
+        "marginTop": 0,
+        "marginBottom": 0,
+        "hasAnimation": false
+      },
+      "header": {
+        "height": 131.390625,
+        "nameOverflow": 0,
+        "locOverflow": 0,
+        "locText": "47.8601°N, 122.2043°W· 150m",
+        "nameText": "W0 Baseline"
+      },
+      "icons": [
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        }
+      ],
+      "titleFontPx": 12.8,
+      "rootFontPx": 16,
+      "records": {
+        "height": 918.5
+      },
+      "readouts": {
+        ".pressure-value": 25.6,
+        ".humidity-value": 25.6,
+        ".uv-number": 32,
+        ".lightning-count": 32,
+        ".lightning-distance": 32,
+        ".wind-speed-value": 35.2
+      },
+      "readoutCentre": {
+        ".pressure-value": 91.1171875,
+        ".humidity-value": 0,
+        ".uv-number": 124.78125,
+        ".lightning-count": 111.34375,
+        ".lightning-distance": 2.25,
+        ".wind-speed-value": 0.0078125
+      },
+      "align": {
+        "rain": "normal",
+        "health": "normal",
+        "lightning": "normal",
+        "humidity": "center"
+      },
+      "radarStatusMessage": false,
+      "almanacSunMoonOverlap": 0,
+      "almanacMoonOffset": 0,
+      "humidityRingOverflow": 0,
+      "cardText": [
+        "74°F|Sunny|Feels like 74°F|Heat Index|74°F|Wind Chill|74°F|Rain Chance|0%|UV Index|6.3",
+        "Wind|N|E|S|W|1.9 mph|NE (49°)|Lull|1.1 mph|Gust|2.6 mph",
+        "Humidity|61%|Humid|Dew Point|60°F|Wet Bulb|65°F",
+        "Pressure|999.8 mb|↓ Falling|Low|Normal|High",
+        "Solar & UV|6.3|High|0|3|6|8|11+|Solar Radiation|814 W/m²|Very High|Illuminance|97,653 lux",
+        "Precipitation|Current|0.00 in|None|Today|0.00 in",
+        "Lightning|0|strikes today|—|avg distance|No lightning detected|Range: up to 40 km",
+        "Station Health|Battery|2.77V · Good|Signal|0/4|Last Report|30s ago|Firmware",
+        "Records|Last 7 days|Temperature|High|83°F|Low|56°F|Humidity|High|94%|Low|47%|Pressure|High|1000.9 mb|Low|999.7 mb|Wind|Sustained|3.3 mph|Gust|6.6 mph|Rain|0.00 in|Lightning|strikes",
+        "Station Almanac|Sunrise|6:09 AM|First Quarter|47% illuminated|Sunset|8:14 PM|14h 04m daylight|Today|H ↑|74°F|Today|L ↓|56°F|Today|This Week|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Month|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Year|H ↑|83°F|Aug 18|L ↓|56°F|Today",
+        "Radar"
+      ]
+    },
+    "430": {
+      "viewport": {
+        "width": 430,
+        "height": 900
+      },
+      "docOverflow": 0,
+      "widestOffender": {
+        "right": 509.03125,
+        "cls": "hero-details"
+      },
+      "tracks": [
+        382
+      ],
+      "trackSpread": 0,
+      "gutter": 48,
+      "cards": [
+        {
+          "className": "glass-card card-span-2 hero-card",
+          "top": 155,
+          "height": 173.96875,
+          "width": 382,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  wind-card",
+          "top": 349,
+          "height": 314.1875,
+          "width": 382,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  humidity-card",
+          "top": 684,
+          "height": 283.78125,
+          "width": 382,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  pressure-card",
+          "top": 987,
+          "height": 162.375,
+          "width": 382,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  solar-uv-card",
+          "top": 1170,
+          "height": 224.59375,
+          "width": 382,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  rain-card",
+          "top": 1414,
+          "height": 148.796875,
+          "width": 382,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  lightning-card ",
+          "top": 1583,
+          "height": 188.375,
+          "width": 382,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  station-health-card",
+          "top": 1791,
+          "height": 191.171875,
+          "width": 382,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  records-card",
+          "top": 2003,
+          "height": 496.84375,
+          "width": 382,
+          "asym": 15
+        },
+        {
+          "className": "glass-card card-span-3 ",
+          "top": 2519,
+          "height": 482.359375,
+          "width": 382,
+          "asym": 0
+        },
+        {
+          "className": "glass-card card-span-2 radar-card",
+          "top": 3022,
+          "height": 358,
+          "width": 382,
+          "asym": 11.59375
+        }
+      ],
+      "cardCount": 11,
+      "clipped": [
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "Wind Chill"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-value",
+          "text": "74°F"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "UV Index"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-value",
+          "text": "6.3"
+        }
+      ],
+      "clippedCount": 4,
+      "almanacClipped": 0,
+      "asymmetry": 26.59375,
+      "rowSpread": 0,
+      "hero": {
+        "height": 115.96875,
+        "scrollWidth": 456,
+        "clientWidth": 324,
+        "detailsWidth": 202.21875
+      },
+      "rainGrid": {
+        "marginTop": 0,
+        "marginBottom": 0,
+        "hasAnimation": false
+      },
+      "header": {
+        "height": 131.390625,
+        "nameOverflow": 0,
+        "locOverflow": 0,
+        "locText": "47.8601°N, 122.2043°W· 150m",
+        "nameText": "W0 Baseline"
+      },
+      "icons": [
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        }
+      ],
+      "titleFontPx": 12.8,
+      "rootFontPx": 16,
+      "records": {
+        "height": 496.84375
+      },
+      "readouts": {
+        ".pressure-value": 25.6,
+        ".humidity-value": 25.6,
+        ".uv-number": 32,
+        ".lightning-count": 32,
+        ".lightning-distance": 32,
+        ".wind-speed-value": 35.2
+      },
+      "readoutCentre": {
+        ".pressure-value": 111.1171875,
+        ".humidity-value": 0,
+        ".uv-number": 144.78125,
+        ".lightning-count": 131.34375,
+        ".lightning-distance": 22.25,
+        ".wind-speed-value": 0.0078125
+      },
+      "align": {
+        "rain": "normal",
+        "health": "normal",
+        "lightning": "normal",
+        "humidity": "center"
+      },
+      "radarStatusMessage": false,
+      "almanacSunMoonOverlap": 0,
+      "almanacMoonOffset": 0,
+      "humidityRingOverflow": 0,
+      "cardText": [
+        "74°F|Sunny|Feels like 74°F|Heat Index|74°F|Wind Chill|74°F|Rain Chance|0%|UV Index|6.3",
+        "Wind|N|E|S|W|1.9 mph|NE (49°)|Lull|1.1 mph|Gust|2.6 mph",
+        "Humidity|61%|Humid|Dew Point|60°F|Wet Bulb|65°F",
+        "Pressure|999.8 mb|↓ Falling|Low|Normal|High",
+        "Solar & UV|6.3|High|0|3|6|8|11+|Solar Radiation|814 W/m²|Very High|Illuminance|97,653 lux",
+        "Precipitation|Current|0.00 in|None|Today|0.00 in",
+        "Lightning|0|strikes today|—|avg distance|No lightning detected|Range: up to 40 km",
+        "Station Health|Battery|2.77V · Good|Signal|0/4|Last Report|30s ago|Firmware",
+        "Records|Last 7 days|Temperature|High|83°F|Low|56°F|Humidity|High|94%|Low|47%|Pressure|High|1000.9 mb|Low|999.7 mb|Wind|Sustained|3.3 mph|Gust|6.6 mph|Rain|0.00 in|Lightning|strikes",
+        "Station Almanac|Sunrise|6:09 AM|First Quarter|47% illuminated|Sunset|8:14 PM|14h 04m daylight|Today|H ↑|74°F|Today|L ↓|56°F|Today|This Week|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Month|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Year|H ↑|83°F|Aug 18|L ↓|56°F|Today",
+        "Radar"
+      ]
+    },
+    "504": {
+      "viewport": {
+        "width": 504,
+        "height": 900
+      },
+      "docOverflow": 0,
+      "widestOffender": {
+        "right": 588.2126312255859,
+        "cls": "orb orb-2"
+      },
+      "tracks": [
+        456
+      ],
+      "trackSpread": 0,
+      "gutter": 48,
+      "cards": [
+        {
+          "className": "glass-card card-span-2 hero-card",
+          "top": 107,
+          "height": 173.96875,
+          "width": 456,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  wind-card",
+          "top": 301,
+          "height": 314.1875,
+          "width": 456,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  humidity-card",
+          "top": 636,
+          "height": 283.78125,
+          "width": 456,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  pressure-card",
+          "top": 939,
+          "height": 162.375,
+          "width": 456,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  solar-uv-card",
+          "top": 1122,
+          "height": 224.59375,
+          "width": 456,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  rain-card",
+          "top": 1366,
+          "height": 148.796875,
+          "width": 456,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  lightning-card ",
+          "top": 1535,
+          "height": 188.375,
+          "width": 456,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  station-health-card",
+          "top": 1743,
+          "height": 191.171875,
+          "width": 456,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  records-card",
+          "top": 1955,
+          "height": 496.84375,
+          "width": 456,
+          "asym": 15
+        },
+        {
+          "className": "glass-card card-span-3 ",
+          "top": 2471,
+          "height": 482.359375,
+          "width": 456,
+          "asym": 0
+        },
+        {
+          "className": "glass-card card-span-2 radar-card",
+          "top": 2974,
+          "height": 358,
+          "width": 456,
+          "asym": 11.59375
+        }
+      ],
+      "cardCount": 11,
+      "clipped": [
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "Wind Chill"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "UV Index"
+        }
+      ],
+      "clippedCount": 2,
+      "almanacClipped": 0,
+      "asymmetry": 26.59375,
+      "rowSpread": 0,
+      "hero": {
+        "height": 115.96875,
+        "scrollWidth": 456,
+        "clientWidth": 398,
+        "detailsWidth": 202.21875
+      },
+      "rainGrid": {
+        "marginTop": 0,
+        "marginBottom": 0,
+        "hasAnimation": false
+      },
+      "header": {
+        "height": 83.390625,
+        "nameOverflow": 0,
+        "locOverflow": 0,
+        "locText": "47.8601°N, 122.2043°W· 150m",
+        "nameText": "W0 Baseline"
+      },
+      "icons": [
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        }
+      ],
+      "titleFontPx": 12.8,
+      "rootFontPx": 16,
+      "records": {
+        "height": 496.84375
+      },
+      "readouts": {
+        ".pressure-value": 25.6,
+        ".humidity-value": 25.6,
+        ".uv-number": 32,
+        ".lightning-count": 32,
+        ".lightning-distance": 32,
+        ".wind-speed-value": 35.2
+      },
+      "readoutCentre": {
+        ".pressure-value": 148.1171875,
+        ".humidity-value": 0,
+        ".uv-number": 181.78125,
+        ".lightning-count": 168.34375,
+        ".lightning-distance": 59.25,
+        ".wind-speed-value": 0.0078125
+      },
+      "align": {
+        "rain": "normal",
+        "health": "normal",
+        "lightning": "normal",
+        "humidity": "center"
+      },
+      "radarStatusMessage": false,
+      "almanacSunMoonOverlap": 0,
+      "almanacMoonOffset": 0,
+      "humidityRingOverflow": 0,
+      "cardText": [
+        "74°F|Sunny|Feels like 74°F|Heat Index|74°F|Wind Chill|74°F|Rain Chance|0%|UV Index|6.3",
+        "Wind|N|E|S|W|1.9 mph|NE (49°)|Lull|1.1 mph|Gust|2.6 mph",
+        "Humidity|61%|Humid|Dew Point|60°F|Wet Bulb|65°F",
+        "Pressure|999.8 mb|↓ Falling|Low|Normal|High",
+        "Solar & UV|6.3|High|0|3|6|8|11+|Solar Radiation|814 W/m²|Very High|Illuminance|97,653 lux",
+        "Precipitation|Current|0.00 in|None|Today|0.00 in",
+        "Lightning|0|strikes today|—|avg distance|No lightning detected|Range: up to 40 km",
+        "Station Health|Battery|2.77V · Good|Signal|0/4|Last Report|30s ago|Firmware",
+        "Records|Last 7 days|Temperature|High|83°F|Low|56°F|Humidity|High|94%|Low|47%|Pressure|High|1000.9 mb|Low|999.7 mb|Wind|Sustained|3.3 mph|Gust|6.6 mph|Rain|0.00 in|Lightning|strikes",
+        "Station Almanac|Sunrise|6:09 AM|First Quarter|47% illuminated|Sunset|8:14 PM|14h 04m daylight|Today|H ↑|74°F|Today|L ↓|56°F|Today|This Week|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Month|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Year|H ↑|83°F|Aug 18|L ↓|56°F|Today",
+        "Radar"
+      ]
+    },
+    "561": {
+      "viewport": {
+        "width": 561,
+        "height": 900
+      },
+      "docOverflow": 0,
+      "widestOffender": {
+        "right": 649.7655029296875,
+        "cls": "orb orb-2"
+      },
+      "tracks": [
+        102.656,
+        102.672,
+        267.672
+      ],
+      "trackSpread": 165.01600000000002,
+      "gutter": 48,
+      "cards": [
+        {
+          "className": "glass-card card-span-2 hero-card",
+          "top": 107,
+          "height": 314.1875,
+          "width": 225.328125,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  wind-card",
+          "top": 107,
+          "height": 314.1875,
+          "width": 267.671875,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  humidity-card",
+          "top": 442,
+          "height": 300.578125,
+          "width": 102.65625,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  pressure-card",
+          "top": 442,
+          "height": 300.578125,
+          "width": 102.671875,
+          "asym": 99.40625
+        },
+        {
+          "className": "glass-card  solar-uv-card",
+          "top": 442,
+          "height": 300.578125,
+          "width": 267.671875,
+          "asym": 57.578125
+        },
+        {
+          "className": "glass-card  rain-card",
+          "top": 762,
+          "height": 289.15625,
+          "width": 102.65625,
+          "asym": 52.96875
+        },
+        {
+          "className": "glass-card  lightning-card ",
+          "top": 762,
+          "height": 289.15625,
+          "width": 102.671875,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  station-health-card",
+          "top": 762,
+          "height": 289.15625,
+          "width": 267.671875,
+          "asym": 48.578125
+        },
+        {
+          "className": "glass-card  records-card",
+          "top": 1071,
+          "height": 918.5,
+          "width": 225.328125,
+          "asym": 15.59375
+        },
+        {
+          "className": "glass-card card-span-3 ",
+          "top": 2010,
+          "height": 482.359375,
+          "width": 513,
+          "asym": 0
+        },
+        {
+          "className": "glass-card card-span-2 radar-card",
+          "top": 2512,
+          "height": 358,
+          "width": 225.328125,
+          "asym": 11.59375
+        }
+      ],
+      "cardCount": 11,
+      "clipped": [
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "hero-temp",
+          "text": "74°F"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "hero-condition",
+          "text": "Sunny"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "hero-feels-like",
+          "text": "Feels like 74°F"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "Heat Index"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-value",
+          "text": "74°F"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "Wind Chill"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-value",
+          "text": "74°F"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "Rain Chance"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-value",
+          "text": "0%"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "UV Index"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-value",
+          "text": "6.3"
+        },
+        {
+          "cardIndex": 2,
+          "card": "glass-card  humidity-card",
+          "cls": "card-title",
+          "text": "Humidity"
+        },
+        {
+          "cardIndex": 2,
+          "card": "glass-card  humidity-card",
+          "cls": "humidity-value",
+          "text": "61%"
+        },
+        {
+          "cardIndex": 2,
+          "card": "glass-card  humidity-card",
+          "cls": "humidity-level",
+          "text": "Humid"
+        },
+        {
+          "cardIndex": 2,
+          "card": "glass-card  humidity-card",
+          "cls": "humidity-stat-label",
+          "text": "Wet Bulb"
+        },
+        {
+          "cardIndex": 2,
+          "card": "glass-card  humidity-card",
+          "cls": "humidity-stat-value",
+          "text": "65°F"
+        },
+        {
+          "cardIndex": 3,
+          "card": "glass-card  pressure-card",
+          "cls": "card-title",
+          "text": "Pressure"
+        },
+        {
+          "cardIndex": 3,
+          "card": "glass-card  pressure-card",
+          "cls": "pressure-trend trend-falling",
+          "text": "↓ Falling"
+        },
+        {
+          "cardIndex": 3,
+          "card": "glass-card  pressure-card",
+          "cls": "",
+          "text": "High"
+        },
+        {
+          "cardIndex": 5,
+          "card": "glass-card  rain-card",
+          "cls": "card-title",
+          "text": "Precipitation"
+        },
+        {
+          "cardIndex": 5,
+          "card": "glass-card  rain-card",
+          "cls": "rain-stat-label",
+          "text": "Today"
+        },
+        {
+          "cardIndex": 5,
+          "card": "glass-card  rain-card",
+          "cls": "rain-stat-value",
+          "text": "0.00 in"
+        },
+        {
+          "cardIndex": 6,
+          "card": "glass-card  lightning-card ",
+          "cls": "card-title",
+          "text": "Lightning"
+        },
+        {
+          "cardIndex": 6,
+          "card": "glass-card  lightning-card ",
+          "cls": "lightning-distance lightning-distance-none",
+          "text": "—"
+        },
+        {
+          "cardIndex": 6,
+          "card": "glass-card  lightning-card ",
+          "cls": "lightning-label",
+          "text": "avg distance"
+        }
+      ],
+      "clippedCount": 25,
+      "almanacClipped": 0,
+      "asymmetry": 285.71875,
+      "rowSpread": 0,
+      "hero": {
+        "height": 115.96875,
+        "scrollWidth": 456,
+        "clientWidth": 167,
+        "detailsWidth": 202.21875
+      },
+      "rainGrid": {
+        "marginTop": 53.375,
+        "marginBottom": 53.375,
+        "hasAnimation": false
+      },
+      "header": {
+        "height": 83.390625,
+        "nameOverflow": 0,
+        "locOverflow": 0,
+        "locText": "47.8601°N, 122.2043°W· 150m",
+        "nameText": "W0 Baseline"
+      },
+      "icons": [
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        }
+      ],
+      "titleFontPx": 12.8,
+      "rootFontPx": 16,
+      "records": {
+        "height": 918.5
+      },
+      "readouts": {
+        ".pressure-value": 25.6,
+        ".humidity-value": 25.6,
+        ".uv-number": 32,
+        ".lightning-count": 32,
+        ".lightning-distance": 32,
+        ".wind-speed-value": 35.2
+      },
+      "readoutCentre": {
+        ".pressure-value": 5.8125,
+        ".humidity-value": 39.671875,
+        ".uv-number": 87.6171875,
+        ".lightning-count": 10.359375,
+        ".lightning-distance": 67.3515625,
+        ".wind-speed-value": 0
+      },
+      "align": {
+        "rain": "normal",
+        "health": "normal",
+        "lightning": "normal",
+        "humidity": "center"
+      },
+      "radarStatusMessage": false,
+      "almanacSunMoonOverlap": 0,
+      "almanacMoonOffset": 0,
+      "humidityRingOverflow": 0,
+      "cardText": [
+        "74°F|Sunny|Feels like 74°F|Heat Index|74°F|Wind Chill|74°F|Rain Chance|0%|UV Index|6.3",
+        "Wind|N|E|S|W|1.9 mph|NE (49°)|Lull|1.1 mph|Gust|2.6 mph",
+        "Humidity|61%|Humid|Dew Point|60°F|Wet Bulb|65°F",
+        "Pressure|999.8 mb|↓ Falling|Low|Normal|High",
+        "Solar & UV|6.3|High|0|3|6|8|11+|Solar Radiation|814 W/m²|Very High|Illuminance|97,653 lux",
+        "Precipitation|Current|0.00 in|None|Today|0.00 in",
+        "Lightning|0|strikes today|—|avg distance|No lightning detected|Range: up to 40 km",
+        "Station Health|Battery|2.77V · Good|Signal|0/4|Last Report|30s ago|Firmware",
+        "Records|Last 7 days|Temperature|High|83°F|Low|56°F|Humidity|High|94%|Low|47%|Pressure|High|1000.9 mb|Low|999.7 mb|Wind|Sustained|3.3 mph|Gust|6.6 mph|Rain|0.00 in|Lightning|strikes",
+        "Station Almanac|Sunrise|6:09 AM|First Quarter|47% illuminated|Sunset|8:14 PM|14h 04m daylight|Today|H ↑|74°F|Today|L ↓|56°F|Today|This Week|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Month|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Year|H ↑|83°F|Aug 18|L ↓|56°F|Today",
+        "Radar"
+      ]
+    },
+    "620": {
+      "viewport": {
+        "width": 620,
+        "height": 900
+      },
+      "docOverflow": 0,
+      "widestOffender": {
+        "right": 713.4837036132812,
+        "cls": "orb orb-2"
+      },
+      "tracks": [
+        132.156,
+        132.172,
+        267.672
+      ],
+      "trackSpread": 135.51600000000002,
+      "gutter": 48,
+      "cards": [
+        {
+          "className": "glass-card card-span-2 hero-card",
+          "top": 107,
+          "height": 314.1875,
+          "width": 284.328125,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  wind-card",
+          "top": 107,
+          "height": 314.1875,
+          "width": 267.671875,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  humidity-card",
+          "top": 442,
+          "height": 300.578125,
+          "width": 132.15625,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  pressure-card",
+          "top": 442,
+          "height": 300.578125,
+          "width": 132.171875,
+          "asym": 99.40625
+        },
+        {
+          "className": "glass-card  solar-uv-card",
+          "top": 442,
+          "height": 300.578125,
+          "width": 267.671875,
+          "asym": 57.578125
+        },
+        {
+          "className": "glass-card  rain-card",
+          "top": 762,
+          "height": 248.359375,
+          "width": 132.15625,
+          "asym": 32.5625
+        },
+        {
+          "className": "glass-card  lightning-card ",
+          "top": 762,
+          "height": 248.359375,
+          "width": 132.171875,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  station-health-card",
+          "top": 762,
+          "height": 248.359375,
+          "width": 267.671875,
+          "asym": 28.1875
+        },
+        {
+          "className": "glass-card  records-card",
+          "top": 1031,
+          "height": 918.5,
+          "width": 284.328125,
+          "asym": 15.59375
+        },
+        {
+          "className": "glass-card card-span-3 ",
+          "top": 1969,
+          "height": 460.375,
+          "width": 572,
+          "asym": 0
+        },
+        {
+          "className": "glass-card card-span-2 radar-card",
+          "top": 2449,
+          "height": 358,
+          "width": 284.328125,
+          "asym": 11.59375
+        }
+      ],
+      "cardCount": 11,
+      "clipped": [
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "Heat Index"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-value",
+          "text": "74°F"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "Wind Chill"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-value",
+          "text": "74°F"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "Rain Chance"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-value",
+          "text": "0%"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "UV Index"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-value",
+          "text": "6.3"
+        },
+        {
+          "cardIndex": 3,
+          "card": "glass-card  pressure-card",
+          "cls": "pressure-trend trend-falling",
+          "text": "↓ Falling"
+        },
+        {
+          "cardIndex": 5,
+          "card": "glass-card  rain-card",
+          "cls": "card-title",
+          "text": "Precipitation"
+        },
+        {
+          "cardIndex": 5,
+          "card": "glass-card  rain-card",
+          "cls": "rain-stat-label",
+          "text": "Today"
+        },
+        {
+          "cardIndex": 5,
+          "card": "glass-card  rain-card",
+          "cls": "rain-stat-value",
+          "text": "0.00 in"
+        },
+        {
+          "cardIndex": 6,
+          "card": "glass-card  lightning-card ",
+          "cls": "lightning-distance lightning-distance-none",
+          "text": "—"
+        },
+        {
+          "cardIndex": 6,
+          "card": "glass-card  lightning-card ",
+          "cls": "lightning-label",
+          "text": "avg distance"
+        }
+      ],
+      "clippedCount": 14,
+      "almanacClipped": 0,
+      "asymmetry": 244.921875,
+      "rowSpread": 0,
+      "hero": {
+        "height": 115.96875,
+        "scrollWidth": 456,
+        "clientWidth": 226,
+        "detailsWidth": 202.21875
+      },
+      "rainGrid": {
+        "marginTop": 32.9844,
+        "marginBottom": 32.9688,
+        "hasAnimation": false
+      },
+      "header": {
+        "height": 83.390625,
+        "nameOverflow": 0,
+        "locOverflow": 0,
+        "locText": "47.8601°N, 122.2043°W· 150m",
+        "nameText": "W0 Baseline"
+      },
+      "icons": [
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        }
+      ],
+      "titleFontPx": 12.8,
+      "rootFontPx": 16,
+      "records": {
+        "height": 918.5
+      },
+      "readouts": {
+        ".pressure-value": 25.6,
+        ".humidity-value": 25.6,
+        ".uv-number": 32,
+        ".lightning-count": 32,
+        ".lightning-distance": 32,
+        ".wind-speed-value": 35.2
+      },
+      "readoutCentre": {
+        ".pressure-value": 8.9375,
+        ".humidity-value": 24.921875,
+        ".uv-number": 87.6171875,
+        ".lightning-count": 25.109375,
+        ".lightning-distance": 52.6015625,
+        ".wind-speed-value": 0
+      },
+      "align": {
+        "rain": "normal",
+        "health": "normal",
+        "lightning": "normal",
+        "humidity": "center"
+      },
+      "radarStatusMessage": false,
+      "almanacSunMoonOverlap": 0,
+      "almanacMoonOffset": 0,
+      "humidityRingOverflow": 0,
+      "cardText": [
+        "74°F|Sunny|Feels like 74°F|Heat Index|74°F|Wind Chill|74°F|Rain Chance|0%|UV Index|6.3",
+        "Wind|N|E|S|W|1.9 mph|NE (49°)|Lull|1.1 mph|Gust|2.6 mph",
+        "Humidity|61%|Humid|Dew Point|60°F|Wet Bulb|65°F",
+        "Pressure|999.8 mb|↓ Falling|Low|Normal|High",
+        "Solar & UV|6.3|High|0|3|6|8|11+|Solar Radiation|814 W/m²|Very High|Illuminance|97,653 lux",
+        "Precipitation|Current|0.00 in|None|Today|0.00 in",
+        "Lightning|0|strikes today|—|avg distance|No lightning detected|Range: up to 40 km",
+        "Station Health|Battery|2.77V · Good|Signal|0/4|Last Report|30s ago|Firmware",
+        "Records|Last 7 days|Temperature|High|83°F|Low|56°F|Humidity|High|94%|Low|47%|Pressure|High|1000.9 mb|Low|999.7 mb|Wind|Sustained|3.3 mph|Gust|6.6 mph|Rain|0.00 in|Lightning|strikes",
+        "Station Almanac|Sunrise|6:09 AM|First Quarter|47% illuminated|Sunset|8:14 PM|14h 04m daylight|Today|H ↑|74°F|Today|L ↓|56°F|Today|This Week|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Month|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Year|H ↑|83°F|Aug 18|L ↓|56°F|Today",
+        "Radar"
+      ]
+    },
+    "640": {
+      "viewport": {
+        "width": 640,
+        "height": 900
+      },
+      "docOverflow": 0,
+      "widestOffender": {
+        "right": 735.0189819335938,
+        "cls": "orb orb-2"
+      },
+      "tracks": [
+        142.156,
+        142.172,
+        267.672
+      ],
+      "trackSpread": 125.51600000000002,
+      "gutter": 48,
+      "cards": [
+        {
+          "className": "glass-card card-span-2 hero-card",
+          "top": 107,
+          "height": 314.1875,
+          "width": 304.328125,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  wind-card",
+          "top": 107,
+          "height": 314.1875,
+          "width": 267.671875,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  humidity-card",
+          "top": 442,
+          "height": 300.578125,
+          "width": 142.15625,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  pressure-card",
+          "top": 442,
+          "height": 300.578125,
+          "width": 142.171875,
+          "asym": 99.40625
+        },
+        {
+          "className": "glass-card  solar-uv-card",
+          "top": 442,
+          "height": 300.578125,
+          "width": 267.671875,
+          "asym": 57.578125
+        },
+        {
+          "className": "glass-card  rain-card",
+          "top": 762,
+          "height": 248.359375,
+          "width": 142.15625,
+          "asym": 32.5625
+        },
+        {
+          "className": "glass-card  lightning-card ",
+          "top": 762,
+          "height": 248.359375,
+          "width": 142.171875,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  station-health-card",
+          "top": 762,
+          "height": 248.359375,
+          "width": 267.671875,
+          "asym": 28.1875
+        },
+        {
+          "className": "glass-card  records-card",
+          "top": 1031,
+          "height": 918.5,
+          "width": 304.328125,
+          "asym": 15.59375
+        },
+        {
+          "className": "glass-card card-span-3 ",
+          "top": 1969,
+          "height": 460.375,
+          "width": 592,
+          "asym": 0
+        },
+        {
+          "className": "glass-card card-span-2 radar-card",
+          "top": 2449,
+          "height": 358,
+          "width": 304.328125,
+          "asym": 11.59375
+        }
+      ],
+      "cardCount": 11,
+      "clipped": [
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "Heat Index"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-value",
+          "text": "74°F"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "Wind Chill"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-value",
+          "text": "74°F"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "Rain Chance"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-value",
+          "text": "0%"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "UV Index"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-value",
+          "text": "6.3"
+        },
+        {
+          "cardIndex": 3,
+          "card": "glass-card  pressure-card",
+          "cls": "pressure-trend trend-falling",
+          "text": "↓ Falling"
+        },
+        {
+          "cardIndex": 5,
+          "card": "glass-card  rain-card",
+          "cls": "card-title",
+          "text": "Precipitation"
+        },
+        {
+          "cardIndex": 5,
+          "card": "glass-card  rain-card",
+          "cls": "rain-stat-label",
+          "text": "Today"
+        },
+        {
+          "cardIndex": 5,
+          "card": "glass-card  rain-card",
+          "cls": "rain-stat-value",
+          "text": "0.00 in"
+        },
+        {
+          "cardIndex": 6,
+          "card": "glass-card  lightning-card ",
+          "cls": "lightning-distance lightning-distance-none",
+          "text": "—"
+        },
+        {
+          "cardIndex": 6,
+          "card": "glass-card  lightning-card ",
+          "cls": "lightning-label",
+          "text": "avg distance"
+        }
+      ],
+      "clippedCount": 14,
+      "almanacClipped": 0,
+      "asymmetry": 244.921875,
+      "rowSpread": 0,
+      "hero": {
+        "height": 115.96875,
+        "scrollWidth": 456,
+        "clientWidth": 246,
+        "detailsWidth": 202.21875
+      },
+      "rainGrid": {
+        "marginTop": 32.9844,
+        "marginBottom": 32.9688,
+        "hasAnimation": false
+      },
+      "header": {
+        "height": 83.390625,
+        "nameOverflow": 0,
+        "locOverflow": 0,
+        "locText": "47.8601°N, 122.2043°W· 150m",
+        "nameText": "W0 Baseline"
+      },
+      "icons": [
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        }
+      ],
+      "titleFontPx": 12.8,
+      "rootFontPx": 16,
+      "records": {
+        "height": 918.5
+      },
+      "readouts": {
+        ".pressure-value": 25.6,
+        ".humidity-value": 25.6,
+        ".uv-number": 32,
+        ".lightning-count": 32,
+        ".lightning-distance": 32,
+        ".wind-speed-value": 35.2
+      },
+      "readoutCentre": {
+        ".pressure-value": 13.9375,
+        ".humidity-value": 19.921875,
+        ".uv-number": 87.6171875,
+        ".lightning-count": 30.109375,
+        ".lightning-distance": 47.6015625,
+        ".wind-speed-value": 0
+      },
+      "align": {
+        "rain": "normal",
+        "health": "normal",
+        "lightning": "normal",
+        "humidity": "center"
+      },
+      "radarStatusMessage": false,
+      "almanacSunMoonOverlap": 0,
+      "almanacMoonOffset": 0,
+      "humidityRingOverflow": 0,
+      "cardText": [
+        "74°F|Sunny|Feels like 74°F|Heat Index|74°F|Wind Chill|74°F|Rain Chance|0%|UV Index|6.3",
+        "Wind|N|E|S|W|1.9 mph|NE (49°)|Lull|1.1 mph|Gust|2.6 mph",
+        "Humidity|61%|Humid|Dew Point|60°F|Wet Bulb|65°F",
+        "Pressure|999.8 mb|↓ Falling|Low|Normal|High",
+        "Solar & UV|6.3|High|0|3|6|8|11+|Solar Radiation|814 W/m²|Very High|Illuminance|97,653 lux",
+        "Precipitation|Current|0.00 in|None|Today|0.00 in",
+        "Lightning|0|strikes today|—|avg distance|No lightning detected|Range: up to 40 km",
+        "Station Health|Battery|2.77V · Good|Signal|0/4|Last Report|30s ago|Firmware",
+        "Records|Last 7 days|Temperature|High|83°F|Low|56°F|Humidity|High|94%|Low|47%|Pressure|High|1000.9 mb|Low|999.7 mb|Wind|Sustained|3.3 mph|Gust|6.6 mph|Rain|0.00 in|Lightning|strikes",
+        "Station Almanac|Sunrise|6:09 AM|First Quarter|47% illuminated|Sunset|8:14 PM|14h 04m daylight|Today|H ↑|74°F|Today|L ↓|56°F|Today|This Week|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Month|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Year|H ↑|83°F|Aug 18|L ↓|56°F|Today",
+        "Radar"
+      ]
+    },
+    "641": {
+      "viewport": {
+        "width": 641,
+        "height": 900
+      },
+      "docOverflow": 0,
+      "widestOffender": {
+        "right": 736.1536254882812,
+        "cls": "orb orb-2"
+      },
+      "tracks": [
+        142.656,
+        142.672,
+        267.672
+      ],
+      "trackSpread": 125.01600000000002,
+      "gutter": 48,
+      "cards": [
+        {
+          "className": "glass-card card-span-2 hero-card",
+          "top": 107,
+          "height": 314.1875,
+          "width": 305.328125,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  wind-card",
+          "top": 107,
+          "height": 314.1875,
+          "width": 267.671875,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  humidity-card",
+          "top": 442,
+          "height": 300.578125,
+          "width": 142.65625,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  pressure-card",
+          "top": 442,
+          "height": 300.578125,
+          "width": 142.671875,
+          "asym": 99.40625
+        },
+        {
+          "className": "glass-card  solar-uv-card",
+          "top": 442,
+          "height": 300.578125,
+          "width": 267.671875,
+          "asym": 57.578125
+        },
+        {
+          "className": "glass-card  rain-card",
+          "top": 762,
+          "height": 248.359375,
+          "width": 142.65625,
+          "asym": 32.5625
+        },
+        {
+          "className": "glass-card  lightning-card ",
+          "top": 762,
+          "height": 248.359375,
+          "width": 142.671875,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  station-health-card",
+          "top": 762,
+          "height": 248.359375,
+          "width": 267.671875,
+          "asym": 28.1875
+        },
+        {
+          "className": "glass-card  records-card",
+          "top": 1031,
+          "height": 918.5,
+          "width": 305.328125,
+          "asym": 15.59375
+        },
+        {
+          "className": "glass-card card-span-3 ",
+          "top": 1969,
+          "height": 460.375,
+          "width": 593,
+          "asym": 0
+        },
+        {
+          "className": "glass-card card-span-2 radar-card",
+          "top": 2449,
+          "height": 358,
+          "width": 305.328125,
+          "asym": 11.59375
+        }
+      ],
+      "cardCount": 11,
+      "clipped": [
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "Heat Index"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-value",
+          "text": "74°F"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "Wind Chill"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-value",
+          "text": "74°F"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "Rain Chance"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-value",
+          "text": "0%"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "UV Index"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-value",
+          "text": "6.3"
+        },
+        {
+          "cardIndex": 3,
+          "card": "glass-card  pressure-card",
+          "cls": "pressure-trend trend-falling",
+          "text": "↓ Falling"
+        },
+        {
+          "cardIndex": 5,
+          "card": "glass-card  rain-card",
+          "cls": "card-title",
+          "text": "Precipitation"
+        },
+        {
+          "cardIndex": 5,
+          "card": "glass-card  rain-card",
+          "cls": "rain-stat-label",
+          "text": "Today"
+        },
+        {
+          "cardIndex": 5,
+          "card": "glass-card  rain-card",
+          "cls": "rain-stat-value",
+          "text": "0.00 in"
+        },
+        {
+          "cardIndex": 6,
+          "card": "glass-card  lightning-card ",
+          "cls": "lightning-distance lightning-distance-none",
+          "text": "—"
+        },
+        {
+          "cardIndex": 6,
+          "card": "glass-card  lightning-card ",
+          "cls": "lightning-label",
+          "text": "avg distance"
+        }
+      ],
+      "clippedCount": 14,
+      "almanacClipped": 0,
+      "asymmetry": 244.921875,
+      "rowSpread": 0,
+      "hero": {
+        "height": 115.96875,
+        "scrollWidth": 456,
+        "clientWidth": 247,
+        "detailsWidth": 202.21875
+      },
+      "rainGrid": {
+        "marginTop": 32.9844,
+        "marginBottom": 32.9688,
+        "hasAnimation": false
+      },
+      "header": {
+        "height": 83.390625,
+        "nameOverflow": 0,
+        "locOverflow": 0,
+        "locText": "47.8601°N, 122.2043°W· 150m",
+        "nameText": "W0 Baseline"
+      },
+      "icons": [
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        }
+      ],
+      "titleFontPx": 12.8,
+      "rootFontPx": 16,
+      "records": {
+        "height": 918.5
+      },
+      "readouts": {
+        ".pressure-value": 25.6,
+        ".humidity-value": 25.6,
+        ".uv-number": 32,
+        ".lightning-count": 32,
+        ".lightning-distance": 32,
+        ".wind-speed-value": 35.2
+      },
+      "readoutCentre": {
+        ".pressure-value": 14.1875,
+        ".humidity-value": 19.671875,
+        ".uv-number": 87.6171875,
+        ".lightning-count": 30.359375,
+        ".lightning-distance": 47.3515625,
+        ".wind-speed-value": 0
+      },
+      "align": {
+        "rain": "normal",
+        "health": "normal",
+        "lightning": "normal",
+        "humidity": "center"
+      },
+      "radarStatusMessage": false,
+      "almanacSunMoonOverlap": 0,
+      "almanacMoonOffset": 0,
+      "humidityRingOverflow": 0,
+      "cardText": [
+        "74°F|Sunny|Feels like 74°F|Heat Index|74°F|Wind Chill|74°F|Rain Chance|0%|UV Index|6.3",
+        "Wind|N|E|S|W|1.9 mph|NE (49°)|Lull|1.1 mph|Gust|2.6 mph",
+        "Humidity|61%|Humid|Dew Point|60°F|Wet Bulb|65°F",
+        "Pressure|999.8 mb|↓ Falling|Low|Normal|High",
+        "Solar & UV|6.3|High|0|3|6|8|11+|Solar Radiation|814 W/m²|Very High|Illuminance|97,653 lux",
+        "Precipitation|Current|0.00 in|None|Today|0.00 in",
+        "Lightning|0|strikes today|—|avg distance|No lightning detected|Range: up to 40 km",
+        "Station Health|Battery|2.77V · Good|Signal|0/4|Last Report|30s ago|Firmware",
+        "Records|Last 7 days|Temperature|High|83°F|Low|56°F|Humidity|High|94%|Low|47%|Pressure|High|1000.9 mb|Low|999.7 mb|Wind|Sustained|3.3 mph|Gust|6.6 mph|Rain|0.00 in|Lightning|strikes",
+        "Station Almanac|Sunrise|6:09 AM|First Quarter|47% illuminated|Sunset|8:14 PM|14h 04m daylight|Today|H ↑|74°F|Today|L ↓|56°F|Today|This Week|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Month|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Year|H ↑|83°F|Aug 18|L ↓|56°F|Today",
+        "Radar"
+      ]
+    },
+    "660": {
+      "viewport": {
+        "width": 660,
+        "height": 900
+      },
+      "docOverflow": 0,
+      "widestOffender": {
+        "right": 756.6275634765625,
+        "cls": "orb orb-2"
+      },
+      "tracks": [
+        152.156,
+        152.172,
+        267.672
+      ],
+      "trackSpread": 115.51600000000002,
+      "gutter": 48,
+      "cards": [
+        {
+          "className": "glass-card card-span-2 hero-card",
+          "top": 107,
+          "height": 314.1875,
+          "width": 324.328125,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  wind-card",
+          "top": 107,
+          "height": 314.1875,
+          "width": 267.671875,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  humidity-card",
+          "top": 442,
+          "height": 300.578125,
+          "width": 152.15625,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  pressure-card",
+          "top": 442,
+          "height": 300.578125,
+          "width": 152.171875,
+          "asym": 99.40625
+        },
+        {
+          "className": "glass-card  solar-uv-card",
+          "top": 442,
+          "height": 300.578125,
+          "width": 267.671875,
+          "asym": 57.578125
+        },
+        {
+          "className": "glass-card  rain-card",
+          "top": 762,
+          "height": 248.359375,
+          "width": 152.15625,
+          "asym": 32.5625
+        },
+        {
+          "className": "glass-card  lightning-card ",
+          "top": 762,
+          "height": 248.359375,
+          "width": 152.171875,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  station-health-card",
+          "top": 762,
+          "height": 248.359375,
+          "width": 267.671875,
+          "asym": 28.1875
+        },
+        {
+          "className": "glass-card  records-card",
+          "top": 1031,
+          "height": 918.5,
+          "width": 324.328125,
+          "asym": 15.59375
+        },
+        {
+          "className": "glass-card card-span-3 ",
+          "top": 1969,
+          "height": 460.375,
+          "width": 612,
+          "asym": 0
+        },
+        {
+          "className": "glass-card card-span-2 radar-card",
+          "top": 2449,
+          "height": 358,
+          "width": 324.328125,
+          "asym": 11.59375
+        }
+      ],
+      "cardCount": 11,
+      "clipped": [
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "Heat Index"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "Wind Chill"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-value",
+          "text": "74°F"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "Rain Chance"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "UV Index"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-value",
+          "text": "6.3"
+        },
+        {
+          "cardIndex": 5,
+          "card": "glass-card  rain-card",
+          "cls": "card-title",
+          "text": "Precipitation"
+        },
+        {
+          "cardIndex": 5,
+          "card": "glass-card  rain-card",
+          "cls": "rain-stat-label",
+          "text": "Today"
+        },
+        {
+          "cardIndex": 5,
+          "card": "glass-card  rain-card",
+          "cls": "rain-stat-value",
+          "text": "0.00 in"
+        }
+      ],
+      "clippedCount": 9,
+      "almanacClipped": 0,
+      "asymmetry": 244.921875,
+      "rowSpread": 0,
+      "hero": {
+        "height": 115.96875,
+        "scrollWidth": 456,
+        "clientWidth": 266,
+        "detailsWidth": 202.21875
+      },
+      "rainGrid": {
+        "marginTop": 32.9844,
+        "marginBottom": 32.9688,
+        "hasAnimation": false
+      },
+      "header": {
+        "height": 83.390625,
+        "nameOverflow": 0,
+        "locOverflow": 0,
+        "locText": "47.8601°N, 122.2043°W· 150m",
+        "nameText": "W0 Baseline"
+      },
+      "icons": [
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        }
+      ],
+      "titleFontPx": 12.8,
+      "rootFontPx": 16,
+      "records": {
+        "height": 918.5
+      },
+      "readouts": {
+        ".pressure-value": 25.6,
+        ".humidity-value": 25.6,
+        ".uv-number": 32,
+        ".lightning-count": 32,
+        ".lightning-distance": 32,
+        ".wind-speed-value": 35.2
+      },
+      "readoutCentre": {
+        ".pressure-value": 18.9375,
+        ".humidity-value": 14.921875,
+        ".uv-number": 87.6171875,
+        ".lightning-count": 35.109375,
+        ".lightning-distance": 42.6015625,
+        ".wind-speed-value": 0
+      },
+      "align": {
+        "rain": "normal",
+        "health": "normal",
+        "lightning": "normal",
+        "humidity": "center"
+      },
+      "radarStatusMessage": false,
+      "almanacSunMoonOverlap": 0,
+      "almanacMoonOffset": 0,
+      "humidityRingOverflow": 0,
+      "cardText": [
+        "74°F|Sunny|Feels like 74°F|Heat Index|74°F|Wind Chill|74°F|Rain Chance|0%|UV Index|6.3",
+        "Wind|N|E|S|W|1.9 mph|NE (49°)|Lull|1.1 mph|Gust|2.6 mph",
+        "Humidity|61%|Humid|Dew Point|60°F|Wet Bulb|65°F",
+        "Pressure|999.8 mb|↓ Falling|Low|Normal|High",
+        "Solar & UV|6.3|High|0|3|6|8|11+|Solar Radiation|814 W/m²|Very High|Illuminance|97,653 lux",
+        "Precipitation|Current|0.00 in|None|Today|0.00 in",
+        "Lightning|0|strikes today|—|avg distance|No lightning detected|Range: up to 40 km",
+        "Station Health|Battery|2.77V · Good|Signal|0/4|Last Report|30s ago|Firmware",
+        "Records|Last 7 days|Temperature|High|83°F|Low|56°F|Humidity|High|94%|Low|47%|Pressure|High|1000.9 mb|Low|999.7 mb|Wind|Sustained|3.3 mph|Gust|6.6 mph|Rain|0.00 in|Lightning|strikes",
+        "Station Almanac|Sunrise|6:09 AM|First Quarter|47% illuminated|Sunset|8:14 PM|14h 04m daylight|Today|H ↑|74°F|Today|L ↓|56°F|Today|This Week|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Month|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Year|H ↑|83°F|Aug 18|L ↓|56°F|Today",
+        "Radar"
+      ]
+    },
+    "756": {
+      "viewport": {
+        "width": 756,
+        "height": 900
+      },
+      "docOverflow": 0,
+      "widestOffender": {
+        "right": 860.35693359375,
+        "cls": "orb orb-2"
+      },
+      "tracks": [
+        200.156,
+        200.172,
+        267.672
+      ],
+      "trackSpread": 67.51600000000002,
+      "gutter": 48,
+      "cards": [
+        {
+          "className": "glass-card card-span-2 hero-card",
+          "top": 107,
+          "height": 314.1875,
+          "width": 420.328125,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  wind-card",
+          "top": 107,
+          "height": 314.1875,
+          "width": 267.671875,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  humidity-card",
+          "top": 442,
+          "height": 283.78125,
+          "width": 200.15625,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  pressure-card",
+          "top": 442,
+          "height": 283.78125,
+          "width": 200.171875,
+          "asym": 82.609375
+        },
+        {
+          "className": "glass-card  solar-uv-card",
+          "top": 442,
+          "height": 283.78125,
+          "width": 267.671875,
+          "asym": 40.78125
+        },
+        {
+          "className": "glass-card  rain-card",
+          "top": 745,
+          "height": 207.5625,
+          "width": 200.15625,
+          "asym": 12.171875
+        },
+        {
+          "className": "glass-card  lightning-card ",
+          "top": 745,
+          "height": 207.5625,
+          "width": 200.171875,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  station-health-card",
+          "top": 745,
+          "height": 207.5625,
+          "width": 267.671875,
+          "asym": 7.78125
+        },
+        {
+          "className": "glass-card  records-card",
+          "top": 973,
+          "height": 496.84375,
+          "width": 420.328125,
+          "asym": 15
+        },
+        {
+          "className": "glass-card card-span-3 ",
+          "top": 1490,
+          "height": 460.375,
+          "width": 708,
+          "asym": 0
+        },
+        {
+          "className": "glass-card card-span-2 radar-card",
+          "top": 1970,
+          "height": 358,
+          "width": 420.328125,
+          "asym": 11.59375
+        }
+      ],
+      "cardCount": 11,
+      "clipped": [
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "Wind Chill"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-value",
+          "text": "74°F"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "UV Index"
+        }
+      ],
+      "clippedCount": 3,
+      "almanacClipped": 0,
+      "asymmetry": 169.9375,
+      "rowSpread": 0,
+      "hero": {
+        "height": 115.96875,
+        "scrollWidth": 456,
+        "clientWidth": 362,
+        "detailsWidth": 202.21875
+      },
+      "rainGrid": {
+        "marginTop": 12.5781,
+        "marginBottom": 12.5781,
+        "hasAnimation": false
+      },
+      "header": {
+        "height": 83.390625,
+        "nameOverflow": 0,
+        "locOverflow": 0,
+        "locText": "47.8601°N, 122.2043°W· 150m",
+        "nameText": "W0 Baseline"
+      },
+      "icons": [
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        }
+      ],
+      "titleFontPx": 12.8,
+      "rootFontPx": 16,
+      "records": {
+        "height": 496.84375
+      },
+      "readouts": {
+        ".pressure-value": 25.6,
+        ".humidity-value": 25.6,
+        ".uv-number": 32,
+        ".lightning-count": 32,
+        ".lightning-distance": 32,
+        ".wind-speed-value": 35.2
+      },
+      "readoutCentre": {
+        ".pressure-value": 29.046875,
+        ".humidity-value": 0,
+        ".uv-number": 87.6171875,
+        ".lightning-count": 47.453125,
+        ".lightning-distance": 47.6328125,
+        ".wind-speed-value": 0
+      },
+      "align": {
+        "rain": "normal",
+        "health": "normal",
+        "lightning": "normal",
+        "humidity": "center"
+      },
+      "radarStatusMessage": false,
+      "almanacSunMoonOverlap": 0,
+      "almanacMoonOffset": 0,
+      "humidityRingOverflow": 0,
+      "cardText": [
+        "74°F|Sunny|Feels like 74°F|Heat Index|74°F|Wind Chill|74°F|Rain Chance|0%|UV Index|6.3",
+        "Wind|N|E|S|W|1.9 mph|NE (49°)|Lull|1.1 mph|Gust|2.6 mph",
+        "Humidity|61%|Humid|Dew Point|60°F|Wet Bulb|65°F",
+        "Pressure|999.8 mb|↓ Falling|Low|Normal|High",
+        "Solar & UV|6.3|High|0|3|6|8|11+|Solar Radiation|814 W/m²|Very High|Illuminance|97,653 lux",
+        "Precipitation|Current|0.00 in|None|Today|0.00 in",
+        "Lightning|0|strikes today|—|avg distance|No lightning detected|Range: up to 40 km",
+        "Station Health|Battery|2.77V · Good|Signal|0/4|Last Report|30s ago|Firmware",
+        "Records|Last 7 days|Temperature|High|83°F|Low|56°F|Humidity|High|94%|Low|47%|Pressure|High|1000.9 mb|Low|999.7 mb|Wind|Sustained|3.3 mph|Gust|6.6 mph|Rain|0.00 in|Lightning|strikes",
+        "Station Almanac|Sunrise|6:09 AM|First Quarter|47% illuminated|Sunset|8:14 PM|14h 04m daylight|Today|H ↑|74°F|Today|L ↓|56°F|Today|This Week|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Month|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Year|H ↑|83°F|Aug 18|L ↓|56°F|Today",
+        "Radar"
+      ]
+    },
+    "900": {
+      "viewport": {
+        "width": 900,
+        "height": 900
+      },
+      "docOverflow": 0,
+      "widestOffender": {
+        "right": 1015.889892578125,
+        "cls": "orb orb-2"
+      },
+      "tracks": [
+        272.156,
+        272.172,
+        267.672
+      ],
+      "trackSpread": 4.5,
+      "gutter": 48,
+      "cards": [
+        {
+          "className": "glass-card card-span-2 hero-card",
+          "top": 107,
+          "height": 314.1875,
+          "width": 564.328125,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  wind-card",
+          "top": 107,
+          "height": 314.1875,
+          "width": 267.671875,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  humidity-card",
+          "top": 442,
+          "height": 283.78125,
+          "width": 272.15625,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  pressure-card",
+          "top": 442,
+          "height": 283.78125,
+          "width": 272.171875,
+          "asym": 121
+        },
+        {
+          "className": "glass-card  solar-uv-card",
+          "top": 442,
+          "height": 283.78125,
+          "width": 267.671875,
+          "asym": 40.78125
+        },
+        {
+          "className": "glass-card  rain-card",
+          "top": 745,
+          "height": 191.171875,
+          "width": 272.15625,
+          "asym": 20.78125
+        },
+        {
+          "className": "glass-card  lightning-card ",
+          "top": 745,
+          "height": 191.171875,
+          "width": 272.171875,
+          "asym": 0.984375
+        },
+        {
+          "className": "glass-card  station-health-card",
+          "top": 745,
+          "height": 191.171875,
+          "width": 267.671875,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  records-card",
+          "top": 957,
+          "height": 400.9375,
+          "width": 564.328125,
+          "asym": 15
+        },
+        {
+          "className": "glass-card card-span-3 ",
+          "top": 1377,
+          "height": 460.375,
+          "width": 852,
+          "asym": 0
+        },
+        {
+          "className": "glass-card card-span-2 radar-card",
+          "top": 1858,
+          "height": 358,
+          "width": 564.328125,
+          "asym": 11.59375
+        }
+      ],
+      "cardCount": 11,
+      "clipped": [],
+      "clippedCount": 0,
+      "almanacClipped": 0,
+      "asymmetry": 210.140625,
+      "rowSpread": 0,
+      "hero": {
+        "height": 115.96875,
+        "scrollWidth": 506,
+        "clientWidth": 506,
+        "detailsWidth": 202.21875
+      },
+      "rainGrid": {
+        "marginTop": 21.1875,
+        "marginBottom": 21.1875,
+        "hasAnimation": false
+      },
+      "header": {
+        "height": 83.390625,
+        "nameOverflow": 0,
+        "locOverflow": 0,
+        "locText": "47.8601°N, 122.2043°W· 150m",
+        "nameText": "W0 Baseline"
+      },
+      "icons": [
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        }
+      ],
+      "titleFontPx": 12.8,
+      "rootFontPx": 16,
+      "records": {
+        "height": 400.9375
+      },
+      "readouts": {
+        ".pressure-value": 25.6,
+        ".humidity-value": 25.6,
+        ".uv-number": 32,
+        ".lightning-count": 32,
+        ".lightning-distance": 32,
+        ".wind-speed-value": 35.2
+      },
+      "readoutCentre": {
+        ".pressure-value": 56.203125,
+        ".humidity-value": 0,
+        ".uv-number": 87.6171875,
+        ".lightning-count": 76.4296875,
+        ".lightning-distance": 32.6640625,
+        ".wind-speed-value": 0
+      },
+      "align": {
+        "rain": "normal",
+        "health": "normal",
+        "lightning": "normal",
+        "humidity": "center"
+      },
+      "radarStatusMessage": false,
+      "almanacSunMoonOverlap": 0,
+      "almanacMoonOffset": 0,
+      "humidityRingOverflow": 0,
+      "cardText": [
+        "74°F|Sunny|Feels like 74°F|Heat Index|74°F|Wind Chill|74°F|Rain Chance|0%|UV Index|6.3",
+        "Wind|N|E|S|W|1.9 mph|NE (49°)|Lull|1.1 mph|Gust|2.6 mph",
+        "Humidity|61%|Humid|Dew Point|60°F|Wet Bulb|65°F",
+        "Pressure|999.8 mb|↓ Falling|Low|Normal|High",
+        "Solar & UV|6.3|High|0|3|6|8|11+|Solar Radiation|814 W/m²|Very High|Illuminance|97,653 lux",
+        "Precipitation|Current|0.00 in|None|Today|0.00 in",
+        "Lightning|0|strikes today|—|avg distance|No lightning detected|Range: up to 40 km",
+        "Station Health|Battery|2.77V · Good|Signal|0/4|Last Report|30s ago|Firmware",
+        "Records|Last 7 days|Temperature|High|83°F|Low|56°F|Humidity|High|94%|Low|47%|Pressure|High|1000.9 mb|Low|999.7 mb|Wind|Sustained|3.3 mph|Gust|6.6 mph|Rain|0.00 in|Lightning|strikes",
+        "Station Almanac|Sunrise|6:09 AM|First Quarter|47% illuminated|Sunset|8:14 PM|14h 04m daylight|Today|H ↑|74°F|Today|L ↓|56°F|Today|This Week|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Month|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Year|H ↑|83°F|Aug 18|L ↓|56°F|Today",
+        "Radar"
+      ]
+    },
+    "1000": {
+      "viewport": {
+        "width": 1000,
+        "height": 900
+      },
+      "docOverflow": 0,
+      "widestOffender": {
+        "right": 1123.882568359375,
+        "cls": "orb orb-2"
+      },
+      "tracks": [
+        304,
+        304,
+        304
+      ],
+      "trackSpread": 0,
+      "gutter": 48,
+      "cards": [
+        {
+          "className": "glass-card card-span-2 hero-card",
+          "top": 107,
+          "height": 314.1875,
+          "width": 628,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  wind-card",
+          "top": 107,
+          "height": 314.1875,
+          "width": 304,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  humidity-card",
+          "top": 442,
+          "height": 283.78125,
+          "width": 304,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  pressure-card",
+          "top": 442,
+          "height": 283.78125,
+          "width": 304,
+          "asym": 121
+        },
+        {
+          "className": "glass-card  solar-uv-card",
+          "top": 442,
+          "height": 283.78125,
+          "width": 304,
+          "asym": 58.78125
+        },
+        {
+          "className": "glass-card  rain-card",
+          "top": 745,
+          "height": 191.171875,
+          "width": 304,
+          "asym": 20.78125
+        },
+        {
+          "className": "glass-card  lightning-card ",
+          "top": 745,
+          "height": 191.171875,
+          "width": 304,
+          "asym": 0.984375
+        },
+        {
+          "className": "glass-card  station-health-card",
+          "top": 745,
+          "height": 191.171875,
+          "width": 304,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  records-card",
+          "top": 957,
+          "height": 333.96875,
+          "width": 952,
+          "asym": 15.59375
+        },
+        {
+          "className": "glass-card card-span-3 ",
+          "top": 1311,
+          "height": 460.375,
+          "width": 952,
+          "asym": 0
+        },
+        {
+          "className": "glass-card card-span-2 radar-card",
+          "top": 1791,
+          "height": 358,
+          "width": 628,
+          "asym": 11.59375
+        }
+      ],
+      "cardCount": 11,
+      "clipped": [],
+      "clippedCount": 0,
+      "almanacClipped": 0,
+      "asymmetry": 228.734375,
+      "rowSpread": 0,
+      "hero": {
+        "height": 115.96875,
+        "scrollWidth": 570,
+        "clientWidth": 570,
+        "detailsWidth": 202.21875
+      },
+      "rainGrid": {
+        "marginTop": 21.1875,
+        "marginBottom": 21.1875,
+        "hasAnimation": false
+      },
+      "header": {
+        "height": 83.390625,
+        "nameOverflow": 0,
+        "locOverflow": 0,
+        "locText": "47.8601°N, 122.2043°W· 150m",
+        "nameText": "W0 Baseline"
+      },
+      "icons": [
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        }
+      ],
+      "titleFontPx": 12.8,
+      "rootFontPx": 16,
+      "records": {
+        "height": 333.96875
+      },
+      "readouts": {
+        ".pressure-value": 25.6,
+        ".humidity-value": 25.6,
+        ".uv-number": 32,
+        ".lightning-count": 32,
+        ".lightning-distance": 32,
+        ".wind-speed-value": 35.2
+      },
+      "readoutCentre": {
+        ".pressure-value": 72.1171875,
+        ".humidity-value": 0,
+        ".uv-number": 105.78125,
+        ".lightning-count": 92.34375,
+        ".lightning-distance": 16.75,
+        ".wind-speed-value": 0.0078125
+      },
+      "align": {
+        "rain": "normal",
+        "health": "normal",
+        "lightning": "normal",
+        "humidity": "center"
+      },
+      "radarStatusMessage": false,
+      "almanacSunMoonOverlap": 0,
+      "almanacMoonOffset": 0,
+      "humidityRingOverflow": 0,
+      "cardText": [
+        "74°F|Sunny|Feels like 74°F|Heat Index|74°F|Wind Chill|74°F|Rain Chance|0%|UV Index|6.3",
+        "Wind|N|E|S|W|1.9 mph|NE (49°)|Lull|1.1 mph|Gust|2.6 mph",
+        "Humidity|61%|Humid|Dew Point|60°F|Wet Bulb|65°F",
+        "Pressure|999.8 mb|↓ Falling|Low|Normal|High",
+        "Solar & UV|6.3|High|0|3|6|8|11+|Solar Radiation|814 W/m²|Very High|Illuminance|97,653 lux",
+        "Precipitation|Current|0.00 in|None|Today|0.00 in",
+        "Lightning|0|strikes today|—|avg distance|No lightning detected|Range: up to 40 km",
+        "Station Health|Battery|2.77V · Good|Signal|0/4|Last Report|30s ago|Firmware",
+        "Records|Last 7 days|Temperature|High|83°F|Low|56°F|Humidity|High|94%|Low|47%|Pressure|High|1000.9 mb|Low|999.7 mb|Wind|Sustained|3.3 mph|Gust|6.6 mph|Rain|0.00 in|Lightning|strikes",
+        "Station Almanac|Sunrise|6:09 AM|First Quarter|47% illuminated|Sunset|8:14 PM|14h 04m daylight|Today|H ↑|74°F|Today|L ↓|56°F|Today|This Week|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Month|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Year|H ↑|83°F|Aug 18|L ↓|56°F|Today",
+        "Radar"
+      ]
+    },
+    "1001": {
+      "viewport": {
+        "width": 1001,
+        "height": 900
+      },
+      "docOverflow": 0,
+      "widestOffender": {
+        "right": 1124.967529296875,
+        "cls": "orb orb-2"
+      },
+      "tracks": [
+        304.328,
+        304.328,
+        304.344
+      ],
+      "trackSpread": 0.016000000000019554,
+      "gutter": 48,
+      "cards": [
+        {
+          "className": "glass-card card-span-2 hero-card",
+          "top": 107,
+          "height": 314.1875,
+          "width": 628.65625,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  wind-card",
+          "top": 107,
+          "height": 314.1875,
+          "width": 304.34375,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  humidity-card",
+          "top": 442,
+          "height": 283.78125,
+          "width": 304.328125,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  pressure-card",
+          "top": 442,
+          "height": 283.78125,
+          "width": 304.328125,
+          "asym": 121
+        },
+        {
+          "className": "glass-card  solar-uv-card",
+          "top": 442,
+          "height": 283.78125,
+          "width": 304.34375,
+          "asym": 58.78125
+        },
+        {
+          "className": "glass-card  rain-card",
+          "top": 745,
+          "height": 191.171875,
+          "width": 304.328125,
+          "asym": 20.78125
+        },
+        {
+          "className": "glass-card  lightning-card ",
+          "top": 745,
+          "height": 191.171875,
+          "width": 304.328125,
+          "asym": 0.984375
+        },
+        {
+          "className": "glass-card  station-health-card",
+          "top": 745,
+          "height": 191.171875,
+          "width": 304.34375,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  records-card",
+          "top": 957,
+          "height": 333.96875,
+          "width": 953,
+          "asym": 15.59375
+        },
+        {
+          "className": "glass-card card-span-3 ",
+          "top": 1311,
+          "height": 460.375,
+          "width": 953,
+          "asym": 0
+        },
+        {
+          "className": "glass-card card-span-2 radar-card",
+          "top": 1791,
+          "height": 358,
+          "width": 628.65625,
+          "asym": 11.59375
+        }
+      ],
+      "cardCount": 11,
+      "clipped": [],
+      "clippedCount": 0,
+      "almanacClipped": 0,
+      "asymmetry": 228.734375,
+      "rowSpread": 0,
+      "hero": {
+        "height": 115.96875,
+        "scrollWidth": 571,
+        "clientWidth": 571,
+        "detailsWidth": 202.21875
+      },
+      "rainGrid": {
+        "marginTop": 21.1875,
+        "marginBottom": 21.1875,
+        "hasAnimation": false
+      },
+      "header": {
+        "height": 83.390625,
+        "nameOverflow": 0,
+        "locOverflow": 0,
+        "locText": "47.8601°N, 122.2043°W· 150m",
+        "nameText": "W0 Baseline"
+      },
+      "icons": [
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        }
+      ],
+      "titleFontPx": 12.8,
+      "rootFontPx": 16,
+      "records": {
+        "height": 333.96875
+      },
+      "readouts": {
+        ".pressure-value": 25.6,
+        ".humidity-value": 25.6,
+        ".uv-number": 32,
+        ".lightning-count": 32,
+        ".lightning-distance": 32,
+        ".wind-speed-value": 35.2
+      },
+      "readoutCentre": {
+        ".pressure-value": 72.28125,
+        ".humidity-value": 0.0078125,
+        ".uv-number": 105.953125,
+        ".lightning-count": 92.5078125,
+        ".lightning-distance": 16.5859375,
+        ".wind-speed-value": 0.0078125
+      },
+      "align": {
+        "rain": "normal",
+        "health": "normal",
+        "lightning": "normal",
+        "humidity": "center"
+      },
+      "radarStatusMessage": false,
+      "almanacSunMoonOverlap": 0,
+      "almanacMoonOffset": 0,
+      "humidityRingOverflow": 0,
+      "cardText": [
+        "74°F|Sunny|Feels like 74°F|Heat Index|74°F|Wind Chill|74°F|Rain Chance|0%|UV Index|6.3",
+        "Wind|N|E|S|W|1.9 mph|NE (49°)|Lull|1.1 mph|Gust|2.6 mph",
+        "Humidity|61%|Humid|Dew Point|60°F|Wet Bulb|65°F",
+        "Pressure|999.8 mb|↓ Falling|Low|Normal|High",
+        "Solar & UV|6.3|High|0|3|6|8|11+|Solar Radiation|814 W/m²|Very High|Illuminance|97,653 lux",
+        "Precipitation|Current|0.00 in|None|Today|0.00 in",
+        "Lightning|0|strikes today|—|avg distance|No lightning detected|Range: up to 40 km",
+        "Station Health|Battery|2.77V · Good|Signal|0/4|Last Report|30s ago|Firmware",
+        "Records|Last 7 days|Temperature|High|83°F|Low|56°F|Humidity|High|94%|Low|47%|Pressure|High|1000.9 mb|Low|999.7 mb|Wind|Sustained|3.3 mph|Gust|6.6 mph|Rain|0.00 in|Lightning|strikes",
+        "Station Almanac|Sunrise|6:09 AM|First Quarter|47% illuminated|Sunset|8:14 PM|14h 04m daylight|Today|H ↑|74°F|Today|L ↓|56°F|Today|This Week|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Month|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Year|H ↑|83°F|Aug 18|L ↓|56°F|Today",
+        "Radar"
+      ]
+    },
+    "1100": {
+      "viewport": {
+        "width": 1100,
+        "height": 900
+      },
+      "docOverflow": 0,
+      "widestOffender": {
+        "right": 1231.727783203125,
+        "cls": "orb orb-2"
+      },
+      "tracks": [
+        337.328,
+        337.328,
+        337.344
+      ],
+      "trackSpread": 0.016000000000019554,
+      "gutter": 48,
+      "cards": [
+        {
+          "className": "glass-card card-span-2 hero-card",
+          "top": 107,
+          "height": 314.1875,
+          "width": 694.65625,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  wind-card",
+          "top": 107,
+          "height": 314.1875,
+          "width": 337.34375,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  humidity-card",
+          "top": 442,
+          "height": 283.78125,
+          "width": 337.328125,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  pressure-card",
+          "top": 442,
+          "height": 283.78125,
+          "width": 337.328125,
+          "asym": 121
+        },
+        {
+          "className": "glass-card  solar-uv-card",
+          "top": 442,
+          "height": 283.78125,
+          "width": 337.34375,
+          "asym": 58.78125
+        },
+        {
+          "className": "glass-card  rain-card",
+          "top": 745,
+          "height": 191.171875,
+          "width": 337.328125,
+          "asym": 20.78125
+        },
+        {
+          "className": "glass-card  lightning-card ",
+          "top": 745,
+          "height": 191.171875,
+          "width": 337.328125,
+          "asym": 0.984375
+        },
+        {
+          "className": "glass-card  station-health-card",
+          "top": 745,
+          "height": 191.171875,
+          "width": 337.34375,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  records-card",
+          "top": 957,
+          "height": 238.0625,
+          "width": 1052,
+          "asym": 15
+        },
+        {
+          "className": "glass-card card-span-3 ",
+          "top": 1215,
+          "height": 460.375,
+          "width": 1052,
+          "asym": 0
+        },
+        {
+          "className": "glass-card card-span-2 radar-card",
+          "top": 1695,
+          "height": 358,
+          "width": 694.65625,
+          "asym": 0
+        }
+      ],
+      "cardCount": 11,
+      "clipped": [],
+      "clippedCount": 0,
+      "almanacClipped": 0,
+      "asymmetry": 216.546875,
+      "rowSpread": 0,
+      "hero": {
+        "height": 115.96875,
+        "scrollWidth": 637,
+        "clientWidth": 637,
+        "detailsWidth": 202.21875
+      },
+      "rainGrid": {
+        "marginTop": 21.1875,
+        "marginBottom": 21.1875,
+        "hasAnimation": false
+      },
+      "header": {
+        "height": 83.390625,
+        "nameOverflow": 0,
+        "locOverflow": 0,
+        "locText": "47.8601°N, 122.2043°W· 150m",
+        "nameText": "W0 Baseline"
+      },
+      "icons": [
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        }
+      ],
+      "titleFontPx": 12.8,
+      "rootFontPx": 16,
+      "records": {
+        "height": 238.0625
+      },
+      "readouts": {
+        ".pressure-value": 25.6,
+        ".humidity-value": 25.6,
+        ".uv-number": 32,
+        ".lightning-count": 32,
+        ".lightning-distance": 32,
+        ".wind-speed-value": 35.2
+      },
+      "readoutCentre": {
+        ".pressure-value": 88.78125,
+        ".humidity-value": 0.0078125,
+        ".uv-number": 122.453125,
+        ".lightning-count": 109.0078125,
+        ".lightning-distance": 0.0859375,
+        ".wind-speed-value": 0.0078125
+      },
+      "align": {
+        "rain": "normal",
+        "health": "normal",
+        "lightning": "normal",
+        "humidity": "center"
+      },
+      "radarStatusMessage": false,
+      "almanacSunMoonOverlap": 0,
+      "almanacMoonOffset": 0,
+      "humidityRingOverflow": 0,
+      "cardText": [
+        "74°F|Sunny|Feels like 74°F|Heat Index|74°F|Wind Chill|74°F|Rain Chance|0%|UV Index|6.3",
+        "Wind|N|E|S|W|1.9 mph|NE (49°)|Lull|1.1 mph|Gust|2.6 mph",
+        "Humidity|61%|Humid|Dew Point|60°F|Wet Bulb|65°F",
+        "Pressure|999.8 mb|↓ Falling|Low|Normal|High",
+        "Solar & UV|6.3|High|0|3|6|8|11+|Solar Radiation|814 W/m²|Very High|Illuminance|97,653 lux",
+        "Precipitation|Current|0.00 in|None|Today|0.00 in",
+        "Lightning|0|strikes today|—|avg distance|No lightning detected|Range: up to 40 km",
+        "Station Health|Battery|2.77V · Good|Signal|0/4|Last Report|30s ago|Firmware",
+        "Records|Last 7 days|Temperature|High|83°F|Low|56°F|Humidity|High|94%|Low|47%|Pressure|High|1000.9 mb|Low|999.7 mb|Wind|Sustained|3.3 mph|Gust|6.6 mph|Rain|0.00 in|Lightning|strikes",
+        "Station Almanac|Sunrise|6:09 AM|First Quarter|47% illuminated|Sunset|8:14 PM|14h 04m daylight|Today|H ↑|74°F|Today|L ↓|56°F|Today|This Week|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Month|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Year|H ↑|83°F|Aug 18|L ↓|56°F|Today",
+        "Radar"
+      ]
+    },
+    "1280": {
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "docOverflow": 0,
+      "widestOffender": {
+        "right": 1426.28076171875,
+        "cls": "orb orb-2"
+      },
+      "tracks": [
+        370.656,
+        370.672,
+        370.656
+      ],
+      "trackSpread": 0.016000000000019554,
+      "gutter": 128,
+      "cards": [
+        {
+          "className": "glass-card card-span-2 hero-card",
+          "top": 107,
+          "height": 314.1875,
+          "width": 761.328125,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  wind-card",
+          "top": 107,
+          "height": 314.1875,
+          "width": 370.65625,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  humidity-card",
+          "top": 442,
+          "height": 283.78125,
+          "width": 370.65625,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  pressure-card",
+          "top": 442,
+          "height": 283.78125,
+          "width": 370.671875,
+          "asym": 121
+        },
+        {
+          "className": "glass-card  solar-uv-card",
+          "top": 442,
+          "height": 283.78125,
+          "width": 370.65625,
+          "asym": 58.78125
+        },
+        {
+          "className": "glass-card  rain-card",
+          "top": 745,
+          "height": 191.171875,
+          "width": 370.65625,
+          "asym": 20.78125
+        },
+        {
+          "className": "glass-card  lightning-card ",
+          "top": 745,
+          "height": 191.171875,
+          "width": 370.671875,
+          "asym": 0.984375
+        },
+        {
+          "className": "glass-card  station-health-card",
+          "top": 745,
+          "height": 191.171875,
+          "width": 370.65625,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  records-card",
+          "top": 957,
+          "height": 238.0625,
+          "width": 1151.984375,
+          "asym": 15
+        },
+        {
+          "className": "glass-card card-span-3 ",
+          "top": 1215,
+          "height": 460.375,
+          "width": 1151.984375,
+          "asym": 0
+        },
+        {
+          "className": "glass-card card-span-2 radar-card",
+          "top": 1695,
+          "height": 358,
+          "width": 761.328125,
+          "asym": 0
+        }
+      ],
+      "cardCount": 11,
+      "clipped": [],
+      "clippedCount": 0,
+      "almanacClipped": 0,
+      "asymmetry": 216.546875,
+      "rowSpread": 0,
+      "hero": {
+        "height": 115.96875,
+        "scrollWidth": 703,
+        "clientWidth": 703,
+        "detailsWidth": 202.21875
+      },
+      "rainGrid": {
+        "marginTop": 21.1875,
+        "marginBottom": 21.1875,
+        "hasAnimation": false
+      },
+      "header": {
+        "height": 83.390625,
+        "nameOverflow": 0,
+        "locOverflow": 0,
+        "locText": "47.8601°N, 122.2043°W· 150m",
+        "nameText": "W0 Baseline"
+      },
+      "icons": [
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        }
+      ],
+      "titleFontPx": 12.8,
+      "rootFontPx": 16,
+      "records": {
+        "height": 238.0625
+      },
+      "readouts": {
+        ".pressure-value": 25.6,
+        ".humidity-value": 25.6,
+        ".uv-number": 32,
+        ".lightning-count": 32,
+        ".lightning-distance": 32,
+        ".wind-speed-value": 35.2
+      },
+      "readoutCentre": {
+        ".pressure-value": 105.453125,
+        ".humidity-value": 0,
+        ".uv-number": 139.109375,
+        ".lightning-count": 125.6796875,
+        ".lightning-distance": 16.5859375,
+        ".wind-speed-value": 0.0078125
+      },
+      "align": {
+        "rain": "normal",
+        "health": "normal",
+        "lightning": "normal",
+        "humidity": "center"
+      },
+      "radarStatusMessage": false,
+      "almanacSunMoonOverlap": 0,
+      "almanacMoonOffset": 0.0078125,
+      "humidityRingOverflow": 0,
+      "cardText": [
+        "74°F|Sunny|Feels like 74°F|Heat Index|74°F|Wind Chill|74°F|Rain Chance|0%|UV Index|6.3",
+        "Wind|N|E|S|W|1.9 mph|NE (49°)|Lull|1.1 mph|Gust|2.6 mph",
+        "Humidity|61%|Humid|Dew Point|60°F|Wet Bulb|65°F",
+        "Pressure|999.8 mb|↓ Falling|Low|Normal|High",
+        "Solar & UV|6.3|High|0|3|6|8|11+|Solar Radiation|814 W/m²|Very High|Illuminance|97,653 lux",
+        "Precipitation|Current|0.00 in|None|Today|0.00 in",
+        "Lightning|0|strikes today|—|avg distance|No lightning detected|Range: up to 40 km",
+        "Station Health|Battery|2.77V · Good|Signal|0/4|Last Report|30s ago|Firmware",
+        "Records|Last 7 days|Temperature|High|83°F|Low|56°F|Humidity|High|94%|Low|47%|Pressure|High|1000.9 mb|Low|999.7 mb|Wind|Sustained|3.3 mph|Gust|6.6 mph|Rain|0.00 in|Lightning|strikes",
+        "Station Almanac|Sunrise|6:09 AM|First Quarter|47% illuminated|Sunset|8:14 PM|14h 04m daylight|Today|H ↑|74°F|Today|L ↓|56°F|Today|This Week|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Month|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Year|H ↑|83°F|Aug 18|L ↓|56°F|Today",
+        "Radar"
+      ]
+    },
+    "1512": {
+      "viewport": {
+        "width": 1512,
+        "height": 900
+      },
+      "docOverflow": 0,
+      "widestOffender": {
+        "right": 1676.7281494140625,
+        "cls": "orb orb-2"
+      },
+      "tracks": [
+        370.656,
+        370.672,
+        370.656
+      ],
+      "trackSpread": 0.016000000000019554,
+      "gutter": 360,
+      "cards": [
+        {
+          "className": "glass-card card-span-2 hero-card",
+          "top": 107,
+          "height": 314.1875,
+          "width": 761.328125,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  wind-card",
+          "top": 107,
+          "height": 314.1875,
+          "width": 370.65625,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  humidity-card",
+          "top": 442,
+          "height": 283.78125,
+          "width": 370.65625,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  pressure-card",
+          "top": 442,
+          "height": 283.78125,
+          "width": 370.671875,
+          "asym": 121
+        },
+        {
+          "className": "glass-card  solar-uv-card",
+          "top": 442,
+          "height": 283.78125,
+          "width": 370.65625,
+          "asym": 58.78125
+        },
+        {
+          "className": "glass-card  rain-card",
+          "top": 745,
+          "height": 191.171875,
+          "width": 370.65625,
+          "asym": 20.78125
+        },
+        {
+          "className": "glass-card  lightning-card ",
+          "top": 745,
+          "height": 191.171875,
+          "width": 370.671875,
+          "asym": 0.984375
+        },
+        {
+          "className": "glass-card  station-health-card",
+          "top": 745,
+          "height": 191.171875,
+          "width": 370.65625,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  records-card",
+          "top": 957,
+          "height": 238.0625,
+          "width": 1151.984375,
+          "asym": 15
+        },
+        {
+          "className": "glass-card card-span-3 ",
+          "top": 1215,
+          "height": 460.375,
+          "width": 1151.984375,
+          "asym": 0
+        },
+        {
+          "className": "glass-card card-span-2 radar-card",
+          "top": 1695,
+          "height": 358,
+          "width": 761.328125,
+          "asym": 0
+        }
+      ],
+      "cardCount": 11,
+      "clipped": [],
+      "clippedCount": 0,
+      "almanacClipped": 0,
+      "asymmetry": 216.546875,
+      "rowSpread": 0,
+      "hero": {
+        "height": 115.96875,
+        "scrollWidth": 703,
+        "clientWidth": 703,
+        "detailsWidth": 202.21875
+      },
+      "rainGrid": {
+        "marginTop": 21.1875,
+        "marginBottom": 21.1875,
+        "hasAnimation": false
+      },
+      "header": {
+        "height": 83.390625,
+        "nameOverflow": 0,
+        "locOverflow": 0,
+        "locText": "47.8601°N, 122.2043°W· 150m",
+        "nameText": "W0 Baseline"
+      },
+      "icons": [
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        }
+      ],
+      "titleFontPx": 12.8,
+      "rootFontPx": 16,
+      "records": {
+        "height": 238.0625
+      },
+      "readouts": {
+        ".pressure-value": 25.6,
+        ".humidity-value": 25.6,
+        ".uv-number": 32,
+        ".lightning-count": 32,
+        ".lightning-distance": 32,
+        ".wind-speed-value": 35.2
+      },
+      "readoutCentre": {
+        ".pressure-value": 105.453125,
+        ".humidity-value": 0,
+        ".uv-number": 139.109375,
+        ".lightning-count": 125.6796875,
+        ".lightning-distance": 16.5859375,
+        ".wind-speed-value": 0.0078125
+      },
+      "align": {
+        "rain": "normal",
+        "health": "normal",
+        "lightning": "normal",
+        "humidity": "center"
+      },
+      "radarStatusMessage": false,
+      "almanacSunMoonOverlap": 0,
+      "almanacMoonOffset": 0.0078125,
+      "humidityRingOverflow": 0,
+      "cardText": [
+        "74°F|Sunny|Feels like 74°F|Heat Index|74°F|Wind Chill|74°F|Rain Chance|0%|UV Index|6.3",
+        "Wind|N|E|S|W|1.9 mph|NE (49°)|Lull|1.1 mph|Gust|2.6 mph",
+        "Humidity|61%|Humid|Dew Point|60°F|Wet Bulb|65°F",
+        "Pressure|999.8 mb|↓ Falling|Low|Normal|High",
+        "Solar & UV|6.3|High|0|3|6|8|11+|Solar Radiation|814 W/m²|Very High|Illuminance|97,653 lux",
+        "Precipitation|Current|0.00 in|None|Today|0.00 in",
+        "Lightning|0|strikes today|—|avg distance|No lightning detected|Range: up to 40 km",
+        "Station Health|Battery|2.77V · Good|Signal|0/4|Last Report|30s ago|Firmware",
+        "Records|Last 7 days|Temperature|High|83°F|Low|56°F|Humidity|High|94%|Low|47%|Pressure|High|1000.9 mb|Low|999.7 mb|Wind|Sustained|3.3 mph|Gust|6.6 mph|Rain|0.00 in|Lightning|strikes",
+        "Station Almanac|Sunrise|6:09 AM|First Quarter|47% illuminated|Sunset|8:14 PM|14h 04m daylight|Today|H ↑|74°F|Today|L ↓|56°F|Today|This Week|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Month|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Year|H ↑|83°F|Aug 18|L ↓|56°F|Today",
+        "Radar"
+      ]
+    },
+    "1920": {
+      "viewport": {
+        "width": 1920,
+        "height": 900
+      },
+      "docOverflow": 0,
+      "widestOffender": {
+        "right": 2117.4375,
+        "cls": "orb orb-2"
+      },
+      "tracks": [
+        370.656,
+        370.672,
+        370.656
+      ],
+      "trackSpread": 0.016000000000019554,
+      "gutter": 768,
+      "cards": [
+        {
+          "className": "glass-card card-span-2 hero-card",
+          "top": 107,
+          "height": 314.1875,
+          "width": 761.328125,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  wind-card",
+          "top": 107,
+          "height": 314.1875,
+          "width": 370.65625,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  humidity-card",
+          "top": 442,
+          "height": 283.78125,
+          "width": 370.65625,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  pressure-card",
+          "top": 442,
+          "height": 283.78125,
+          "width": 370.671875,
+          "asym": 121
+        },
+        {
+          "className": "glass-card  solar-uv-card",
+          "top": 442,
+          "height": 283.78125,
+          "width": 370.65625,
+          "asym": 58.78125
+        },
+        {
+          "className": "glass-card  rain-card",
+          "top": 745,
+          "height": 191.171875,
+          "width": 370.65625,
+          "asym": 20.78125
+        },
+        {
+          "className": "glass-card  lightning-card ",
+          "top": 745,
+          "height": 191.171875,
+          "width": 370.671875,
+          "asym": 0.984375
+        },
+        {
+          "className": "glass-card  station-health-card",
+          "top": 745,
+          "height": 191.171875,
+          "width": 370.65625,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  records-card",
+          "top": 957,
+          "height": 238.0625,
+          "width": 1151.984375,
+          "asym": 15
+        },
+        {
+          "className": "glass-card card-span-3 ",
+          "top": 1215,
+          "height": 460.375,
+          "width": 1151.984375,
+          "asym": 0
+        },
+        {
+          "className": "glass-card card-span-2 radar-card",
+          "top": 1695,
+          "height": 358,
+          "width": 761.328125,
+          "asym": 0
+        }
+      ],
+      "cardCount": 11,
+      "clipped": [],
+      "clippedCount": 0,
+      "almanacClipped": 0,
+      "asymmetry": 216.546875,
+      "rowSpread": 0,
+      "hero": {
+        "height": 115.96875,
+        "scrollWidth": 703,
+        "clientWidth": 703,
+        "detailsWidth": 202.21875
+      },
+      "rainGrid": {
+        "marginTop": 21.1875,
+        "marginBottom": 21.1875,
+        "hasAnimation": false
+      },
+      "header": {
+        "height": 83.390625,
+        "nameOverflow": 0,
+        "locOverflow": 0,
+        "locText": "47.8601°N, 122.2043°W· 150m",
+        "nameText": "W0 Baseline"
+      },
+      "icons": [
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        }
+      ],
+      "titleFontPx": 12.8,
+      "rootFontPx": 16,
+      "records": {
+        "height": 238.0625
+      },
+      "readouts": {
+        ".pressure-value": 25.6,
+        ".humidity-value": 25.6,
+        ".uv-number": 32,
+        ".lightning-count": 32,
+        ".lightning-distance": 32,
+        ".wind-speed-value": 35.2
+      },
+      "readoutCentre": {
+        ".pressure-value": 105.453125,
+        ".humidity-value": 0,
+        ".uv-number": 139.109375,
+        ".lightning-count": 125.6796875,
+        ".lightning-distance": 16.5859375,
+        ".wind-speed-value": 0.0078125
+      },
+      "align": {
+        "rain": "normal",
+        "health": "normal",
+        "lightning": "normal",
+        "humidity": "center"
+      },
+      "radarStatusMessage": false,
+      "almanacSunMoonOverlap": 0,
+      "almanacMoonOffset": 0.0078125,
+      "humidityRingOverflow": 0,
+      "cardText": [
+        "74°F|Sunny|Feels like 74°F|Heat Index|74°F|Wind Chill|74°F|Rain Chance|0%|UV Index|6.3",
+        "Wind|N|E|S|W|1.9 mph|NE (49°)|Lull|1.1 mph|Gust|2.6 mph",
+        "Humidity|61%|Humid|Dew Point|60°F|Wet Bulb|65°F",
+        "Pressure|999.8 mb|↓ Falling|Low|Normal|High",
+        "Solar & UV|6.3|High|0|3|6|8|11+|Solar Radiation|814 W/m²|Very High|Illuminance|97,653 lux",
+        "Precipitation|Current|0.00 in|None|Today|0.00 in",
+        "Lightning|0|strikes today|—|avg distance|No lightning detected|Range: up to 40 km",
+        "Station Health|Battery|2.77V · Good|Signal|0/4|Last Report|30s ago|Firmware",
+        "Records|Last 7 days|Temperature|High|83°F|Low|56°F|Humidity|High|94%|Low|47%|Pressure|High|1000.9 mb|Low|999.7 mb|Wind|Sustained|3.3 mph|Gust|6.6 mph|Rain|0.00 in|Lightning|strikes",
+        "Station Almanac|Sunrise|6:09 AM|First Quarter|47% illuminated|Sunset|8:14 PM|14h 04m daylight|Today|H ↑|74°F|Today|L ↓|56°F|Today|This Week|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Month|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Year|H ↑|83°F|Aug 18|L ↓|56°F|Today",
+        "Radar"
+      ]
+    },
+    "2560": {
+      "viewport": {
+        "width": 2560,
+        "height": 900
+      },
+      "docOverflow": 0,
+      "widestOffender": {
+        "right": 2809.0810546875,
+        "cls": "orb orb-2"
+      },
+      "tracks": [
+        370.656,
+        370.672,
+        370.656
+      ],
+      "trackSpread": 0.016000000000019554,
+      "gutter": 1408,
+      "cards": [
+        {
+          "className": "glass-card card-span-2 hero-card",
+          "top": 107,
+          "height": 314.1875,
+          "width": 761.328125,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  wind-card",
+          "top": 107,
+          "height": 314.1875,
+          "width": 370.65625,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  humidity-card",
+          "top": 442,
+          "height": 283.78125,
+          "width": 370.65625,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  pressure-card",
+          "top": 442,
+          "height": 283.78125,
+          "width": 370.671875,
+          "asym": 121
+        },
+        {
+          "className": "glass-card  solar-uv-card",
+          "top": 442,
+          "height": 283.78125,
+          "width": 370.65625,
+          "asym": 58.78125
+        },
+        {
+          "className": "glass-card  rain-card",
+          "top": 745,
+          "height": 191.171875,
+          "width": 370.65625,
+          "asym": 20.78125
+        },
+        {
+          "className": "glass-card  lightning-card ",
+          "top": 745,
+          "height": 191.171875,
+          "width": 370.671875,
+          "asym": 0.984375
+        },
+        {
+          "className": "glass-card  station-health-card",
+          "top": 745,
+          "height": 191.171875,
+          "width": 370.65625,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  records-card",
+          "top": 957,
+          "height": 238.0625,
+          "width": 1151.984375,
+          "asym": 15
+        },
+        {
+          "className": "glass-card card-span-3 ",
+          "top": 1215,
+          "height": 460.375,
+          "width": 1151.984375,
+          "asym": 0
+        },
+        {
+          "className": "glass-card card-span-2 radar-card",
+          "top": 1695,
+          "height": 358,
+          "width": 761.328125,
+          "asym": 0
+        }
+      ],
+      "cardCount": 11,
+      "clipped": [],
+      "clippedCount": 0,
+      "almanacClipped": 0,
+      "asymmetry": 216.546875,
+      "rowSpread": 0,
+      "hero": {
+        "height": 115.96875,
+        "scrollWidth": 703,
+        "clientWidth": 703,
+        "detailsWidth": 202.21875
+      },
+      "rainGrid": {
+        "marginTop": 21.1875,
+        "marginBottom": 21.1875,
+        "hasAnimation": false
+      },
+      "header": {
+        "height": 83.390625,
+        "nameOverflow": 0,
+        "locOverflow": 0,
+        "locText": "47.8601°N, 122.2043°W· 150m",
+        "nameText": "W0 Baseline"
+      },
+      "icons": [
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        }
+      ],
+      "titleFontPx": 12.8,
+      "rootFontPx": 16,
+      "records": {
+        "height": 238.0625
+      },
+      "readouts": {
+        ".pressure-value": 25.6,
+        ".humidity-value": 25.6,
+        ".uv-number": 32,
+        ".lightning-count": 32,
+        ".lightning-distance": 32,
+        ".wind-speed-value": 35.2
+      },
+      "readoutCentre": {
+        ".pressure-value": 105.453125,
+        ".humidity-value": 0,
+        ".uv-number": 139.109375,
+        ".lightning-count": 125.6796875,
+        ".lightning-distance": 16.5859375,
+        ".wind-speed-value": 0.0078125
+      },
+      "align": {
+        "rain": "normal",
+        "health": "normal",
+        "lightning": "normal",
+        "humidity": "center"
+      },
+      "radarStatusMessage": false,
+      "almanacSunMoonOverlap": 0,
+      "almanacMoonOffset": 0.0078125,
+      "humidityRingOverflow": 0,
+      "cardText": [
+        "74°F|Sunny|Feels like 74°F|Heat Index|74°F|Wind Chill|74°F|Rain Chance|0%|UV Index|6.3",
+        "Wind|N|E|S|W|1.9 mph|NE (49°)|Lull|1.1 mph|Gust|2.6 mph",
+        "Humidity|61%|Humid|Dew Point|60°F|Wet Bulb|65°F",
+        "Pressure|999.8 mb|↓ Falling|Low|Normal|High",
+        "Solar & UV|6.3|High|0|3|6|8|11+|Solar Radiation|814 W/m²|Very High|Illuminance|97,653 lux",
+        "Precipitation|Current|0.00 in|None|Today|0.00 in",
+        "Lightning|0|strikes today|—|avg distance|No lightning detected|Range: up to 40 km",
+        "Station Health|Battery|2.77V · Good|Signal|0/4|Last Report|30s ago|Firmware",
+        "Records|Last 7 days|Temperature|High|83°F|Low|56°F|Humidity|High|94%|Low|47%|Pressure|High|1000.9 mb|Low|999.7 mb|Wind|Sustained|3.3 mph|Gust|6.6 mph|Rain|0.00 in|Lightning|strikes",
+        "Station Almanac|Sunrise|6:09 AM|First Quarter|47% illuminated|Sunset|8:14 PM|14h 04m daylight|Today|H ↑|74°F|Today|L ↓|56°F|Today|This Week|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Month|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Year|H ↑|83°F|Aug 18|L ↓|56°F|Today",
+        "Radar"
+      ]
+    }
+  },
+  "headerRevert": {
+    "320": {
+      "viewport": {
+        "width": 320,
+        "height": 900
+      },
+      "docOverflow": 17,
+      "widestOffender": {
+        "right": 509.03125,
+        "cls": "hero-details"
+      },
+      "tracks": [
+        272
+      ],
+      "trackSpread": 0,
+      "gutter": 48,
+      "cards": [
+        {
+          "className": "glass-card card-span-2 hero-card",
+          "top": 155,
+          "height": 173.96875,
+          "width": 272,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  wind-card",
+          "top": 349,
+          "height": 314.1875,
+          "width": 272,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  humidity-card",
+          "top": 684,
+          "height": 283.78125,
+          "width": 272,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  pressure-card",
+          "top": 987,
+          "height": 162.375,
+          "width": 272,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  solar-uv-card",
+          "top": 1170,
+          "height": 242.59375,
+          "width": 272,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  rain-card",
+          "top": 1432,
+          "height": 148.796875,
+          "width": 272,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  lightning-card ",
+          "top": 1601,
+          "height": 188.375,
+          "width": 272,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  station-health-card",
+          "top": 1809,
+          "height": 191.171875,
+          "width": 272,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  records-card",
+          "top": 2021,
+          "height": 918.5,
+          "width": 272,
+          "asym": 15.59375
+        },
+        {
+          "className": "glass-card card-span-3 ",
+          "top": 2959,
+          "height": 482.359375,
+          "width": 272,
+          "asym": 0
+        },
+        {
+          "className": "glass-card card-span-2 radar-card",
+          "top": 3462,
+          "height": 358,
+          "width": 272,
+          "asym": 11.59375
+        }
+      ],
+      "cardCount": 11,
+      "clipped": [
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "Heat Index"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-value",
+          "text": "74°F"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "Wind Chill"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-value",
+          "text": "74°F"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "Rain Chance"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-value",
+          "text": "0%"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "UV Index"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-value",
+          "text": "6.3"
+        },
+        {
+          "cardIndex": 9,
+          "card": "glass-card card-span-3 ",
+          "cls": "almanac-period",
+          "text": "This Year"
+        },
+        {
+          "cardIndex": 9,
+          "card": "glass-card card-span-3 ",
+          "cls": "almanac-hl-label almanac-hl-high",
+          "text": "H ↑"
+        },
+        {
+          "cardIndex": 9,
+          "card": "glass-card card-span-3 ",
+          "cls": "almanac-temp-value almanac-temp-high",
+          "text": "83°F"
+        },
+        {
+          "cardIndex": 9,
+          "card": "glass-card card-span-3 ",
+          "cls": "almanac-temp-date",
+          "text": "Aug 18"
+        },
+        {
+          "cardIndex": 9,
+          "card": "glass-card card-span-3 ",
+          "cls": "almanac-hl-label almanac-hl-low",
+          "text": "L ↓"
+        },
+        {
+          "cardIndex": 9,
+          "card": "glass-card card-span-3 ",
+          "cls": "almanac-temp-value almanac-temp-low",
+          "text": "56°F"
+        },
+        {
+          "cardIndex": 9,
+          "card": "glass-card card-span-3 ",
+          "cls": "almanac-temp-date",
+          "text": "Today"
+        }
+      ],
+      "clippedCount": 15,
+      "almanacClipped": 7,
+      "asymmetry": 27.1875,
+      "rowSpread": 0,
+      "hero": {
+        "height": 115.96875,
+        "scrollWidth": 456,
+        "clientWidth": 214,
+        "detailsWidth": 202.21875
+      },
+      "rainGrid": {
+        "marginTop": 0,
+        "marginBottom": 0,
+        "hasAnimation": false
+      },
+      "header": {
+        "height": 131.390625,
+        "nameOverflow": 0,
+        "locOverflow": 0,
+        "locText": "47.8601°N, 122.2043°W· 150m",
+        "nameText": "W0 Baseline"
+      },
+      "icons": [
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        }
+      ],
+      "titleFontPx": 12.8,
+      "rootFontPx": 16,
+      "records": {
+        "height": 918.5
+      },
+      "readouts": {
+        ".pressure-value": 25.6,
+        ".humidity-value": 25.6,
+        ".uv-number": 32,
+        ".lightning-count": 32,
+        ".lightning-distance": 32,
+        ".wind-speed-value": 35.2
+      },
+      "readoutCentre": {
+        ".pressure-value": 56.1171875,
+        ".humidity-value": 0,
+        ".uv-number": 89.78125,
+        ".lightning-count": 76.34375,
+        ".lightning-distance": 32.75,
+        ".wind-speed-value": 0.0078125
+      },
+      "align": {
+        "rain": "normal",
+        "health": "normal",
+        "lightning": "normal",
+        "humidity": "center"
+      },
+      "radarStatusMessage": false,
+      "almanacSunMoonOverlap": 0,
+      "almanacMoonOffset": 0,
+      "humidityRingOverflow": 0,
+      "cardText": [
+        "74°F|Sunny|Feels like 74°F|Heat Index|74°F|Wind Chill|74°F|Rain Chance|0%|UV Index|6.3",
+        "Wind|N|E|S|W|1.9 mph|NE (49°)|Lull|1.1 mph|Gust|2.6 mph",
+        "Humidity|61%|Humid|Dew Point|60°F|Wet Bulb|65°F",
+        "Pressure|999.8 mb|↓ Falling|Low|Normal|High",
+        "Solar & UV|6.3|High|0|3|6|8|11+|Solar Radiation|814 W/m²|Very High|Illuminance|97,653 lux",
+        "Precipitation|Current|0.00 in|None|Today|0.00 in",
+        "Lightning|0|strikes today|—|avg distance|No lightning detected|Range: up to 40 km",
+        "Station Health|Battery|2.77V · Good|Signal|0/4|Last Report|30s ago|Firmware",
+        "Records|Last 7 days|Temperature|High|83°F|Low|56°F|Humidity|High|94%|Low|47%|Pressure|High|1000.9 mb|Low|999.7 mb|Wind|Sustained|3.3 mph|Gust|6.6 mph|Rain|0.00 in|Lightning|strikes",
+        "Station Almanac|Sunrise|6:09 AM|First Quarter|47% illuminated|Sunset|8:14 PM|14h 04m daylight|Today|H ↑|74°F|Today|L ↓|56°F|Today|This Week|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Month|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Year|H ↑|83°F|Aug 18|L ↓|56°F|Today",
+        "Radar"
+      ]
+    },
+    "360": {
+      "viewport": {
+        "width": 360,
+        "height": 900
+      },
+      "docOverflow": 0,
+      "widestOffender": {
+        "right": 509.03125,
+        "cls": "hero-details"
+      },
+      "tracks": [
+        312
+      ],
+      "trackSpread": 0,
+      "gutter": 48,
+      "cards": [
+        {
+          "className": "glass-card card-span-2 hero-card",
+          "top": 155,
+          "height": 173.96875,
+          "width": 312,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  wind-card",
+          "top": 349,
+          "height": 314.1875,
+          "width": 312,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  humidity-card",
+          "top": 684,
+          "height": 283.78125,
+          "width": 312,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  pressure-card",
+          "top": 987,
+          "height": 162.375,
+          "width": 312,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  solar-uv-card",
+          "top": 1170,
+          "height": 224.59375,
+          "width": 312,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  rain-card",
+          "top": 1414,
+          "height": 148.796875,
+          "width": 312,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  lightning-card ",
+          "top": 1583,
+          "height": 188.375,
+          "width": 312,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  station-health-card",
+          "top": 1791,
+          "height": 191.171875,
+          "width": 312,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  records-card",
+          "top": 2003,
+          "height": 918.5,
+          "width": 312,
+          "asym": 15.59375
+        },
+        {
+          "className": "glass-card card-span-3 ",
+          "top": 2941,
+          "height": 482.359375,
+          "width": 312,
+          "asym": 0
+        },
+        {
+          "className": "glass-card card-span-2 radar-card",
+          "top": 3444,
+          "height": 358,
+          "width": 312,
+          "asym": 11.59375
+        }
+      ],
+      "cardCount": 11,
+      "clipped": [
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "Heat Index"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-value",
+          "text": "74°F"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "Wind Chill"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-value",
+          "text": "74°F"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "Rain Chance"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "UV Index"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-value",
+          "text": "6.3"
+        },
+        {
+          "cardIndex": 9,
+          "card": "glass-card card-span-3 ",
+          "cls": "almanac-period",
+          "text": "This Year"
+        },
+        {
+          "cardIndex": 9,
+          "card": "glass-card card-span-3 ",
+          "cls": "almanac-hl-label almanac-hl-high",
+          "text": "H ↑"
+        },
+        {
+          "cardIndex": 9,
+          "card": "glass-card card-span-3 ",
+          "cls": "almanac-temp-value almanac-temp-high",
+          "text": "83°F"
+        },
+        {
+          "cardIndex": 9,
+          "card": "glass-card card-span-3 ",
+          "cls": "almanac-temp-date",
+          "text": "Aug 18"
+        },
+        {
+          "cardIndex": 9,
+          "card": "glass-card card-span-3 ",
+          "cls": "almanac-hl-label almanac-hl-low",
+          "text": "L ↓"
+        },
+        {
+          "cardIndex": 9,
+          "card": "glass-card card-span-3 ",
+          "cls": "almanac-temp-value almanac-temp-low",
+          "text": "56°F"
+        },
+        {
+          "cardIndex": 9,
+          "card": "glass-card card-span-3 ",
+          "cls": "almanac-temp-date",
+          "text": "Today"
+        }
+      ],
+      "clippedCount": 14,
+      "almanacClipped": 7,
+      "asymmetry": 27.1875,
+      "rowSpread": 0,
+      "hero": {
+        "height": 115.96875,
+        "scrollWidth": 456,
+        "clientWidth": 254,
+        "detailsWidth": 202.21875
+      },
+      "rainGrid": {
+        "marginTop": 0,
+        "marginBottom": 0,
+        "hasAnimation": false
+      },
+      "header": {
+        "height": 131.390625,
+        "nameOverflow": 0,
+        "locOverflow": 0,
+        "locText": "47.8601°N, 122.2043°W· 150m",
+        "nameText": "W0 Baseline"
+      },
+      "icons": [
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        }
+      ],
+      "titleFontPx": 12.8,
+      "rootFontPx": 16,
+      "records": {
+        "height": 918.5
+      },
+      "readouts": {
+        ".pressure-value": 25.6,
+        ".humidity-value": 25.6,
+        ".uv-number": 32,
+        ".lightning-count": 32,
+        ".lightning-distance": 32,
+        ".wind-speed-value": 35.2
+      },
+      "readoutCentre": {
+        ".pressure-value": 76.1171875,
+        ".humidity-value": 0,
+        ".uv-number": 109.78125,
+        ".lightning-count": 96.34375,
+        ".lightning-distance": 12.75,
+        ".wind-speed-value": 0.0078125
+      },
+      "align": {
+        "rain": "normal",
+        "health": "normal",
+        "lightning": "normal",
+        "humidity": "center"
+      },
+      "radarStatusMessage": false,
+      "almanacSunMoonOverlap": 0,
+      "almanacMoonOffset": 0,
+      "humidityRingOverflow": 0,
+      "cardText": [
+        "74°F|Sunny|Feels like 74°F|Heat Index|74°F|Wind Chill|74°F|Rain Chance|0%|UV Index|6.3",
+        "Wind|N|E|S|W|1.9 mph|NE (49°)|Lull|1.1 mph|Gust|2.6 mph",
+        "Humidity|61%|Humid|Dew Point|60°F|Wet Bulb|65°F",
+        "Pressure|999.8 mb|↓ Falling|Low|Normal|High",
+        "Solar & UV|6.3|High|0|3|6|8|11+|Solar Radiation|814 W/m²|Very High|Illuminance|97,653 lux",
+        "Precipitation|Current|0.00 in|None|Today|0.00 in",
+        "Lightning|0|strikes today|—|avg distance|No lightning detected|Range: up to 40 km",
+        "Station Health|Battery|2.77V · Good|Signal|0/4|Last Report|30s ago|Firmware",
+        "Records|Last 7 days|Temperature|High|83°F|Low|56°F|Humidity|High|94%|Low|47%|Pressure|High|1000.9 mb|Low|999.7 mb|Wind|Sustained|3.3 mph|Gust|6.6 mph|Rain|0.00 in|Lightning|strikes",
+        "Station Almanac|Sunrise|6:09 AM|First Quarter|47% illuminated|Sunset|8:14 PM|14h 04m daylight|Today|H ↑|74°F|Today|L ↓|56°F|Today|This Week|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Month|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Year|H ↑|83°F|Aug 18|L ↓|56°F|Today",
+        "Radar"
+      ]
+    },
+    "390": {
+      "viewport": {
+        "width": 390,
+        "height": 900
+      },
+      "docOverflow": 0,
+      "widestOffender": {
+        "right": 509.03125,
+        "cls": "hero-details"
+      },
+      "tracks": [
+        342
+      ],
+      "trackSpread": 0,
+      "gutter": 48,
+      "cards": [
+        {
+          "className": "glass-card card-span-2 hero-card",
+          "top": 155,
+          "height": 173.96875,
+          "width": 342,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  wind-card",
+          "top": 349,
+          "height": 314.1875,
+          "width": 342,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  humidity-card",
+          "top": 684,
+          "height": 283.78125,
+          "width": 342,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  pressure-card",
+          "top": 987,
+          "height": 162.375,
+          "width": 342,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  solar-uv-card",
+          "top": 1170,
+          "height": 224.59375,
+          "width": 342,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  rain-card",
+          "top": 1414,
+          "height": 148.796875,
+          "width": 342,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  lightning-card ",
+          "top": 1583,
+          "height": 188.375,
+          "width": 342,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  station-health-card",
+          "top": 1791,
+          "height": 191.171875,
+          "width": 342,
+          "asym": 0
+        },
+        {
+          "className": "glass-card  records-card",
+          "top": 2003,
+          "height": 918.5,
+          "width": 342,
+          "asym": 15.59375
+        },
+        {
+          "className": "glass-card card-span-3 ",
+          "top": 2941,
+          "height": 482.359375,
+          "width": 342,
+          "asym": 0
+        },
+        {
+          "className": "glass-card card-span-2 radar-card",
+          "top": 3444,
+          "height": 358,
+          "width": 342,
+          "asym": 11.59375
+        }
+      ],
+      "cardCount": 11,
+      "clipped": [
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "Heat Index"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "Wind Chill"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-value",
+          "text": "74°F"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "Rain Chance"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-label",
+          "text": "UV Index"
+        },
+        {
+          "cardIndex": 0,
+          "card": "glass-card card-span-2 hero-card",
+          "cls": "detail-value",
+          "text": "6.3"
+        }
+      ],
+      "clippedCount": 6,
+      "almanacClipped": 0,
+      "asymmetry": 27.1875,
+      "rowSpread": 0,
+      "hero": {
+        "height": 115.96875,
+        "scrollWidth": 456,
+        "clientWidth": 284,
+        "detailsWidth": 202.21875
+      },
+      "rainGrid": {
+        "marginTop": 0,
+        "marginBottom": 0,
+        "hasAnimation": false
+      },
+      "header": {
+        "height": 131.390625,
+        "nameOverflow": 0,
+        "locOverflow": 0,
+        "locText": "47.8601°N, 122.2043°W· 150m",
+        "nameText": "W0 Baseline"
+      },
+      "icons": [
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        },
+        {
+          "w": 20,
+          "h": 20
+        }
+      ],
+      "titleFontPx": 12.8,
+      "rootFontPx": 16,
+      "records": {
+        "height": 918.5
+      },
+      "readouts": {
+        ".pressure-value": 25.6,
+        ".humidity-value": 25.6,
+        ".uv-number": 32,
+        ".lightning-count": 32,
+        ".lightning-distance": 32,
+        ".wind-speed-value": 35.2
+      },
+      "readoutCentre": {
+        ".pressure-value": 91.1171875,
+        ".humidity-value": 0,
+        ".uv-number": 124.78125,
+        ".lightning-count": 111.34375,
+        ".lightning-distance": 2.25,
+        ".wind-speed-value": 0.0078125
+      },
+      "align": {
+        "rain": "normal",
+        "health": "normal",
+        "lightning": "normal",
+        "humidity": "center"
+      },
+      "radarStatusMessage": false,
+      "almanacSunMoonOverlap": 0,
+      "almanacMoonOffset": 0,
+      "humidityRingOverflow": 0,
+      "cardText": [
+        "74°F|Sunny|Feels like 74°F|Heat Index|74°F|Wind Chill|74°F|Rain Chance|0%|UV Index|6.3",
+        "Wind|N|E|S|W|1.9 mph|NE (49°)|Lull|1.1 mph|Gust|2.6 mph",
+        "Humidity|61%|Humid|Dew Point|60°F|Wet Bulb|65°F",
+        "Pressure|999.8 mb|↓ Falling|Low|Normal|High",
+        "Solar & UV|6.3|High|0|3|6|8|11+|Solar Radiation|814 W/m²|Very High|Illuminance|97,653 lux",
+        "Precipitation|Current|0.00 in|None|Today|0.00 in",
+        "Lightning|0|strikes today|—|avg distance|No lightning detected|Range: up to 40 km",
+        "Station Health|Battery|2.77V · Good|Signal|0/4|Last Report|30s ago|Firmware",
+        "Records|Last 7 days|Temperature|High|83°F|Low|56°F|Humidity|High|94%|Low|47%|Pressure|High|1000.9 mb|Low|999.7 mb|Wind|Sustained|3.3 mph|Gust|6.6 mph|Rain|0.00 in|Lightning|strikes",
+        "Station Almanac|Sunrise|6:09 AM|First Quarter|47% illuminated|Sunset|8:14 PM|14h 04m daylight|Today|H ↑|74°F|Today|L ↓|56°F|Today|This Week|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Month|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Year|H ↑|83°F|Aug 18|L ↓|56°F|Today",
+        "Radar"
+      ]
+    }
+  },
+  "rain": {
+    "viewport": {
+      "width": 1512,
+      "height": 900
+    },
+    "docOverflow": 0,
+    "widestOffender": {
+      "right": 1674.8763427734375,
+      "cls": "orb orb-2"
+    },
+    "tracks": [
+      370.656,
+      370.672,
+      370.656
+    ],
+    "trackSpread": 0.016000000000019554,
+    "gutter": 360,
+    "cards": [
+      {
+        "className": "glass-card card-span-2 hero-card",
+        "top": 107,
+        "height": 314.1875,
+        "width": 761.328125,
+        "asym": 0
+      },
+      {
+        "className": "glass-card  wind-card",
+        "top": 107,
+        "height": 314.1875,
+        "width": 370.65625,
+        "asym": 0
+      },
+      {
+        "className": "glass-card  humidity-card",
+        "top": 442,
+        "height": 283.78125,
+        "width": 370.65625,
+        "asym": 0
+      },
+      {
+        "className": "glass-card  pressure-card",
+        "top": 442,
+        "height": 283.78125,
+        "width": 370.671875,
+        "asym": 121
+      },
+      {
+        "className": "glass-card  solar-uv-card",
+        "top": 442,
+        "height": 283.78125,
+        "width": 370.65625,
+        "asym": 58.78125
+      },
+      {
+        "className": "glass-card  rain-card",
+        "top": 745,
+        "height": 235.234375,
+        "width": 370.65625,
+        "asym": 41.234375
+      },
+      {
+        "className": "glass-card  lightning-card lightning-active",
+        "top": 745,
+        "height": 235.234375,
+        "width": 370.671875,
+        "asym": 0
+      },
+      {
+        "className": "glass-card  station-health-card",
+        "top": 745,
+        "height": 235.234375,
+        "width": 370.65625,
+        "asym": 21.625
+      },
+      {
+        "className": "glass-card  records-card",
+        "top": 1001,
+        "height": 238.0625,
+        "width": 1151.984375,
+        "asym": 15
+      },
+      {
+        "className": "glass-card card-span-3 ",
+        "top": 1259,
+        "height": 460.375,
+        "width": 1151.984375,
+        "asym": 0
+      },
+      {
+        "className": "glass-card card-span-2 radar-card",
+        "top": 1739,
+        "height": 358,
+        "width": 761.328125,
+        "asym": 0
+      }
+    ],
+    "cardCount": 11,
+    "clipped": [],
+    "clippedCount": 0,
+    "almanacClipped": 0,
+    "asymmetry": 257.640625,
+    "rowSpread": 0,
+    "hero": {
+      "height": 115.96875,
+      "scrollWidth": 703,
+      "clientWidth": 703,
+      "detailsWidth": 202.21875
+    },
+    "rainGrid": {
+      "marginTop": 41.2344,
+      "marginBottom": 41.2344,
+      "hasAnimation": true
+    },
+    "header": {
+      "height": 83.390625,
+      "nameOverflow": 0,
+      "locOverflow": 0,
+      "locText": "47.8601°N, 122.2043°W· 150m",
+      "nameText": "W0 Baseline"
+    },
+    "icons": [
+      {
+        "w": 20,
+        "h": 20
+      },
+      {
+        "w": 20,
+        "h": 20
+      },
+      {
+        "w": 20,
+        "h": 20
+      },
+      {
+        "w": 20,
+        "h": 20
+      },
+      {
+        "w": 20,
+        "h": 20
+      },
+      {
+        "w": 20,
+        "h": 20
+      },
+      {
+        "w": 20,
+        "h": 20
+      },
+      {
+        "w": 20,
+        "h": 20
+      },
+      {
+        "w": 20,
+        "h": 20
+      }
+    ],
+    "titleFontPx": 12.8,
+    "rootFontPx": 16,
+    "records": {
+      "height": 238.0625
+    },
+    "readouts": {
+      ".pressure-value": 25.6,
+      ".humidity-value": 25.6,
+      ".uv-number": 32,
+      ".lightning-count": 32,
+      ".lightning-distance": 32,
+      ".wind-speed-value": 35.2
+    },
+    "readoutCentre": {
+      ".pressure-value": 105.453125,
+      ".humidity-value": 0,
+      ".uv-number": 139.109375,
+      ".lightning-count": 125.6796875,
+      ".lightning-distance": 5.0234375,
+      ".wind-speed-value": 0.0078125
+    },
+    "align": {
+      "rain": "normal",
+      "health": "normal",
+      "lightning": "normal",
+      "humidity": "center"
+    },
+    "radarStatusMessage": false,
+    "almanacSunMoonOverlap": 0,
+    "almanacMoonOffset": 0.0078125,
+    "humidityRingOverflow": 0,
+    "cardText": [
+      "74°F|Thunderstorm|Feels like 74°F|Heat Index|74°F|Wind Chill|74°F|Rain Chance|0%|UV Index|6.3",
+      "Wind|N|E|S|W|1.9 mph|NE (49°)|Lull|1.1 mph|Gust|2.6 mph",
+      "Humidity|61%|Humid|Dew Point|60°F|Wet Bulb|65°F",
+      "Pressure|999.8 mb|↓ Falling|Low|Normal|High",
+      "Solar & UV|6.3|High|0|3|6|8|11+|Solar Radiation|814 W/m²|Very High|Illuminance|97,653 lux",
+      "Precipitation|Active|Current|0.02 in|Rain|Today|0.13 in",
+      "Lightning|Detected|7|strikes today|12.4 km|avg distance|10km|20km|40km",
+      "Station Health|Battery|2.77V · Good|Signal|0/4|Last Report|30s ago|Firmware",
+      "Records|Last 7 days|Temperature|High|83°F|Low|56°F|Humidity|High|94%|Low|47%|Pressure|High|1000.9 mb|Low|999.7 mb|Wind|Sustained|3.3 mph|Gust|6.6 mph|Rain|0.00 in|Lightning|strikes",
+      "Station Almanac|Sunrise|6:09 AM|First Quarter|47% illuminated|Sunset|8:14 PM|14h 04m daylight|Today|H ↑|74°F|Today|L ↓|56°F|Today|This Week|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Month|H ↑|83°F|Aug 18|L ↓|56°F|Today|This Year|H ↑|83°F|Aug 18|L ↓|56°F|Today",
+      "Radar"
+    ]
+  },
+  "parity": [
+    {
+      "path": "/",
+      "want": 200,
+      "got": 200
+    },
+    {
+      "path": "/basemap/osm.pmtiles",
+      "want": 404,
+      "got": 404
+    },
+    {
+      "path": "/some/spa/route",
+      "want": 200,
+      "got": 200
+    },
+    {
+      "path": "/api/nope",
+      "want": 404,
+      "got": 404
+    }
+  ],
+  "worker": {
+    "workerFile": null,
+    "referenced": false
+  },
+  "css": {
+    "bannedFound": [
+      "/\\.rain-card\\s+\\.rain-grid\\b/",
+      "/\\.lightning-card\\s+\\.lightning-content\\b/",
+      "/\\.station-health-card\\s+\\.health-grid\\b/"
+    ],
+    "hasGlassRelative": true
+  },
+  "requestLog": [
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/basemap/osm.pmtiles",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/some/spa/route",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/nope",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/index-DYNKecXu.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/index-B6CZZO-L.css",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/inter-latin-wght-normal-Dx4kXJAl.woff2",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/summary",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/station",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/almanac",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/maplibre-gl-worker.mjs",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/basemap/osm.pmtiles",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/api/radar/ATX",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/summary",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/station",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/almanac",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/maplibre-gl-worker.mjs",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/basemap/osm.pmtiles",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/api/radar/ATX",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/summary",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/station",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/almanac",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/maplibre-gl-worker.mjs",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/basemap/osm.pmtiles",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/api/radar/ATX",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/summary",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/station",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/almanac",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/maplibre-gl-worker.mjs",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/basemap/osm.pmtiles",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/api/radar/ATX",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/summary",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/station",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/almanac",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/maplibre-gl-worker.mjs",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/basemap/osm.pmtiles",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/api/radar/ATX",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/summary",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/station",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/almanac",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/maplibre-gl-worker.mjs",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/basemap/osm.pmtiles",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/api/radar/ATX",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/summary",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/station",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/almanac",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/maplibre-gl-worker.mjs",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/basemap/osm.pmtiles",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/api/radar/ATX",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/summary",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/station",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/almanac",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/maplibre-gl-worker.mjs",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/basemap/osm.pmtiles",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/api/radar/ATX",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/summary",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/station",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/almanac",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/maplibre-gl-worker.mjs",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/basemap/osm.pmtiles",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/api/radar/ATX",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/summary",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/station",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/almanac",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/maplibre-gl-worker.mjs",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/basemap/osm.pmtiles",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/api/radar/ATX",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/summary",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/station",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/almanac",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/maplibre-gl-worker.mjs",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/basemap/osm.pmtiles",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/api/radar/ATX",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/summary",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/station",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/almanac",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/maplibre-gl-worker.mjs",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/basemap/osm.pmtiles",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/api/radar/ATX",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/summary",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/station",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/almanac",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/maplibre-gl-worker.mjs",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/basemap/osm.pmtiles",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/api/radar/ATX",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/summary",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/station",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/almanac",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/maplibre-gl-worker.mjs",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/basemap/osm.pmtiles",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/api/radar/ATX",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/summary",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/station",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/almanac",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/maplibre-gl-worker.mjs",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/basemap/osm.pmtiles",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/api/radar/ATX",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/summary",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/station",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/almanac",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/maplibre-gl-worker.mjs",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/basemap/osm.pmtiles",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/api/radar/ATX",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/summary",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/station",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/almanac",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/maplibre-gl-worker.mjs",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/basemap/osm.pmtiles",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/api/radar/ATX",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/summary",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/station",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/almanac",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/maplibre-gl-worker.mjs",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/basemap/osm.pmtiles",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/api/radar/ATX",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/summary",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/station",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/almanac",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/maplibre-gl-worker.mjs",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/basemap/osm.pmtiles",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/api/radar/ATX",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/index-DYNKecXu.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/index-B6CZZO-L.css",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/summary",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/inter-latin-wght-normal-Dx4kXJAl.woff2",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/station",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/almanac",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/maplibre-gl-worker.mjs",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/basemap/osm.pmtiles",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/api/radar/ATX",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/summary",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/station",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/almanac",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/maplibre-gl-worker.mjs",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/basemap/osm.pmtiles",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/api/radar/ATX",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/summary",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/station",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/almanac",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/maplibre-gl-worker.mjs",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/basemap/osm.pmtiles",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/api/radar/ATX",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/summary",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/station",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/almanac",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/maplibre-gl-worker.mjs",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/basemap/osm.pmtiles",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/api/radar/ATX",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/summary",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/station",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/almanac",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/maplibre-gl-worker.mjs",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/basemap/osm.pmtiles",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/api/radar/ATX",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/summary",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/station",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/almanac",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/maplibre-gl-worker.mjs",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/basemap/osm.pmtiles",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/api/radar/ATX",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/summary",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/station",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/almanac",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/maplibre-gl-worker.mjs",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/basemap/osm.pmtiles",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/api/radar/ATX",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/summary",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/station",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/almanac",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/maplibre-gl-worker.mjs",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/basemap/osm.pmtiles",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/api/radar/ATX",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/summary",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/station",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/almanac",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/maplibre-gl-worker.mjs",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/basemap/osm.pmtiles",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/api/radar/ATX",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/summary",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/station",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/almanac",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/maplibre-gl-worker.mjs",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/basemap/osm.pmtiles",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/api/radar/ATX",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/summary",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/station",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/almanac",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/maplibre-gl-worker.mjs",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/basemap/osm.pmtiles",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/api/radar/ATX",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/summary",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/station",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/almanac",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/maplibre-gl-worker.mjs",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/basemap/osm.pmtiles",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/api/radar/ATX",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/summary",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/station",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/almanac",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/maplibre-gl-worker.mjs",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/basemap/osm.pmtiles",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/api/radar/ATX",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/summary",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/station",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/almanac",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/maplibre-gl-worker.mjs",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/basemap/osm.pmtiles",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/api/radar/ATX",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/summary",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/station",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/almanac",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/maplibre-gl-worker.mjs",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/basemap/osm.pmtiles",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/api/radar/ATX",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/summary",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/station",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/almanac",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/maplibre-gl-worker.mjs",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/basemap/osm.pmtiles",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/api/radar/ATX",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/summary",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/station",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/almanac",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/maplibre-gl-worker.mjs",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/basemap/osm.pmtiles",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/api/radar/ATX",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/summary",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/station",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/almanac",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/maplibre-gl-worker.mjs",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/basemap/osm.pmtiles",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/api/radar/ATX",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/capabilities",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/summary",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/station",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/almanac",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/observations/current",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/assets/maplibre-gl-worker.mjs",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/basemap/osm.pmtiles",
+      "status": 404
+    },
+    {
+      "method": "GET",
+      "path": "/api/radar/ATX",
+      "status": 200
+    }
+  ]
+}

@@ -20,4 +20,20 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    // The layout probe: Node ESM, not browser TS. Without this block eslint's
+    // flat config matches these files with no rules at all and reports success
+    // on code it never read.
+    files: ['test/layout/**/*.mjs'],
+    extends: [js.configs.recommended],
+    languageOptions: {
+      ecmaVersion: 2023,
+      sourceType: 'module',
+      // BOTH: these are Node modules, but probe.mjs's body is the function
+      // Playwright serialises into the page, so it references document, window,
+      // getComputedStyle and SVGElement. With globals.node alone eslint reports
+      // 19 no-undef errors and `task ci` fails.
+      globals: { ...globals.node, ...globals.browser },
+    },
+  },
 ])

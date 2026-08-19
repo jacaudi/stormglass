@@ -17,8 +17,10 @@ jobs:
   test:
     name: ${{ inputs.task }}
     runs-on: ubuntu-latest
-    # Observed 2-4 min; the headroom covers the scientific Python install.
-    timeout-minutes: 20
+    # Observed 2-4 min before the layout probe. That stage adds a Vite build, a
+    # one-time Chromium download (~130 MB, cached in ~/.cache/ms-playwright) and
+    # 39 page loads across 19 viewport widths.
+    timeout-minutes: 30
     services:
       # The Postgres-backed tests in internal/postgres are guarded on
       # POSTGRES_URL and skip without it, so without this the Postgres half of
