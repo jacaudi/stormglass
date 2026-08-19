@@ -36,6 +36,13 @@
   font-family: 'Inter Variable', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   font-weight: 400;
   line-height: 1.5;
+  /* Fluid root scale (#177). rem, NOT px: in a root font-size, `rem` resolves
+     against the property's INITIAL value -- the user's browser default -- so a
+     reader who has raised their font size keeps the increase (WCAG 1.4.4). At a
+     16px default this is arithmetically identical to
+     clamp(15px, 14px + 0.28vw, 18px). Everything rem-sized in the file rides
+     this, so it CONTRACTS below ~1000px by up to 6% at 320px. */
+  font-size: clamp(0.9375rem, 0.875rem + 0.28vw, 1.125rem);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

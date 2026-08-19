@@ -107,6 +107,14 @@
 }
 
 .card-icon {
+  /* Sized in CSS over the SVG's width/height presentational attributes: those
+     have specificity 0 at the start of the author origin, so a CSS rule wins and
+     they survive as a no-CSS fallback. All ten card icons are
+     <svg className="card-icon" width="20" height="20">, so no component changes.
+     The hero glyph (TemperatureHero.tsx:40) and the two Header SVGs are sized in
+     TSX and deliberately do NOT ride this scale -- see design §6.8. */
+  width: 1.25rem;
+  height: 1.25rem;
   opacity: 0.7;
   flex-shrink: 0;
 }

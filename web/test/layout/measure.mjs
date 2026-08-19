@@ -355,4 +355,34 @@ CHECKS.push({
     }),
 });
 
+// --- Task 3 / design §6.8 / #177 --------------------------------------------
+// NON-DECREASING, not strictly increasing: the clamp ceiling binds at 1429px,
+// so 1512/1920/2560 are equal by design (design §14 B4).
+const ascending = (m, pick) =>
+  [...WIDTHS].sort((a, b) => a - b).map((w) => pick(m.widths[w]));
+
+CHECKS.push({
+  id: 'icon-scale-non-decreasing',
+  section: '§6.8 / #177',
+  describe: (m) => `sizes ${JSON.stringify(ascending(m, (x) => x.icons[0].w))}`,
+  pass: (m) => {
+    const s = ascending(m, (x) => x.icons[0].w);
+    const monotone = s.every((v, i) => i === 0 || v >= s[i - 1] - 0.01);
+    const distinct = new Set(s.map((v) => v.toFixed(2))).size;
+    return monotone && distinct >= 5;
+  },
+});
+
+CHECKS.push({
+  id: 'title-scale-non-decreasing',
+  section: '§6.8 / #177',
+  describe: (m) => `sizes ${JSON.stringify(ascending(m, (x) => x.titleFontPx))}`,
+  pass: (m) => {
+    const s = ascending(m, (x) => x.titleFontPx);
+    const monotone = s.every((v, i) => i === 0 || v >= s[i - 1] - 0.01);
+    const distinct = new Set(s.map((v) => v.toFixed(2))).size;
+    return monotone && distinct >= 5;
+  },
+});
+
 await main();
