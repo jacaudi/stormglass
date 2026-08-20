@@ -449,4 +449,30 @@ CHECKS.push({
     m.widths[1280].gutter <= 60,
 });
 
+// --- Task 5 / design §6.2 / #181 #182 ---------------------------------------
+CHECKS.push({
+  id: 'tracks-equal',
+  section: '§6.2 / #181',
+  describe: (m) => {
+    const worst = WIDTHS.reduce(
+      (a, w) => (m.widths[w].trackSpread > a.v ? { w, v: m.widths[w].trackSpread } : a),
+      { w: null, v: -1 }
+    );
+    return `worst spread ${worst.v.toFixed(3)}px at ${worst.w}`;
+  },
+  pass: (m) => WIDTHS.every((w) => m.widths[w].trackSpread <= 1),
+});
+
+CHECKS.push({
+  id: 'ladder-fires-where-intended',
+  section: '§6.2',
+  describe: (m) =>
+    [1001, 1000, 641, 640].map((w) => `${w}:${m.widths[w].tracks.length}`).join(' '),
+  pass: (m) =>
+    m.widths['1001'].tracks.length === 3 &&
+    m.widths['1000'].tracks.length === 2 &&
+    m.widths['641'].tracks.length === 2 &&
+    m.widths['640'].tracks.length === 1,
+});
+
 await main();

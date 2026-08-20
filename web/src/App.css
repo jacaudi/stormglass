@@ -270,7 +270,17 @@
 
 .dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  /* minmax(0, 1fr) here is a measured NO-OP for today's DOM: .glass-card sets
+     overflow: hidden (:75), which makes every grid child a scroll container, and
+     per CSS Grid L1 §6.6 the automatic minimum size does not apply to those.
+     It is kept as a Patchbay seam -- one line, zero present cost -- so a future
+     card WITHOUT overflow: hidden degrades to an equal track instead of a
+     content-sized one. The SPAN CLAMPS below are the actual fix. */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* Likewise a seam: with the clamps in place no implicit track is ever
+     created, so this governs nothing today. It catches a future span the
+     clamps miss. */
+  grid-auto-columns: minmax(0, 1fr);
   gap: 1.25rem;
 }
 
@@ -1497,22 +1507,38 @@
 }
 
 /* --- Responsive dashboard grid ------------------------------------ */
-@media (max-width: 900px) {
+/* The ladder. Span classes are ABSOLUTE track counts while the column count is
+   a VARIABLE set by these queries -- that asymmetry is the defect. Every level
+   clamps the spans to its own column count, which is what stops an implicit
+   content-sized track from ever being minted. */
+@media (max-width: 1000px) {
   .dashboard-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .card-span-2,
+  .card-span-3 {
+    grid-column: span 2;
   }
 }
 
-@media (max-width: 560px) {
+/* 640, not the file's previous 560: 561px was the worst point in the whole
+   range (30 clipped leaves across 5 cards), and two columns still clip nothing
+   at 641px, so the 3->2->1 boundaries are safe where placed. */
+@media (max-width: 640px) {
   .dashboard-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .card-span-2,
   .card-span-3 {
     grid-column: span 1;
   }
+}
 
+/* The settings panel keeps its OWN 560px query -- it is an overlay whose sizing
+   is unrelated to the column count. Only the grid rules moved to 640px. */
+@media (max-width: 560px) {
   .settings-overlay {
     padding: 0.75rem;
     align-items: flex-end;
