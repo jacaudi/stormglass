@@ -422,4 +422,31 @@ CHECKS.push({
   },
 });
 
+// --- Task 4 / design §6.3 / #179 --------------------------------------------
+// BASELINE is declared above (Task 3, §6.8/#177) -- reused here rather than
+// redeclared, since `const BASELINE` would otherwise be a duplicate
+// declaration in the same module scope.
+const GUTTER_WIDTHS = [2560, 1920, 1512, 1280];
+
+CHECKS.push({
+  id: 'gutter-cap',
+  section: '§6.3 / #179',
+  describe: (m) =>
+    GUTTER_WIDTHS.map((w) => {
+      const g = m.widths[w].gutter;
+      return `${w}: ${BASELINE.widths[w].gutter.toFixed(0)} -> ${
+        g === null ? 'MISSING' : g.toFixed(0)
+      }`;
+    }).join('  '),
+  pass: (m) =>
+    GUTTER_WIDTHS.every((w) => {
+      const g = m.widths[w].gutter;
+      return g !== null && g < BASELINE.widths[w].gutter;
+    }) &&
+    m.widths[1512].gutter !== null &&
+    m.widths[1512].gutter <= 60 &&
+    m.widths[1280].gutter !== null &&
+    m.widths[1280].gutter <= 60,
+});
+
 await main();

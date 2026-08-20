@@ -257,7 +257,13 @@
 .dashboard {
   position: relative;
   z-index: 1;
-  max-width: 1200px;
+  /* 1200 -> 1600 (#179). A FIXED cap, not fluid: a weather card 850px wide
+     reads worse than one at 500px, and 1600px holds the widest card at ~500px.
+     The residual gutter at 2560px is intentional margin. A fourth column above
+     1400px was measured (page height 2109 -> 1672) and deliberately deferred --
+     a fourth breakpoint and a fourth span-clamp level for density nobody asked
+     for. */
+  max-width: 1600px;
   margin: 0 auto;
   padding: 1.5rem;
 }
