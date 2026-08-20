@@ -361,15 +361,52 @@ CHECKS.push({
 const ascending = (m, pick) =>
   [...WIDTHS].sort((a, b) => a - b).map((w) => pick(m.widths[w]));
 
+// Expected .card-icon count per width, read from baseline.json rather than
+// hardcoded -- a hardcoded literal would be wrong the moment a card is gated
+// off by configuration, and baseline.json already recorded the real count for
+// every width when Task 2 captured it. A width missing from baseline entirely
+// reads as `undefined`, which a live count of any real length will not equal,
+// so an unrecognised width still fails loud instead of silently passing.
+const BASELINE = JSON.parse(readFileSync(join(HERE, 'baseline.json'), 'utf8'));
+const expectedIconCount = (w) => BASELINE.widths[String(w)]?.icons?.length;
+
 CHECKS.push({
   id: 'icon-scale-non-decreasing',
   section: '§6.8 / #177',
-  describe: (m) => `sizes ${JSON.stringify(ascending(m, (x) => x.icons[0].w))}`,
+  // Fix round 1 (#177 review): sampling icons[0] alone let a per-card CSS
+  // override on any of the other cards pass silently, even though probe.mjs
+  // already records every .card-icon. Widened to also assert (a) all icons
+  // agree in size at each width and (b) the icon count matches baseline --
+  // both are per-width anomalies, so describe lists only the widths that
+  // disagree rather than dumping all 19 widths x every icon.
+  describe: (m) => {
+    const s = ascending(m, (x) => x.icons[0].w);
+    const countIssues = WIDTHS.filter(
+      (w) => m.widths[w].icons.length !== expectedIconCount(w)
+    ).map((w) => `${w}:expected ${expectedIconCount(w)} got ${m.widths[w].icons.length}`);
+    const agreementIssues = WIDTHS.filter((w) => {
+      const icons = m.widths[w].icons;
+      if (icons.length === 0) return false;
+      const first = icons[0].w;
+      return icons.some((ic) => Math.abs(ic.w - first) > 0.01);
+    }).map((w) => `${w}:${JSON.stringify(m.widths[w].icons.map((ic) => +ic.w.toFixed(2)))}`);
+    let detail = `sizes ${JSON.stringify(s)}`;
+    if (countIssues.length) detail += ` | COUNT MISMATCH ${countIssues.join(' ')}`;
+    if (agreementIssues.length) detail += ` | DISAGREEMENT ${agreementIssues.join(' ')}`;
+    return detail;
+  },
   pass: (m) => {
     const s = ascending(m, (x) => x.icons[0].w);
     const monotone = s.every((v, i) => i === 0 || v >= s[i - 1] - 0.01);
     const distinct = new Set(s.map((v) => v.toFixed(2))).size;
-    return monotone && distinct >= 5;
+    const countOk = WIDTHS.every((w) => m.widths[w].icons.length === expectedIconCount(w));
+    const agreementOk = WIDTHS.every((w) => {
+      const icons = m.widths[w].icons;
+      if (icons.length === 0) return false;
+      const first = icons[0].w;
+      return icons.every((ic) => Math.abs(ic.w - first) <= 0.01);
+    });
+    return monotone && distinct >= 5 && countOk && agreementOk;
   },
 });
 
