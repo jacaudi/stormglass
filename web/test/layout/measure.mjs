@@ -475,4 +475,23 @@ CHECKS.push({
     m.widths['640'].tracks.length === 1,
 });
 
+// --- Task 6 / design §6.6 / #178 #182 ---------------------------------------
+CHECKS.push({
+  id: 'hero-no-overflow',
+  section: '§6.6 / #178',
+  describe: (m) => {
+    const bad = WIDTHS.filter((w) => m.widths[w].hero.scrollWidth > m.widths[w].hero.clientWidth);
+    return bad.length ? `overflows at ${bad.join(',')}` : 'clean at all 19';
+  },
+  pass: (m) => WIDTHS.every((w) => m.widths[w].hero.scrollWidth <= m.widths[w].hero.clientWidth),
+});
+
+CHECKS.push({
+  id: 'hero-grows-when-narrow',
+  section: '§6.6 / #182',
+  describe: (m) =>
+    [504, 430, 390, 360, 320].map((w) => `${w}:${m.widths[w].hero.height.toFixed(0)}`).join(' '),
+  pass: (m) => [504, 430, 390, 360, 320].every((w) => m.widths[w].hero.height >= 180),
+});
+
 await main();

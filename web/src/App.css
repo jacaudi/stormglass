@@ -296,6 +296,11 @@
   display: flex;
   align-items: center;
   gap: 1.5rem;
+  /* The stats wrap below the temperature rather than shrinking or relocating.
+     Shrink-in-place was rejected: the hero needs 463px of content box, so
+     values truncate or the 4rem temperature shrinks out of its hero role. */
+  flex-wrap: wrap;
+  row-gap: 1.25rem;
 }
 
 .hero-icon {
@@ -309,6 +314,7 @@
 .hero-temp-block {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .hero-temp {
@@ -333,10 +339,18 @@
 
 .hero-details {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* flex: 1 1 200px replaces flex-shrink: 0, so .hero-details becomes the only
+     growing item on the line and absorbs the free space. Its auto-fit grid
+     therefore REFLOWS 2x2 -> 1x4 at >= 900px (202.2 -> 625.2px at 1512). That
+     is intended: it spreads the four stats across the hero's width instead of
+     huddling them in a 202px column. Read the design's "do not shrink" as: the
+     stats keep their content and their place in the card; their column count
+     follows the width they are given. */
+  flex: 1 1 200px;
+  min-width: 0;
+  grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
   gap: 0.5rem 1.25rem;
   margin-left: auto;
-  flex-shrink: 0;
 }
 
 .hero-detail-item {
@@ -1526,6 +1540,15 @@
    range (30 clipped leaves across 5 cards), and two columns still clip nothing
    at 641px, so the 3->2->1 boundaries are safe where placed. */
 @media (max-width: 640px) {
+  /* The hero centres as a whole in the one-column band. Wrapping alone leaves
+     it mixed-alignment -- icon and temperature centred as a flex row, stats
+     grid left-aligned beneath -- which reads as misaligned rather than
+     deliberate. (.hero-icon needs no `order`: it is already the first DOM child
+     at TemperatureHero.tsx:40, and flex wrapping does not reorder.) */
+  .hero-content { justify-content: center; }
+  .hero-temp-block { align-items: center; text-align: center; }
+  .hero-details { text-align: center; }
+
   .dashboard-grid {
     grid-template-columns: minmax(0, 1fr);
   }
