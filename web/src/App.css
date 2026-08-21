@@ -286,6 +286,44 @@
   border-top: 1px solid var(--border-color);
 }
 
+/* --- Readout (primitive) -------------------------------------------- */
+.readout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  min-width: 0;
+  /* Not redundant with align-items: a qualifier holding block children (the
+     hero's .hero-condition and .hero-feels-like) is shrink-to-fit, and its
+     children then fill that width and left-align their own text. This is what
+     lets Task 21 delete the hero's two text-align rules rather than keep them. */
+  text-align: center;
+}
+
+.readout-inline {
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.readout-value {
+  font-weight: 700;
+  line-height: 1;
+  font-size: var(--readout-primary);
+}
+
+.readout-hero .readout-value {
+  font-size: var(--readout-hero);
+  letter-spacing: -0.03em;
+}
+
+.readout-qualifier {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
 /* --- Header -------------------------------------------------- */
 .app-header {
   position: sticky;
@@ -888,39 +926,13 @@
   gap: 0.75rem;
 }
 
-.lightning-stats-row {
-  display: flex;
-  gap: 2rem;
-  align-items: flex-start;
-}
-
-.lightning-stat {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-}
-
-.lightning-count {
-  font-size: 2rem;
-  font-weight: 700;
-  line-height: 1;
+.lightning-count-value {
   color: var(--warning-color);
-}
-
-.lightning-distance {
-  font-size: 2rem;
-  font-weight: 600;
-  line-height: 1;
 }
 
 .lightning-distance-none {
   color: var(--text-muted);
   font-weight: 300;
-}
-
-.lightning-label {
-  font-size: 0.8rem;
-  color: var(--text-muted);
 }
 
 .lightning-clear {

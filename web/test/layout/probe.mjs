@@ -218,6 +218,16 @@ export async function probe(page) {
       rootFontPx: parseFloat(getComputedStyle(document.documentElement).fontSize),
       records: { height: box('.records-card')?.height ?? null },
       readouts,
+      // Converted readouts, read by structure rather than by the eight legacy
+      // class names -- which vanish one card at a time through Phase 2.
+      readoutValues: {
+        primary: Array.from(document.querySelectorAll('.readout-primary .readout-value')).map(
+          (el) => parseFloat(getComputedStyle(el).fontSize)
+        ),
+        hero: Array.from(document.querySelectorAll('.readout-hero .readout-value')).map(
+          (el) => parseFloat(getComputedStyle(el).fontSize)
+        ),
+      },
       readoutCentre: Object.fromEntries(
         readoutSelectors.map((sel) => [sel, centredWithin(sel)])
       ),

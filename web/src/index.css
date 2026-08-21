@@ -33,6 +33,15 @@
   --danger-color: #ff5252;
   --info-color: #40c4ff;
 
+  /* Headline-number scale (design §6.5). Two steps for one concept, replacing
+     eight ad-hoc sizes. --readout-hero is FLAT, not clamped: the root font-size
+     clamp already shrinks it, and a second clamp measured smaller than today at
+     mobile. --readout-primary is what makes the pressure and UV numbers legible
+     at desktop widths -- and, deliberately, ~12% smaller on phones, which is
+     what a scale means. */
+  --readout-hero: 4rem;
+  --readout-primary: clamp(1.75rem, 1.35rem + 1.1vw, 2.5rem);
+
   font-family: 'Inter Variable', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   font-weight: 400;
   line-height: 1.5;

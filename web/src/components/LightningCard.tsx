@@ -2,6 +2,8 @@ import { memo } from 'react';
 import type { CurrentObservation } from '../types/weather';
 import { GlassCard } from './GlassCard';
 import { Badge } from './primitives/Badge';
+import { Readout } from './primitives/Readout';
+import { StatRow } from './primitives/StatRow';
 
 interface LightningCardProps {
   current: CurrentObservation;
@@ -21,20 +23,22 @@ function LightningCardImpl({ current }: LightningCardProps) {
       </div>
 
       <div className="lightning-content">
-        <div className="lightning-stats-row">
-          <div className="lightning-stat">
-            <span className="lightning-count">{current.lightningStrikeCount}</span>
-            <span className="lightning-label">strikes today</span>
-          </div>
-          <div className="lightning-stat">
-            <span className={`lightning-distance ${hasStrikes ? '' : 'lightning-distance-none'}`}>
-              {hasStrikes && current.lightningStrikeAvgDistance > 0
+        <StatRow minColumn={130}>
+          <Readout
+            value={current.lightningStrikeCount}
+            qualifier="strikes today"
+            valueClassName="lightning-count-value"
+          />
+          <Readout
+            value={
+              hasStrikes && current.lightningStrikeAvgDistance > 0
                 ? `${current.lightningStrikeAvgDistance.toFixed(1)} km`
-                : '—'}
-            </span>
-            <span className="lightning-label">avg distance</span>
-          </div>
-        </div>
+                : '—'
+            }
+            qualifier="avg distance"
+            valueClassName={hasStrikes ? undefined : 'lightning-distance-none'}
+          />
+        </StatRow>
         {!hasStrikes && (
           <div className="lightning-clear">
             <span className="lightning-clear-text">No lightning detected</span>
