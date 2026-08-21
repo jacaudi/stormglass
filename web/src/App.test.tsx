@@ -84,6 +84,7 @@ vi.mock('maplibre-gl', () => ({
   Map: MockMap,
   AttributionControl: MockAttributionControl,
   addProtocol: addProtocolMock,
+  setWorkerUrl: vi.fn(),
 }));
 
 vi.mock('pmtiles', () => ({

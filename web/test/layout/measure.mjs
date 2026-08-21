@@ -714,4 +714,35 @@ CHECKS.push({
   pass: (m) => /°[WE] ·/.test(m.widths['1512'].header.locText ?? ''),
 });
 
+// --- Task 11 / design §6.10 / #184 ------------------------------------------
+CHECKS.push({
+  id: 'maplibre-worker-emitted',
+  section: '§6.10 / #184',
+  describe: (m) => `file ${m.worker.workerFile ?? 'MISSING'} referenced ${m.worker.referenced}`,
+  pass: (m) => m.worker.workerFile !== null && m.worker.referenced === true,
+});
+
+// Weaker than design §12's "/assets/maplibre-gl-worker-*.js returns 200",
+// deliberately and on the record. loadRadar() runs only inside map.on('load')
+// (RadarCard.tsx:234-243), so if MapLibre never initialises in headless
+// Chromium the worker is never requested and a 200-required check would fail
+// for a reason unrelated to this fix. Asserted instead: no worker request 404s,
+// and any that WAS made returned 200. `maplibre-worker-emitted` above is the
+// deterministic half and is the real gate.
+CHECKS.push({
+  id: 'no-worker-404',
+  section: '§6.10 / #184',
+  describe: (m) => {
+    const hits = m.requestLog.filter((r) => /maplibre-gl-worker/.test(r.path));
+    // /basemap/osm.pmtiles 404s BY DESIGN (PROVENANCE.md) and is not counted.
+    return hits.length
+      ? JSON.stringify(hits)
+      : 'worker never requested (MapLibre did not initialise) -- see maplibre-worker-emitted';
+  },
+  pass: (m) =>
+    m.requestLog
+      .filter((r) => /maplibre-gl-worker/.test(r.path))
+      .every((r) => r.status === 200),
+});
+
 await main();
