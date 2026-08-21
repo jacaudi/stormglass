@@ -118,6 +118,12 @@ export async function probe(page) {
     // Latent today only because the fixture has forecast: false.
     const almanacCard = q('.almanac-astro') ? cardOf(q('.almanac-astro')) : null;
     const almanacIndex = almanacCard ? cards.indexOf(almanacCard) : -1;
+    // almanacFound names the fact directly rather than making every reader of
+    // almanacClipped re-derive it from a sentinel: almanacClipped is 0 both
+    // when the almanac genuinely has zero clipped leaves AND when
+    // .almanac-astro can't be found at all (renamed/deleted), and those two
+    // cases must not be conflated by a threshold that only checks `=== 0`.
+    const almanacFound = almanacIndex !== -1;
     const almanacClipped = almanacIndex === -1
       ? 0
       : clipped.filter((c) => c.cardIndex === almanacIndex).length;
@@ -176,6 +182,7 @@ export async function probe(page) {
       cardCount: cards.length,
       clipped,
       clippedCount: clipped.length,
+      almanacFound,
       almanacClipped,
       asymmetry,
       rowSpread,

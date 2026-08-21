@@ -593,25 +593,27 @@ CHECKS.push({
 // probe.mjs's own almanacIndex === -1 branch returns the sentinel 0 when the
 // almanac card can't be found at all (e.g. .almanac-astro renamed or deleted),
 // which is indistinguishable from "genuinely zero clipped leaves" on this
-// field alone. almanacMoonOffset is null under the same "selector missing"
-// condition (it too depends on the almanac card being found) and is not
-// subject to a passing-value sentinel, so it stands in as the fail-loud guard
-// here rather than trusting almanacClipped === 0 on its own.
+// field alone. Fix round 1: an earlier version of this guard used
+// almanacMoonOffset !== null, which is gated on the CHILD .almanac-moon
+// (probe.mjs) rather than the PARENT .almanac-astro that almanacClipped's
+// sentinel actually keys on -- a rename of .almanac-astro alone, leaving the
+// subtree (including .almanac-moon) intact, would have left that guard
+// passing while the real clipping state was unknown. almanacFound is the
+// direct fact (almanacIndex !== -1, probe.mjs), keyed on the same element as
+// the sentinel it guards.
 CHECKS.push({
   id: 'almanac-not-clipped',
   section: '§6.7',
   describe: (m) =>
     [390, 320]
       .map((w) =>
-        m.widths[w].almanacMoonOffset === null
-          ? `${w}: SELECTOR MISSING (.almanac-astro)`
-          : `${w}: ${m.widths[w].almanacClipped}`
+        m.widths[w].almanacFound
+          ? `${w}: ${m.widths[w].almanacClipped}`
+          : `${w}: ALMANAC CARD NOT FOUND (.almanac-astro)`
       )
       .join('  '),
   pass: (m) =>
-    [390, 320].every(
-      (w) => m.widths[w].almanacMoonOffset !== null && m.widths[w].almanacClipped === 0
-    ),
+    [390, 320].every((w) => m.widths[w].almanacFound && m.widths[w].almanacClipped === 0),
 });
 
 // The global criterion. Registered here because this is the last of the four
