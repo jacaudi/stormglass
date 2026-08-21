@@ -980,6 +980,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   padding: 1rem 0;
   min-height: 130px;
 }
@@ -988,8 +989,11 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  /* keep sun sections away from center moon */
-  max-width: calc(50% - 100px);
+  /* was max-width: calc(50% - 100px) -- a 50px cap on a block holding a 40px
+     SVG plus text in a 300px-wide card, which is what clipped "Sunrise" and its
+     time at phone widths. Safe to remove ONLY because .almanac-moon is now a
+     flex item; see the media queries below. */
+  max-width: none;
 }
 
 .almanac-sun-right {
@@ -1066,7 +1070,8 @@
 
 .almanac-records {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  /* was repeat(4, 1fr) with no floor, which clipped 7 text leaves at 390px */
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
   gap: 0;
 }
 
@@ -1141,6 +1146,32 @@
   height: 1px;
   background: var(--border-color);
   margin: 0.25rem 0;
+}
+
+/* Correction to design §6.7 -- .almanac-moon is position: absolute; left: 50%
+   (above), so it is NOT a flex item and .almanac-astro's flex-wrap cannot
+   displace it: removing .almanac-sun's max-width cap without this returns the
+   moon to normal flow so it can share the wrapped row instead of sitting
+   pinned over the card's centre with the sun blocks now free to grow under
+   it. Scoped to the one-column band: at 504px and up all three blocks still
+   fit across the card and that layout already reads correctly, so it keeps
+   the row. */
+@media (max-width: 640px) {
+  .almanac-moon { position: static; left: auto; top: auto; transform: none; }
+}
+
+/* Below 480px the three blocks can no longer share a line. Left as a wrapping
+   row, `justify-content: space-between` drops the moon at whichever end of the
+   wrapped line it lands on -- measured 69/89/104/123px off the card's centre at
+   320/360/390/430. A centred column stacks sunrise / moon / sunset in reading
+   order with the moon on the centre line. */
+@media (max-width: 480px) {
+  .almanac-astro {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+  }
 }
 
 /* --- Station health card ------------------------------------- */
@@ -1597,7 +1628,7 @@
 .records-header { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
 .records-title { font-size: .82rem; letter-spacing: .08em; text-transform: uppercase; color: var(--text-secondary); font-weight: 600; }
 .records-window { margin-left: auto; font-size: .8rem; color: var(--text-muted); display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border: 1px solid var(--border-color); border-radius: 999px; }
-.records-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); align-items: stretch; }
+.records-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); align-items: stretch; }
 .rstat { padding: 14px 16px; border-radius: 14px; border: 1px solid var(--border-color); background: rgba(255,255,255,.05); display: flex; flex-direction: column; }
 .rstat-label { font-size: .68rem; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 10px; }
 .rstat-body { flex: 1; display: flex; flex-direction: column; justify-content: center; }

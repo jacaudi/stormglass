@@ -561,4 +561,73 @@ CHECKS.push({
   pass: (m) => WIDTHS.every((w) => m.widths[w].docOverflow === 0),
 });
 
+// --- Task 8 / design §6.7 / #183 + the unfiled almanac defect ---------------
+// Design measured 918.5 -> 480.8 = 52.3% against this 55% threshold, and
+// 216.5 -> 117.7 = 54.4% against the 60% one below -- 2.7pp and 5.6pp of
+// margin, on quantities design §15 lists as live-only and requiring
+// re-measurement. If a fixture-derived ratio lands just over (say 56% / 61%),
+// the CSS is not wrong: record baseline and after, confirm the direction and
+// magnitude match the design's, and raise that one constant by the measured
+// difference plus 2pp, quoting both numbers in the task report. A ratio that is
+// nowhere near -- above 75% -- means the CSS did not take, and is a defect.
+//
+// `null <= N` is `true` in JavaScript, so a missing `.records-card` selector
+// (records.height === null) must be excluded BEFORE the ratio comparison
+// rather than folded into it -- otherwise a deleted selector reads as "0px
+// tall", which trivially passes a "shorter than baseline" check.
+CHECKS.push({
+  id: 'records-card-not-a-tower',
+  section: '§6.7 / #183',
+  describe: (m) => {
+    const h = m.widths['390'].records.height;
+    if (h === null) return '390: SELECTOR MISSING (.records-card)';
+    return `390: ${BASELINE.widths['390'].records.height.toFixed(1)} -> ${h.toFixed(1)}`;
+  },
+  pass: (m) => {
+    const h = m.widths['390'].records.height;
+    return h !== null && h <= 0.55 * BASELINE.widths['390'].records.height;
+  },
+});
+
+// almanacClipped is a COUNT (probe.mjs), not a nullable measurement -- but
+// probe.mjs's own almanacIndex === -1 branch returns the sentinel 0 when the
+// almanac card can't be found at all (e.g. .almanac-astro renamed or deleted),
+// which is indistinguishable from "genuinely zero clipped leaves" on this
+// field alone. almanacMoonOffset is null under the same "selector missing"
+// condition (it too depends on the almanac card being found) and is not
+// subject to a passing-value sentinel, so it stands in as the fail-loud guard
+// here rather than trusting almanacClipped === 0 on its own.
+CHECKS.push({
+  id: 'almanac-not-clipped',
+  section: '§6.7',
+  describe: (m) =>
+    [390, 320]
+      .map((w) =>
+        m.widths[w].almanacMoonOffset === null
+          ? `${w}: SELECTOR MISSING (.almanac-astro)`
+          : `${w}: ${m.widths[w].almanacClipped}`
+      )
+      .join('  '),
+  pass: (m) =>
+    [390, 320].every(
+      (w) => m.widths[w].almanacMoonOffset !== null && m.widths[w].almanacClipped === 0
+    ),
+});
+
+// The global criterion. Registered here because this is the last of the four
+// contributors (type scale, ladder, hero wrap, almanac rules); every later task
+// re-runs it, so it also guards them.
+CHECKS.push({
+  id: 'zero-clipped-leaves',
+  section: '§6.2 + §6.6 + §6.7 / #178',
+  describe: (m) => {
+    const bad = WIDTHS.filter((w) => m.widths[w].clippedCount > 0);
+    if (!bad.length) return '0 at all 19 widths';
+    const w = bad[0];
+    return `${bad.map((x) => `${x}:${m.widths[x].clippedCount}`).join(' ')} | first at ${w}: ` +
+      JSON.stringify(m.widths[w].clipped.slice(0, 5));
+  },
+  pass: (m) => WIDTHS.every((w) => m.widths[w].clippedCount === 0),
+});
+
 await main();
