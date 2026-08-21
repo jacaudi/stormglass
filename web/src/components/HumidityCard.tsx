@@ -2,6 +2,9 @@ import { memo } from 'react';
 import type { CurrentObservation, TemperatureUnit } from '../types/weather';
 import { formatTemp } from '../hooks/useUnits';
 import { GlassCard } from './GlassCard';
+import { Readout } from './primitives/Readout';
+import { Stat } from './primitives/Stat';
+import { StatRow } from './primitives/StatRow';
 
 interface HumidityCardProps {
   current: CurrentObservation;
@@ -43,21 +46,18 @@ function HumidityCardImpl({ current, tempUnit }: HumidityCardProps) {
           />
         </svg>
         <div className="humidity-ring-text">
-          <span className="humidity-value">{Math.round(pct)}%</span>
-          <span className="humidity-level">{humidityLevel(pct)}</span>
+          <Readout
+            value={`${Math.round(pct)}%`}
+            qualifier={humidityLevel(pct)}
+            className="humidity-ring-readout"
+          />
         </div>
       </div>
 
-      <div className="humidity-stats-row">
-        <div className="humidity-stat">
-          <span className="humidity-stat-label">Dew Point</span>
-          <span className="humidity-stat-value">{formatTemp(current.dewPoint, tempUnit)}</span>
-        </div>
-        <div className="humidity-stat">
-          <span className="humidity-stat-label">Wet Bulb</span>
-          <span className="humidity-stat-value">{formatTemp(current.wetBulbTemperature, tempUnit)}</span>
-        </div>
-      </div>
+      <StatRow divider minColumn={110}>
+        <Stat label="Dew Point" value={formatTemp(current.dewPoint, tempUnit)} />
+        <Stat label="Wet Bulb" value={formatTemp(current.wetBulbTemperature, tempUnit)} />
+      </StatRow>
     </GlassCard>
   );
 }
