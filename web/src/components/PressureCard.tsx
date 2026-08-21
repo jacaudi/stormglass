@@ -3,6 +3,8 @@ import type { CurrentObservation, PressureUnit } from '../types/weather';
 import { formatPressure } from '../hooks/useUnits';
 import { PressureTrend } from '../types/weather';
 import { GlassCard } from './GlassCard';
+import { Readout } from './primitives/Readout';
+import { ScaleBar } from './primitives/ScaleBar';
 
 interface PressureCardProps {
   current: CurrentObservation;
@@ -35,26 +37,21 @@ function PressureCardImpl({ current, unit }: PressureCardProps) {
         </svg>
         <span className="card-title">Pressure</span>
       </div>
-      <div className="pressure-value-block">
-        <span className="pressure-value">{formatPressure(current.stationPressure, unit)}</span>
-        <span className={`pressure-trend trend-${current.pressureTrend}`}>
-          {trendArrow(current.pressureTrend)} {trendLabel(current.pressureTrend)}
-        </span>
-      </div>
+      <Readout
+        inline
+        value={formatPressure(current.stationPressure, unit)}
+        qualifier={
+          <span className={`pressure-trend trend-${current.pressureTrend}`}>
+            {trendArrow(current.pressureTrend)} {trendLabel(current.pressureTrend)}
+          </span>
+        }
+      />
       <div className="pressure-gauge">
-        <div className="gauge-track">
-          <div
-            className="gauge-fill"
-            style={{
-              width: `${Math.min(100, Math.max(0, ((current.stationPressure - 980) / 60) * 100))}%`,
-            }}
-          />
-        </div>
-        <div className="gauge-labels">
-          <span>Low</span>
-          <span>Normal</span>
-          <span>High</span>
-        </div>
+        <ScaleBar
+          percent={((current.stationPressure - 980) / 60) * 100}
+          fillClassName="pressure-gauge-fill"
+          ticks={['Low', 'Normal', 'High']}
+        />
       </div>
     </GlassCard>
   );

@@ -324,6 +324,65 @@
   color: var(--text-muted);
 }
 
+/* --- ScaleBar (primitive) ------------------------------------------- */
+/* Geometry only. The pressure gauge and the UV bar are inside-out relative to
+   each other -- the gauge's gradient is on its FILL, the UV bar's is on its
+   TRACK with a transparent fill and a position indicator -- so colour stays at
+   the call sites and only the shape is shared.
+   No `overflow: hidden` on the track: it would clip the indicator, which sits at
+   top: -3px and is 12px tall. The fill's own border-radius rounds its leading
+   edge, which is what both originals already relied on. */
+.scale-bar { margin-top: 0.25rem; }
+
+.scale-bar-track {
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg-secondary);
+}
+
+.scale-bar-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.6s ease;
+}
+
+.scale-bar-indicator {
+  position: absolute;
+  top: -3px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--text-primary);
+  border: 2px solid var(--bg-card);
+  transform: translateX(-50%);
+  box-shadow: 0 0 6px var(--shadow-color);
+  transition: left 0.6s ease;
+}
+
+.scale-bar-ticks {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.3rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* Call-site colour: the pressure gauge reads from its fill. */
+.pressure-gauge-fill {
+  background: linear-gradient(90deg, var(--info-color), var(--success-color), var(--warning-color));
+}
+
+/* Call-site colour: the UV bar reads from its track plus its indicator, so its
+   fill stays invisible. Added here so Task 17 only has to delete the old rules. */
+.uv-scale .scale-bar-track {
+  background: linear-gradient(90deg, #00e676, #ffeb3b, #ff9800, #f44336, #9c27b0);
+}
+.uv-scale .scale-bar-fill { background: transparent; }
+
 /* --- Header -------------------------------------------------- */
 .app-header {
   position: sticky;
@@ -717,18 +776,6 @@
 }
 
 /* --- Pressure card ------------------------------------------- */
-.pressure-value-block {
-  display: flex;
-  align-items: baseline;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-}
-
-.pressure-value {
-  font-size: 1.6rem;
-  font-weight: 600;
-}
-
 .pressure-trend {
   font-size: 0.8rem;
   font-weight: 500;
@@ -739,29 +786,13 @@
 .trend-steady { color: var(--text-muted); }
 
 .pressure-gauge {
-  margin-top: 0.5rem;
-}
-
-.gauge-track {
-  height: 6px;
-  background: var(--bg-secondary);
-  border-radius: 3px;
-  overflow: hidden;
-}
-
-.gauge-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--info-color), var(--success-color), var(--warning-color));
-  border-radius: 3px;
-  transition: width 0.6s ease;
-}
-
-.gauge-labels {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 0.3rem;
-  font-size: 0.8rem;
-  color: var(--text-muted);
+  /* Restores the 1.5rem readout-to-gauge gap the pre-primitive markup had
+     (.pressure-value-block's margin-bottom: 1rem + this rule's original
+     margin-top: 0.5rem). Measured: dropping the 1rem shrank the gap from
+     ~27px to ~9px at 1512 and pushed cards-fill-their-height's asymmetry
+     check from 133.1 over its 129.9 (0.6x baseline) threshold -- restoring
+     it here, at the call site, brings both back in line. */
+  margin-top: 1.5rem;
 }
 
 /* --- Solar & UV card ----------------------------------------- */
