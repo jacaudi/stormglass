@@ -494,4 +494,55 @@ CHECKS.push({
   pass: (m) => [504, 430, 390, 360, 320].every((w) => m.widths[w].hero.height >= 180),
 });
 
+// --- Task 7 / design §6.6a --------------------------------------------------
+// RELATIVE, because the height depends on the station name. m.headerRevert is
+// the same fixture measured with §6.6a's declarations reverted to their
+// pre-change values, so this compares like with like.
+// The design derived ">= 35% shorter" from 123.9 -> 79px at 390 (63.8%) and
+// 123.3 -> 78.6 at 360 (63.7%). HEADER_RULE_REVERT reverts BOTH the root type
+// scale and §6.6a, so this compares against the same "before" that figure came
+// from -- roughly 1.2pp of margin against 0.65. If the fixture-derived ratio
+// lands between 0.65 and 0.68, that is the fixture's station name and font
+// metrics, not a CSS defect: record both numbers, say so, and raise the
+// constant to 0.68 with that measurement quoted. Do NOT change Task 7's CSS,
+// which is exactly what design §7 specifies.
+CHECKS.push({
+  id: 'header-shorter-at-phone-widths',
+  section: '§6.6a',
+  describe: (m) =>
+    [390, 360].map((w) =>
+      `${w}: ${m.headerRevert[w].header.height.toFixed(1)} -> ${m.widths[w].header.height.toFixed(1)}`
+    ).join('  '),
+  pass: (m) =>
+    [390, 360].every(
+      (w) => m.widths[w].header.height <= 0.65 * m.headerRevert[w].header.height
+    ),
+});
+
+// ABSOLUTE and name-independent: nothing may be truncated at any phone width.
+CHECKS.push({
+  id: 'header-nothing-truncated',
+  section: '§6.6a',
+  describe: (m) =>
+    [390, 360, 320]
+      .map((w) => `${w}: name ${m.widths[w].header.nameOverflow} loc ${m.widths[w].header.locOverflow}`)
+      .join('  '),
+  pass: (m) =>
+    [390, 360, 320].every(
+      (w) => m.widths[w].header.nameOverflow <= 0 && m.widths[w].header.locOverflow <= 0
+    ),
+});
+
+CHECKS.push({
+  id: 'no-page-overflow',
+  section: '§6.2 + §6.6a',
+  describe: (m) => {
+    const bad = WIDTHS.filter((w) => m.widths[w].docOverflow !== 0);
+    return bad.length
+      ? bad.map((w) => `${w}:${m.widths[w].docOverflow} (${m.widths[w].widestOffender.cls})`).join(' ')
+      : '0 at all 19 widths';
+  },
+  pass: (m) => WIDTHS.every((w) => m.widths[w].docOverflow === 0),
+});
+
 await main();

@@ -1557,6 +1557,21 @@
   .card-span-3 {
     grid-column: span 1;
   }
+
+  /* Header at phone widths (in no filed issue; found by the probe). Shrink the
+     competing parts -- do NOT truncate and do NOT hide anything. Every
+     information-removing alternative was measured and rejected; see design
+     §6.6a. `.logo-icon svg` is sized in CSS over the SVG's presentational
+     width/height attributes, the same override .card-icon relies on.
+     This is also what closes the last of the 320px page overflow: the widest
+     offender today is .header-right reaching right = 337.3 on a 320px
+     viewport, nothing to do with the grid. */
+  .app-header    { padding: 0.6rem 1rem; gap: 0.5rem; }
+  .header-right  { gap: 0.5rem; flex-shrink: 0; }
+  .station-name  { font-size: 1.05rem; gap: 0.4rem; }
+  .logo-icon svg { width: 20px; height: 20px; }
+  .status-badge  { padding: 0.25rem 0.5rem; font-size: 0.7rem; }
+  .last-updated  { font-size: 0.7rem; }
 }
 
 /* The settings panel keeps its OWN 560px query -- it is an overlay whose sizing
