@@ -2,6 +2,10 @@ import { memo } from 'react';
 import type { CurrentObservation } from '../types/weather';
 import { GlassCard } from './GlassCard';
 import { formatX } from '../utils/format';
+import { Stat } from './primitives/Stat';
+import { StatRow } from './primitives/StatRow';
+import { Readout } from './primitives/Readout';
+import { ScaleBar } from './primitives/ScaleBar';
 
 interface SolarUVCardProps {
   current: CurrentObservation;
@@ -32,8 +36,6 @@ function solarIntensity(radiation: number): string {
 }
 
 function SolarUVCardImpl({ current }: SolarUVCardProps) {
-  const uvPct = Math.min(100, (current.uvIndex / 11) * 100);
-
   return (
     <GlassCard className="solar-uv-card">
       <div className="card-header">
@@ -53,38 +55,28 @@ function SolarUVCardImpl({ current }: SolarUVCardProps) {
 
       <div className="solar-uv-grid">
         <div className="uv-section">
-          <div className="uv-index-display">
-            <span className={`uv-number ${uvColorClass(current.uvIndex)}`}>
-              {formatX(current.uvIndex, (n) => n.toFixed(1))}
-            </span>
-            <span className="uv-label">{uvLabel(current.uvIndex)}</span>
-          </div>
-          <div className="uv-bar">
-            <div className="uv-bar-track">
-              <div className="uv-bar-fill" style={{ width: `${uvPct}%` }} />
-              <div className="uv-bar-indicator" style={{ left: `${uvPct}%` }} />
-            </div>
-            <div className="uv-bar-labels">
-              <span>0</span>
-              <span>3</span>
-              <span>6</span>
-              <span>8</span>
-              <span>11+</span>
-            </div>
-          </div>
+          <Readout
+            inline
+            value={formatX(current.uvIndex, (n) => n.toFixed(1))}
+            qualifier={uvLabel(current.uvIndex)}
+            valueClassName={uvColorClass(current.uvIndex)}
+          />
+          <ScaleBar
+            className="uv-scale"
+            percent={(current.uvIndex / 11) * 100}
+            indicator
+            ticks={['0', '3', '6', '8', '11+']}
+          />
         </div>
 
-        <div className="solar-section">
-          <div className="solar-stat">
-            <span className="stat-label">Solar Radiation</span>
-            <span className="stat-value">{formatX(current.solarRadiation, (n) => `${Math.round(n * 10) / 10}`)} W/m²</span>
-            <span className="stat-sublabel">{solarIntensity(current.solarRadiation)}</span>
-          </div>
-          <div className="solar-stat">
-            <span className="stat-label">Illuminance</span>
-            <span className="stat-value">{current.illuminance.toLocaleString()} lux</span>
-          </div>
-        </div>
+        <StatRow minColumn={130}>
+          <Stat
+            label="Solar Radiation"
+            value={`${formatX(current.solarRadiation, (n) => `${Math.round(n * 10) / 10}`)} W/m²`}
+            sublabel={solarIntensity(current.solarRadiation)}
+          />
+          <Stat label="Illuminance" value={`${current.illuminance.toLocaleString()} lux`} />
+        </StatRow>
       </div>
     </GlassCard>
   );

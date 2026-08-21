@@ -808,81 +808,11 @@
   gap: 0.5rem;
 }
 
-.uv-index-display {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-}
-
-.uv-number {
-  font-size: 2rem;
-  font-weight: 700;
-  line-height: 1;
-}
-
 .uv-low { color: var(--success-color); }
 .uv-moderate { color: var(--warning-color); }
 .uv-high { color: #ff9100; }
 .uv-very-high { color: var(--danger-color); }
 .uv-extreme { color: #d500f9; }
-
-.uv-label {
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: var(--text-secondary);
-}
-
-.uv-bar {
-  margin-top: 0.25rem;
-}
-
-.uv-bar-track {
-  position: relative;
-  height: 6px;
-  border-radius: 3px;
-  background: linear-gradient(90deg, #00e676, #ffeb3b, #ff9800, #f44336, #9c27b0);
-}
-
-.uv-bar-fill {
-  position: absolute;
-  top: 0;
-  left: 0;
-  height: 100%;
-  border-radius: 3px;
-  background: transparent;
-}
-
-.uv-bar-indicator {
-  position: absolute;
-  top: -3px;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: var(--text-primary);
-  border: 2px solid var(--bg-card);
-  transform: translateX(-50%);
-  box-shadow: 0 0 6px var(--shadow-color);
-  transition: left 0.6s ease;
-}
-
-.uv-bar-labels {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 0.3rem;
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-
-.solar-section {
-  display: flex;
-  gap: 1rem;
-}
-
-.solar-stat {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
 
 /* --- Rain card ----------------------------------------------- */
 .rain-grid {
