@@ -520,17 +520,33 @@ CHECKS.push({
 });
 
 // ABSOLUTE and name-independent: nothing may be truncated at any phone width.
+// nameOverflow/locOverflow are `null` (probe.mjs) when their selector doesn't
+// match -- e.g. a later task renames the class, or a fixture without a
+// location string. `null <= 0` is `true` in JavaScript, so both halves
+// exclude null BEFORE comparing rather than folding it into the numeric
+// check; a missing selector must FAIL loud, never read as "0px overflow".
 CHECKS.push({
   id: 'header-nothing-truncated',
   section: '§6.6a',
   describe: (m) =>
     [390, 360, 320]
-      .map((w) => `${w}: name ${m.widths[w].header.nameOverflow} loc ${m.widths[w].header.locOverflow}`)
+      .map((w) => {
+        const { nameOverflow, locOverflow } = m.widths[w].header;
+        const missing = [];
+        if (nameOverflow == null) missing.push('.station-name');
+        if (locOverflow == null) missing.push('.station-location');
+        return missing.length
+          ? `${w}:SELECTOR MISSING (${missing.join(', ')})`
+          : `${w}: name ${nameOverflow} loc ${locOverflow}`;
+      })
       .join('  '),
   pass: (m) =>
-    [390, 360, 320].every(
-      (w) => m.widths[w].header.nameOverflow <= 0 && m.widths[w].header.locOverflow <= 0
-    ),
+    [390, 360, 320].every((w) => {
+      const { nameOverflow, locOverflow } = m.widths[w].header;
+      return (
+        nameOverflow != null && nameOverflow <= 0 && locOverflow != null && locOverflow <= 0
+      );
+    }),
 });
 
 CHECKS.push({
