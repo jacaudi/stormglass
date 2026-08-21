@@ -75,6 +75,24 @@ describe('SolarUVCard converted readouts (design §6.5, Task 17)', () => {
     expect(indicator, 'expected an indicator element positioned by left').toBeTruthy();
   });
 
+  it('puts the uv-scale class on the same element as scale-bar, so the .uv-scale .scale-bar-track descendant selector actually matches', () => {
+    // ScaleBar puts its `className` prop on the OUTER `.scale-bar` element, and
+    // App.css colours the bar via the descendant selector
+    // `.uv-scale .scale-bar-track` (and `.uv-scale .scale-bar-fill`). Neither
+    // vitest's jsdom render nor any committed layout threshold applies that
+    // stylesheet, so nothing else catches `className="uv-scale"` silently
+    // going missing from the ScaleBar call -- which would leave the bar
+    // rendering grey with zero other test failure. This test exists
+    // specifically to catch that: it asserts `.uv-scale` and `.scale-bar` are
+    // the SAME element, not merely that `.uv-scale` exists somewhere in the
+    // tree, because "somewhere" would not make the descendant selector match.
+    const { container } = render(<SolarUVCard current={baseCurrent} />);
+
+    const scaleBar = container.querySelector('.scale-bar')!;
+    expect(scaleBar).not.toBeNull();
+    expect(scaleBar).toHaveClass('uv-scale');
+  });
+
   it('renders Solar Radiation and Illuminance label/value/sublabel with correct values and units', () => {
     // Deliberately not scoped through a `.stat` wrapper: that class is the
     // Stat primitive's own wrapper, added by the conversion. Today's markup
