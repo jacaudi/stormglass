@@ -632,4 +632,78 @@ CHECKS.push({
   pass: (m) => WIDTHS.every((w) => m.widths[w].clippedCount === 0),
 });
 
+// --- Task 9 / design §6.4 / #180 --------------------------------------------
+// Both checks below are corrected from the plan's literal snippet: `null <= N`
+// is `true` in JavaScript, so an absent `asymmetry`/`rowSpread` (a renamed or
+// deleted probe field) would otherwise silently PASS instead of failing loud.
+CHECKS.push({
+  id: 'cards-fill-their-height',
+  section: '§6.4 / #180',
+  describe: (m) => {
+    const before = BASELINE.widths['1512']?.asymmetry;
+    const after = m.widths['1512']?.asymmetry;
+    if (before == null || after == null) {
+      return `MISSING asymmetry (baseline ${before} -> current ${after})`;
+    }
+    return `1512: ${before.toFixed(1)} -> ${after.toFixed(1)}`;
+  },
+  pass: (m) => {
+    const before = BASELINE.widths['1512']?.asymmetry;
+    const after = m.widths['1512']?.asymmetry;
+    return before != null && after != null && after <= 0.6 * before;
+  },
+});
+
+CHECKS.push({
+  id: 'rows-stay-uniform',
+  section: '§6.4 / #180 #182',
+  describe: (m) => {
+    const missing = WIDTHS.filter((w) => m.widths[w]?.rowSpread == null);
+    if (missing.length) return `MISSING rowSpread at ${missing.join(', ')}`;
+    const worst = WIDTHS.reduce(
+      (a, w) => (m.widths[w].rowSpread > a.v ? { w, v: m.widths[w].rowSpread } : a),
+      { w: null, v: -1 }
+    );
+    return `worst spread ${worst.v.toFixed(2)}px at ${worst.w}`;
+  },
+  pass: (m) =>
+    WIDTHS.every((w) => m.widths[w]?.rowSpread != null && m.widths[w].rowSpread <= 1),
+});
+
+// The three hand-rolled copies of the adopted idiom must be gone -- leaving them
+// is exactly the duplication design §4.3 is about -- and .glass-card must keep
+// position: relative, because deleting `.rain-card { position: relative }` is
+// only safe on the strength of it and .rain-animation depends on it.
+CHECKS.push({
+  id: 'per-card-interior-rules-deleted',
+  section: '§6.4 / §4.3',
+  describe: (m) =>
+    `banned ${JSON.stringify(m.css.bannedFound)} glassRelative ${m.css.hasGlassRelative}`,
+  pass: (m) => m.css.bannedFound.length === 0 && m.css.hasGlassRelative === true,
+});
+
+// B-1's regression gate: the rain card must centre in BOTH states. m.rain is a
+// second server instance serving observations-current.rain.json, so
+// .rain-animation is present as a conditional third child.
+CHECKS.push({
+  id: 'rain-card-centres-while-raining',
+  section: '§6.4 / §15 B-1',
+  describe: (m) => {
+    const dry = m.widths['1512'].rainGrid;
+    const wet = m.rain.rainGrid;
+    return `dry ${dry.marginTop.toFixed(1)}/${dry.marginBottom.toFixed(1)} ` +
+      `wet ${wet.marginTop.toFixed(1)}/${wet.marginBottom.toFixed(1)} ` +
+      `(animation present: ${wet.hasAnimation})`;
+  },
+  pass: (m) => {
+    const dry = m.widths['1512'].rainGrid;
+    const wet = m.rain.rainGrid;
+    return (
+      wet.hasAnimation === true &&
+      Math.abs(dry.marginTop - dry.marginBottom) <= 1 &&
+      Math.abs(wet.marginTop - wet.marginBottom) <= 1
+    );
+  },
+});
+
 await main();

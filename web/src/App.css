@@ -76,6 +76,66 @@
   text-shadow: var(--text-shadow);
 }
 
+/* Card interiors (#180). Scoped to `.dashboard-grid >` deliberately:
+   SettingsPanel.tsx:68 renders `settings-panel glass-card`, and an unscoped rule
+   would turn the modal into a flex column with auto margins on its body, against
+   its own overflow-y: auto and max-height: 85dvh. The probe never opens it and
+   no test covers it, so that would ship unseen.
+
+   The radar card is excluded with :not() rather than overridden. Per Selectors-4
+   the general rule below is (0,5,0) once :nth-last-child(1 of :not(.rain-animation))
+   contributes its inner selector's specificity, so a `.dashboard-grid > .radar-card >`
+   override would LOSE the margin-bottom -- and per Flexbox §8.1 auto margins
+   absorb positive free space before flex-grow, so `flex: 1 1 auto` would be
+   neutered whenever free space is positive. Excluding is exact; overriding was
+   measured to lose.
+
+   Rows keep stretching to the tallest sibling --
+   uniform block heights are the design's signature. The card's first block
+   pins to the top and the remaining content is centred as a GROUP via auto
+   margins, rather than each block growing (which strands the pressure gauge at
+   the card's bottom edge with a void above it).
+
+   Deliberately sets NO `display` on children: a blanket `display: flex`
+   destroys `display: grid` on .records-grid and .almanac-records -- measured,
+   the records card went 238px -> 1014px.
+
+   `:first-child`, not `.card-header`: RecordsCard.tsx:38 heads with
+   .records-header, and .hero-card has no header element at all (it is already
+   centred by :264-269, so `:first-child + *` correctly matches nothing there).
+
+   `:nth-last-child(1 of :not(.rain-animation))`, not `:last-child`:
+   RainCard.tsx:68 renders .rain-animation as a third child ONLY while it is
+   raining. It is position: absolute (:714-723) so it absorbs no free space, yet
+   it is structurally :last-child -- a plain :last-child rule hands it the
+   margin-bottom: auto it cannot use and bottom-pins the card (measured 270/0
+   raining against 135/135 dry). Both "just move it in the DOM" fixes were
+   tested and break the other way; the out-of-flow element has to be excluded.
+   Supported Safari 9+ / Chrome 111+ / Firefox 113+. Phase 2 removes the need
+   for the exclusion, because the primitives give every card one body element. */
+.dashboard-grid > .glass-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard-grid > .glass-card > :first-child {
+  flex: 0 0 auto;
+}
+
+.dashboard-grid > .glass-card:not(.radar-card) > :first-child + * {
+  margin-top: auto;
+}
+
+.dashboard-grid > .glass-card:not(.radar-card) > :first-child ~ :nth-last-child(1 of :not(.rain-animation)) {
+  margin-bottom: auto;
+}
+
+/* The radar map is the one body that should CONSUME the height rather than be
+   centred in it. No margin override needed -- it is excluded above. */
+.dashboard-grid > .radar-card > :first-child + * {
+  flex: 1 1 auto;
+}
+
 .glass-card::before {
   content: '';
   position: absolute;
@@ -698,17 +758,6 @@
 }
 
 /* --- Rain card ----------------------------------------------- */
-.rain-card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-}
-
-.rain-card .rain-grid {
-  margin-top: auto;
-  margin-bottom: auto;
-}
-
 .rain-active-badge {
   font-size: 0.8rem;
   font-weight: 600;
@@ -777,16 +826,6 @@
 }
 
 /* --- Lightning card ------------------------------------------ */
-.lightning-card {
-  display: flex;
-  flex-direction: column;
-}
-
-.lightning-card .lightning-content {
-  margin-top: auto;
-  margin-bottom: auto;
-}
-
 .lightning-active {
   border-color: var(--warning-color) !important;
 }
@@ -1175,16 +1214,6 @@
 }
 
 /* --- Station health card ------------------------------------- */
-.station-health-card {
-  display: flex;
-  flex-direction: column;
-}
-
-.station-health-card .health-grid {
-  margin-top: auto;
-  margin-bottom: auto;
-}
-
 .health-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1539,7 +1568,8 @@
 
 .radar-map-container {
   width: 100%;
-  height: 280px;
+  height: 100%;
+  min-height: 280px;
   border-radius: 12px;
   overflow: hidden;
 }

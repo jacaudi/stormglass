@@ -54,3 +54,22 @@ describe('RainCard raindrop stability (P2.13)', () => {
     expect(after).toEqual(before);
   });
 });
+
+describe('RainCard interior centring precondition (design §6.4)', () => {
+  it('renders the rain animation as a conditional LAST child while raining', () => {
+    // The interior rule in App.css excludes .rain-animation by class because it
+    // is an out-of-flow third child that exists only in this state. If the
+    // component ever stops rendering it last, or renders it unconditionally,
+    // the exclusion silently stops matching what it was written for.
+    const raining = { ...baseCurrent, precipitationType: PrecipitationType.Rain };
+    const { container } = render(<RainCard current={raining} unit="in" />);
+    const card = container.querySelector('.glass-card')!;
+    expect(card.lastElementChild).toHaveClass('rain-animation');
+
+    const dry = { ...baseCurrent, precipitationType: PrecipitationType.None };
+    const { container: dryContainer } = render(<RainCard current={dry} unit="in" />);
+    const dryCard = dryContainer.querySelector('.glass-card')!;
+    expect(dryCard.querySelector('.rain-animation')).toBeNull();
+    expect(dryCard.lastElementChild).toHaveClass('rain-grid');
+  });
+});
