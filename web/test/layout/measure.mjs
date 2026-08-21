@@ -706,4 +706,12 @@ CHECKS.push({
   },
 });
 
+// --- Task 10 / design §6.9 / #188 -------------------------------------------
+CHECKS.push({
+  id: 'header-separator-spaced',
+  section: '§6.9 / #188',
+  describe: (m) => JSON.stringify(m.widths['1512'].header.locText),
+  pass: (m) => /°[WE] ·/.test(m.widths['1512'].header.locText ?? ''),
+});
+
 await main();

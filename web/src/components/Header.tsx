@@ -34,7 +34,7 @@ export function Header({ station, status, lastUpdated, isStale, onSettingsClick 
             {formatCoord(station.latitude, station.longitude)}
             {/* hasCoordinates validates lat/lon only -- a response carrying
                 coordinates but no elevation would otherwise render "undefinedm". */}
-            &middot; {station.elevation ?? '—'}m
+            {' '}&middot; {station.elevation ?? '—'}m
           </span>
         )}
       </div>
