@@ -246,6 +246,46 @@
 
 .records-window-slot { margin-left: auto; }
 
+/* --- Stat / StatRow (primitives) ------------------------------------ */
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  min-width: 0;
+  text-align: center;
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.stat-value {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.stat-sublabel {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(var(--stat-row-min, 120px), 1fr));
+  gap: 0.5rem 1rem;
+}
+
+.stat-row-divided {
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-color);
+}
+
 /* --- Header -------------------------------------------------- */
 .app-header {
   position: sticky;
@@ -551,24 +591,6 @@
   flex-direction: column;
   align-items: center;
   flex: 1;
-}
-
-.stat-label {
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
-  font-weight: 500;
-}
-
-.stat-value {
-  font-size: 0.9rem;
-  font-weight: 600;
-}
-
-.stat-sublabel {
-  font-size: 0.75rem;
-  color: var(--text-muted);
 }
 
 .wind-avg {
@@ -1228,31 +1250,6 @@
 }
 
 /* --- Station health card ------------------------------------- */
-.health-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-}
-
-.health-item {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-
-.health-label {
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
-  font-weight: 500;
-}
-
-.health-value {
-  font-size: 0.85rem;
-  font-weight: 500;
-}
-
 .battery-display {
   display: flex;
   flex-direction: column;
