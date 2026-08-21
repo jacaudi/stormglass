@@ -735,6 +735,8 @@ and 7 at 360px** (`This Year`, `H ↑`, `83°F`, `Aug 18`, `L ↓`, `56°F`, `To
 widths the sunrise/sunset text renders **on top of** the moon.
 
 ```css
+.almanac-astro   { flex-wrap: wrap; }
+.almanac-sun     { max-width: none; }
 .almanac-records { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
 
 @media (max-width: 640px) {
@@ -746,19 +748,27 @@ widths the sunrise/sunset text renders **on top of** the moon.
 }
 ```
 
-The `.almanac-records` rule is required because `App.css:1029-1033` pins it to `repeat(4, 1fr)`
-with no floor. **§6.2's ladder changes nothing here**: at 390px the dashboard is one column both
-today (≤560) and under the ladder (≤640).
+`App.css:949-955` caps `.almanac-sun` at `calc(50% - 100px)` — a 50px cap on a block holding a
+40px SVG plus text in a 300px-wide card, and **that cap is what clips `Sunrise` and its time**.
+Dropping it is therefore required, not optional. `App.css:1029-1033` pins `.almanac-records` to
+`repeat(4, 1fr)` with no floor, hence the third rule. **§6.2's ladder changes nothing here**: at
+390px the dashboard is one column both today (≤560) and under the ladder (≤640).
 
-**Correction — the `.almanac-sun { max-width: none }` + `flex-wrap` mechanism is withdrawn.** This
-section previously specified lifting `.almanac-sun`'s `calc(50% - 100px)` cap (`App.css:949-955`)
-and wrapping `.almanac-astro`, reasoning that the wrap would keep the sun blocks clear of the
-centre moon. **It cannot.** `.almanac-moon` is `position: absolute; left: 50%`
-(`App.css:985-994`), so it is not a flex item and wrapping never displaces it. Measured against
-the live stack, that mechanism overlaps the sunrise/sunset text onto the moon by
-**84.7 / 64.7 / 50.8 / 32.4px at 320 / 360 / 390 / 430**. Overlap is not clipping — which is
-exactly why the earlier "0 clipped leaves at 390px" measurement was consistent with the defect and
-did not catch it.
+**Correction — the two rules stand; the *reason* given for them was false, and they are unsafe
+alone.** This section previously justified dropping `.almanac-sun`'s cap by claiming the wrap on
+`.almanac-astro` "is what now keeps the sun sections clear of the centre moon". **It cannot be.**
+`.almanac-moon` is `position: absolute; left: 50%` (`App.css:985-994`), so it is **not a flex
+item** and `flex-wrap` never displaces it — it stays pinned over the card's horizontal centre
+whatever the sun blocks do. The cap was the only thing holding them out from under it; the
+element's own source comment says as much (`/* keep sun sections away from center moon */`).
+
+So removing the cap is still **required** — it is what fixes the clipping — but on its own it
+trades a clipping defect for an overlap one: measured against the live stack, sunrise/sunset text
+lands on top of the moon by **84.7 / 64.7 / 50.8 / 32.4px at 320 / 360 / 390 / 430**. Overlap is
+not clipping, which is exactly why the earlier "0 clipped leaves at 390px" measurement was
+consistent with the defect and did not catch it. **The two media blocks are what make the cap
+removal safe**, by putting the moon back in flow so it participates in the layout that displaces
+it.
 
 **Returning the moon to normal flow ≤640px is only half the fix.** `justify-content:
 space-between` on `.almanac-astro` then drops the moon at whichever end of the wrapped line it
@@ -924,7 +934,11 @@ Phase 1 in full, so the plan implements this and not a paraphrase. Line referenc
 /* #183 — amends :1522 */
 .records-grid { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
 
-/* unfiled almanac clipping — amends :1029-1033 */
+/* unfiled almanac clipping — amends :940-947, :949-955, :1029-1033.
+   The cap removal is REQUIRED (it is what clips Sunrise) but is only safe
+   because the media blocks below put .almanac-moon back in flow — see §6.7. */
+.almanac-astro { flex-wrap: wrap; }
+.almanac-sun { max-width: none; }
 .almanac-records { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
 
 /* hero centres as a whole in the 1-column band (§6.6) — merges with the block below */
@@ -1204,7 +1218,7 @@ plan it spawned agree. Recorded rather than silently applied.
 
 | # | Finding | Resolution |
 |---|---|---|
-| **A-1** | §6.7 specified `.almanac-sun { max-width: none }` + `flex-wrap` on `.almanac-astro`, on the reasoning that wrapping would keep the sun blocks clear of the centre moon. `.almanac-moon` is `position: absolute; left: 50%` (`App.css:985-994`), so it is **not a flex item** and wrapping cannot displace it. Measured: **84.7 / 64.7 / 50.8 / 32.4px** of sun-text-over-moon overlap at 320 / 360 / 390 / 430 | Mechanism withdrawn. Replaced by two scoped media blocks — moon returns to flow ≤640px, astro row becomes a centred column ≤480px — both injected into the live stack and chosen from rendered screenshots by the owner. §6.7 and §7 rewritten; the reasoning and the cost (card 482 → 804px at 390px) stated rather than buried |
+| **A-1** | §6.7 justified `.almanac-sun { max-width: none }` + `flex-wrap` on `.almanac-astro` by claiming the wrap keeps the sun blocks clear of the centre moon. `.almanac-moon` is `position: absolute; left: 50%` (`App.css:985-994`), so it is **not a flex item** and wrapping cannot displace it. Measured: **84.7 / 64.7 / 50.8 / 32.4px** of sun-text-over-moon overlap at 320 / 360 / 390 / 430 | **The two rules stand — the justification was withdrawn, not the CSS.** Dropping the cap is what fixes the clipping and is required; it is merely unsafe *alone*. Two scoped media blocks make it safe — moon returns to flow ≤640px, astro row becomes a centred column ≤480px — both injected into the live stack and chosen from rendered screenshots by the owner. §6.7 and §7 rewritten; the cost (card 482 → 804px at 390px) stated rather than buried. **An earlier pass of this amendment over-corrected by deleting both rules outright, which would have left the clipping unfixed; that over-correction is itself reverted here.** |
 | **A-2** | §6.7 stated the almanac clips 7 leaves **at 390px**. Re-measured: it clips 7 at **320px** and 7 at **360px**, and **none at 390px**. The defect is real, at different widths than recorded | Widths corrected in §6.7, §10 and §12. This is an instance of §15's "live-only claims must be re-measured rather than inherited" |
 | **A-3** | Returning the moon to flow alone leaves it **69.1 / 89.1 / 103.6 / 122.9px** off the card's centre, because `justify-content: space-between` drops it at whichever end of the wrapped line it lands on. No existing threshold would have caught either this or A-1, because **overlap and off-centring are not clipping** | §12 gains a dedicated threshold: `.almanac-moon` centred within ≤4px and 0px of overlap with either `.almanac-sun` block, at 320/360/390/430. This takes the Task 12 gate from 23 thresholds to **24** |
 
