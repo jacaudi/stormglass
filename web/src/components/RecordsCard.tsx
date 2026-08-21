@@ -2,6 +2,7 @@ import { memo } from 'react';
 import type { RecordsSummary, UserPreferences } from '../types/weather';
 import { formatTemp, formatWind, formatPressure, formatRain } from '../hooks/useUnits';
 import { GlassCard } from './GlassCard';
+import { Badge } from './primitives/Badge';
 
 interface RecordsCardProps {
   summary: RecordsSummary | null;
@@ -37,7 +38,7 @@ function RecordsCardImpl({ summary, prefs }: RecordsCardProps) {
     <GlassCard className="records-card">
       <div className="records-header">
         <span className="records-title">Records</span>
-        <span className="records-window">Last {windowDays} days</span>
+        <Badge pill className="records-window-slot">Last {windowDays} days</Badge>
       </div>
 
       <div className="records-grid">

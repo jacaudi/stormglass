@@ -1,5 +1,6 @@
 import type { StationMeta, StationStatus } from '../types/weather';
 import { formatCoord, hasCoordinates } from './formatCoord';
+import { Badge } from './primitives/Badge';
 
 interface HeaderProps {
   station: StationMeta | null;
@@ -40,10 +41,10 @@ export function Header({ station, status, lastUpdated, isStale, onSettingsClick 
       </div>
       <div className="header-right">
         {status && (
-          <div className={`status-badge ${status.isOnline ? 'online' : 'offline'}`}>
+          <Badge className={status.isOnline ? 'online' : 'offline'}>
             <span className="status-dot" />
             {status.isOnline ? 'Live' : 'Offline'}
-          </div>
+          </Badge>
         )}
         {lastUpdated && (
           <span
@@ -52,9 +53,9 @@ export function Header({ station, status, lastUpdated, isStale, onSettingsClick 
           >
             Updated {formatTime(lastUpdated)}
             {isStale && (
-              <span className="stale-badge" role="status">
+              <Badge tone="danger" role="status" className="stale-marker">
                 Stale
-              </span>
+              </Badge>
             )}
           </span>
         )}

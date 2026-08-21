@@ -3,6 +3,7 @@ import type { CurrentObservation, RainUnit } from '../types/weather';
 import { PrecipitationType } from '../types/weather';
 import { formatRain } from '../hooks/useUnits';
 import { GlassCard } from './GlassCard';
+import { Badge } from './primitives/Badge';
 
 interface RainCardProps {
   current: CurrentObservation;
@@ -50,7 +51,7 @@ function RainCardImpl({ current, unit }: RainCardProps) {
           <line x1="16" y1="16" x2="16" y2="20" />
         </svg>
         <span className="card-title">Precipitation</span>
-        {isRaining && <span className="rain-active-badge">Active</span>}
+        {isRaining && <Badge tone="info" animation="pulse" className="alert-badge-slot">Active</Badge>}
       </div>
 
       <div className="rain-grid">

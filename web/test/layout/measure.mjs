@@ -62,7 +62,33 @@ function checkAppCssDeletions() {
   // `.rain-card { position: relative }` is only safe because of it, and
   // .rain-animation is absolutely positioned against it.
   const hasGlassRelative = /\.glass-card\s*\{[^}]*position:\s*relative/.test(css);
-  return { bannedFound: found, hasGlassRelative };
+  // Task 13: the five hand-built badge rules must be gone AND the shared
+  // .badge primitive must exist. Checking only the negative (legacyBadges
+  // empty) would pass even if the Badge CSS block was never added -- absent
+  // data reading as success -- so hasBadgeBlock is a required positive
+  // companion, mirroring hasGlassRelative above.
+  //
+  // Deviation from the plan's verbatim snippet (disclosed per the branch's
+  // standing fail-loud-on-absent-data rule): the plan's regex was bare
+  // `/\.badge\s*\{/`, which also matches Task 7's renamed responsive override
+  // `.badge { padding: ...; font-size: ...; }` inside the 640px media query.
+  // Deleting the actual primitive block while leaving that override rule in
+  // place left the naive regex passing -- proven by deleting the primitive
+  // block during verification and watching the check NOT go red. Anchored
+  // instead on `white-space: nowrap`, a declaration unique to the primitive's
+  // own rule body (the media-query override only ever touches padding and
+  // font-size), confirmed unique elsewhere in the file.
+  const legacyBadges = [
+    /\.status-badge\s*\{/,
+    /\.stale-badge\s*\{/,
+    /\.rain-active-badge\s*\{/,
+    /\.lightning-alert-badge\s*\{/,
+    /\.records-window\s*\{/,
+  ]
+    .filter((re) => re.test(css))
+    .map(String);
+  const hasBadgeBlock = /\.badge\s*\{[^}]*white-space:\s*nowrap/.test(css);
+  return { bannedFound: found, hasGlassRelative, legacyBadges, hasBadgeBlock };
 }
 
 function checkWorkerAsset() {
@@ -153,10 +179,10 @@ const HEADER_RULE_REVERT = `
   .header-right  { gap: 1rem; flex-shrink: initial; }
   .station-name  { font-size: 1.25rem; gap: 0.6rem; }
   .logo-icon svg { width: 28px; height: 28px; }
-  /* Selector note: Task 13 renames .status-badge to .badge. When it does, it
-     updates BOTH this revert block and Task 7's rule in App.css -- they are two
-     halves of one comparison and must name the same element. */
-  .status-badge  { padding: 0.3rem 0.75rem; font-size: 0.75rem; }
+  /* Selector note: Task 13 renamed .status-badge to .badge. This revert block
+     and Task 7's rule in App.css are two halves of one comparison and must
+     name the same element. */
+  .badge         { padding: 0.3rem 0.75rem; font-size: 0.75rem; }
   .last-updated  { font-size: 0.8rem; }
 }`;
 
@@ -743,6 +769,29 @@ CHECKS.push({
     m.requestLog
       .filter((r) => /maplibre-gl-worker/.test(r.path))
       .every((r) => r.status === 200),
+});
+
+// --- Task 13 / design §6.5 / Badge ------------------------------------------
+// Deviation from the plan's verbatim snippet (disclosed per the branch's
+// standing fail-loud-on-absent-data rule): `legacyBadges.length === 0` alone
+// would pass if the five legacy rules were deleted and the .badge block was
+// never added -- absent data reading as success. hasBadgeBlock is a required
+// positive companion (=== true, not truthy, so a renamed/absent field can't
+// coerce to a pass), and describe names which half failed.
+CHECKS.push({
+  id: 'one-badge-implementation',
+  section: '§6.5 Badge',
+  describe: (m) => {
+    const parts = [];
+    if (m.css.legacyBadges.length > 0) {
+      parts.push(`legacy badge rules found: ${JSON.stringify(m.css.legacyBadges)}`);
+    }
+    if (m.css.hasBadgeBlock !== true) {
+      parts.push('no .badge block in App.css');
+    }
+    return parts.length ? parts.join(' | ') : 'legacy rules gone, .badge block present';
+  },
+  pass: (m) => m.css.legacyBadges.length === 0 && m.css.hasBadgeBlock === true,
 });
 
 await main();

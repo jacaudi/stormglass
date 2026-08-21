@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import type { CurrentObservation } from '../types/weather';
 import { GlassCard } from './GlassCard';
+import { Badge } from './primitives/Badge';
 
 interface LightningCardProps {
   current: CurrentObservation;
@@ -16,7 +17,7 @@ function LightningCardImpl({ current }: LightningCardProps) {
           <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
         </svg>
         <span className="card-title">Lightning</span>
-        {hasStrikes && <span className="lightning-alert-badge">Detected</span>}
+        {hasStrikes && <Badge tone="warning" animation="flash" className="alert-badge-slot">Detected</Badge>}
       </div>
 
       <div className="lightning-content">
