@@ -44,6 +44,12 @@ describe('StatRow', () => {
     expect(row.style.getPropertyValue('--stat-row-min')).toBe('130px');
   });
 
+  it('defaults the wrap floor to 120px when minColumn is not given', () => {
+    const { container } = render(<StatRow><Stat label="a" value="b" /></StatRow>);
+    const row = container.querySelector('.stat-row') as HTMLElement;
+    expect(row.style.getPropertyValue('--stat-row-min')).toBe('120px');
+  });
+
   it('adds the hairline only when asked', () => {
     const { container: withDiv } = render(<StatRow divider><Stat label="a" value="b" /></StatRow>);
     const { container: without } = render(<StatRow><Stat label="a" value="b" /></StatRow>);
