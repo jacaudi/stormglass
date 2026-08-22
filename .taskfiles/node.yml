@@ -65,14 +65,19 @@ tasks:
   build:
     desc: Production build
     cmds:
-      - npm run build
       # vite's emptyOutDir defaults to true and its skip list is only
       # [...outDirs, ".git"] -- dist/.gitkeep is not spared, so every build
       # deletes the file web/embed.go's `//go:embed all:dist` needs present on
       # a fresh checkout (an empty dist/ fails that embed directive outright).
-      # Restore it here rather than setting `emptyOutDir: false`, which would
-      # ship stale assets from a previous build.
-      - touch dist/.gitkeep
+      # The restore lives in package.json's own `build` script (`&& touch
+      # dist/.gitkeep`), NOT here: a `touch` appended only to this Task target
+      # left the hole open on the most natural path a developer takes --
+      # running `npm run build` directly restores nothing, since this task's
+      # own `touch` line never fires without `task node:build`. Moving it into
+      # the npm script closes the class of the bug, not one route into it.
+      # Not `emptyOutDir: false` either -- that would ship stale assets from a
+      # previous build.
+      - npm run build
 
   layout:
     desc: Responsive-layout probe — 19 viewport widths against a built dist

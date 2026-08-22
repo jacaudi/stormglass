@@ -194,10 +194,19 @@ const HEADER_RULE_REVERT = `
   .header-right  { gap: 1rem; flex-shrink: initial; }
   .station-name  { font-size: 1.25rem; gap: 0.6rem; }
   .logo-icon svg { width: 28px; height: 28px; }
-  /* Selector note: Task 13 renamed .status-badge to .badge. This revert block
-     and Task 7's rule in App.css are two halves of one comparison and must
-     name the same element. */
-  .badge         { padding: 0.3rem 0.75rem; font-size: 0.75rem; }
+  /* Selector note: Task 13 renamed .status-badge to .badge, and the final
+     review's fix wave (FIX 4) re-scoped App.css's ≤640px override from
+     .badge -- specificity (0,1,0) -- to .badge.online, .badge.offline --
+     specificity (0,2,0), after Task 13's rename had accidentally widened it
+     to match every badge in the app. This revert block and App.css's rule
+     are two halves of one comparison and must name the SAME selector at the
+     SAME specificity: addStyleTag appends this block after the stylesheet,
+     so it wins ties on source order, but only a tie -- a lower-specificity
+     revert loses outright and silently understates Task 7's improvement
+     instead of failing. Second rename of this pairing; keep both halves in
+     lockstep on every future one. */
+  .badge.online,
+  .badge.offline { padding: 0.3rem 0.75rem; font-size: 0.75rem; }
   .last-updated  { font-size: 0.8rem; }
 }`;
 
