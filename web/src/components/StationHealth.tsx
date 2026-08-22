@@ -42,7 +42,7 @@ function StationHealthImpl({ status }: StationHealthProps) {
         <span className="card-title">Station Health</span>
       </div>
 
-      <StatRow minColumn={180}>
+      <StatRow>
         <Stat
           label="Battery"
           value={

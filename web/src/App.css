@@ -83,7 +83,7 @@
    no test covers it, so that would ship unseen.
 
    The radar card is excluded with :not() rather than overridden. Per Selectors-4
-   the general rule below is (0,5,0) once :nth-last-child(1 of :not(.rain-animation))
+   the general rule below is (0,6,0) once :nth-last-child(1 of :not(.rain-animation))
    contributes its inner selector's specificity, so a `.dashboard-grid > .radar-card >`
    override would LOSE the margin-bottom -- and per Flexbox §8.1 auto margins
    absorb positive free space before flex-grow, so `flex: 1 1 auto` would be
@@ -300,11 +300,28 @@
   text-align: center;
 }
 
+/* Grid, not flex row + justify-content: center: a centered flex ROW centers
+   the value+qualifier GROUP, which leaves .readout-value itself off-centre by
+   half the qualifier's width -- measured 35px (Pressure's "↑ Rising") and
+   20.5px (Solar & UV's "Moderate") against the design's own 2px tolerance
+   (§12, readouts-centred). The symmetric 1fr/auto/1fr track keeps an empty
+   spacer column balancing the qualifier, so the NUMBER -- not the group --
+   lands on the card's true centre regardless of qualifier text length. */
 .readout-inline {
-  flex-direction: row;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: baseline;
-  justify-content: center;
-  gap: 0.5rem;
+  column-gap: 0.5rem;
+}
+
+.readout-inline .readout-value {
+  grid-column: 2;
+  justify-self: center;
+}
+
+.readout-inline .readout-qualifier {
+  grid-column: 3;
+  justify-self: start;
 }
 
 .readout-value {
@@ -635,10 +652,6 @@
   gap: 0.15rem;
 }
 
-.wind-avg {
-  color: var(--accent-color);
-}
-
 /* --- Humidity card ------------------------------------------- */
 .humidity-ring-container {
   position: relative;
@@ -701,6 +714,21 @@
 }
 
 /* --- Solar & UV card ----------------------------------------- */
+/* Always exactly two columns for Solar Radiation / Illuminance, independent
+   of width -- the original .solar-section was `display: flex`, always side
+   by side, never wrapping. Same defect as .station-health-card and the same
+   fix: StatRow's auto-fit model (minColumn={130}, needing 2*130+16=276px)
+   collapses to one column below that, and this card's content width crosses
+   276px at the same 660/1001px widths Task 24's bounded-drift comparison
+   caught. Scoped to `.stat-row` specifically, not `.solar-uv-card *`: this
+   card also has a `.uv-section` (Readout + ScaleBar), which is not a
+   .stat-row and is untouched by this rule. Call-site override, not a
+   `columns` prop on StatRow -- three consumers now need "always N", each
+   stated at its own call site. */
+.solar-uv-card .stat-row {
+  grid-template-columns: 1fr 1fr;
+}
+
 .solar-uv-grid {
   display: flex;
   flex-direction: column;
@@ -748,6 +776,16 @@
 }
 
 /* --- Lightning card ------------------------------------------ */
+/* Always exactly two columns for strike count / avg distance, independent of
+   width -- the original .lightning-stats-row was `display: flex`, always
+   side by side, never wrapping. Same defect and fix as .station-health-card
+   and .solar-uv-card above: StatRow's auto-fit model (minColumn={130},
+   needing 2*130+16=276px) collapses to one column below that, and this
+   card's content width crosses 276px at the same 660/1001px widths. */
+.lightning-card .stat-row {
+  grid-template-columns: 1fr 1fr;
+}
+
 .lightning-active {
   border-color: var(--warning-color) !important;
 }
@@ -1087,6 +1125,25 @@
 }
 
 /* --- Station health card ------------------------------------- */
+/* Always exactly two columns, independent of width -- the original
+   .health-grid was `grid-template-columns: 1fr 1fr`, always. StatRow's
+   auto-fit model (`repeat(auto-fit, minmax(var(--stat-row-min), 1fr))`)
+   cannot express "always two": Task 14's minColumn={180} was chosen to avoid
+   a THIRD column on wide cards, but there is no single minColumn that also
+   guarantees two on narrow ones -- .station-health-card's own content width
+   crosses 180*2 + 16px gap = 376px at exactly the widths the Task 24
+   bounded-drift comparison caught (413.0px at 1512 keeps two; 336.4 / 277.4 /
+   238.3px at 1280 / 1100 / 660 each collapse to one). A one-column health
+   card stands ~75px taller, and grid rows stretch to their tallest member --
+   handing that height to rain-card and lightning-card as pure slack even
+   though neither card changed. Call-site override, the same pattern already
+   used five times on this branch (.rstat, .almanac-record, .uv-scale,
+   .hero-details) rather than a `columns` prop on StatRow: one consumer needs
+   this, and a prop for one caller is the abstraction YAGNI forbids. */
+.station-health-card .stat-row {
+  grid-template-columns: 1fr 1fr;
+}
+
 .battery-display {
   display: flex;
   flex-direction: column;
@@ -1446,7 +1503,7 @@
 }
 
 /* 640, not the file's previous 560: 561px was the worst point in the whole
-   range (30 clipped leaves across 5 cards), and two columns still clip nothing
+   range (25 clipped leaves across 5 cards), and two columns still clip nothing
    at 641px, so the 3->2->1 boundaries are safe where placed. */
 @media (max-width: 640px) {
   /* The hero centres as a whole in the one-column band. Wrapping alone leaves

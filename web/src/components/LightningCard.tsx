@@ -23,7 +23,7 @@ function LightningCardImpl({ current }: LightningCardProps) {
       </div>
 
       <div className="lightning-content">
-        <StatRow minColumn={130}>
+        <StatRow>
           <Readout
             value={current.lightningStrikeCount}
             qualifier="strikes today"

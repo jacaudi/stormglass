@@ -88,7 +88,22 @@ function checkAppCssDeletions() {
     .filter((re) => re.test(css))
     .map(String);
   const hasBadgeBlock = /\.badge\s*\{[^}]*white-space:\s*nowrap/.test(css);
-  return { bannedFound: found, hasGlassRelative, legacyBadges, hasBadgeBlock };
+  // Task 24: the eight hand-built label/value families must be gone from
+  // App.css entirely, not merely unreferenced by the rewritten TSX.
+  const legacyFamilies = [
+    /\.detail-label\s*\{/, /\.detail-value\s*\{/,
+    /\.humidity-stat-label\s*\{/, /\.humidity-stat-value\s*\{/,
+    /\.rain-stat-label\s*\{/, /\.rain-stat-value\s*\{/,
+    /\.lightning-label\s*\{/, /\.lightning-count\s*\{/, /\.lightning-distance\s*\{/,
+    /\.health-label\s*\{/, /\.health-value\s*\{/,
+    /\.rstat-label\s*\{/, /\.rstat-value\s*\{/,
+    /\.almanac-hl-label\s*\{/,
+    /\.uv-number\s*\{/, /\.uv-bar-track\s*\{/, /\.gauge-track\s*\{/,
+    /\.pressure-value\s*\{/, /\.humidity-value\s*\{/, /\.wind-speed-value\s*\{/, /\.hero-temp\s*\{/,
+  ]
+    .filter((re) => re.test(css))
+    .map(String);
+  return { bannedFound: found, hasGlassRelative, legacyBadges, hasBadgeBlock, legacyFamilies };
 }
 
 function checkWorkerAsset() {
@@ -831,6 +846,131 @@ CHECKS.push({
     // SMALLER than today at mobile, which is why the token is not clamped.
     m.widths['390'].readoutValues.hero[0] >= 55 &&
     m.widths['1512'].readoutValues.hero[0] >= 70,
+});
+
+// --- Task 24 / design §12, Phase 2 rows -------------------------------------
+
+// Every SOLO primary readout is centred within 2px of its card's content-box
+// centre. "Solo" -- readoutSharesRow[i] === false -- because a real defect was
+// found and fixed while wiring this check up, disclosed here since it goes
+// beyond the plan's two named fail-loud fixes:
+//
+// 1. (the plan's fix A) `.every` on an empty array is `true`, so if
+//    `.readout-primary` or `.readout-value` were renamed, `readoutCentreOffsets`
+//    would silently become `[]` and this would report PASS. Guarded with an
+//    expected-count check before the `.every`. There are exactly 6
+//    --readout-primary consumers today (wind, humidity, pressure, UV,
+//    lightning count, lightning distance) -- the same count
+//    `readout-scale-unified` above already asserts via `p.length === 6` from
+//    the IDENTICAL selector, so hardcoding 6 here documents a known invariant
+//    rather than guessing at one; deriving it from another field built off the
+//    same selector would not add independent coverage (a rename would zero
+//    both together).
+//
+// 2. (the plan's fix B) `readoutCentreOffsets` returns `null`, not `0`, when a
+//    readout has no enclosing `.glass-card` -- see probe.mjs. `null <= 2` is
+//    `true` in JavaScript, so null is excluded BEFORE the comparison.
+//
+// 3. (found while verifying #1/#2 actually go green, not asked for by the
+//    plan) with both fixes applied the check still failed for real, non-null
+//    values: Pressure and Solar & UV's `inline` Readouts measured 35px and
+//    20.5px off-centre at 1512 -- `.readout-inline`'s old `justify-content:
+//    center` centred the value+qualifier GROUP, not the value alone, so a
+//    qualifier ("↑ Rising", "Moderate") pulled the NUMBER off the true centre
+//    by half its own width. Fixed in App.css: `.readout-inline` is now a
+//    1fr/auto/1fr grid with an empty spacer column, so the value lands on the
+//    card's centre regardless of qualifier length. Confirmed 0.008px after the
+//    fix (sub-pixel rounding, not a residual offset).
+//
+//    LightningCard's two readouts (count, distance) remained off-centre --
+//    ~110px at 1512, equal on both sides at every width, i.e. the ROW is
+//    centred (StatRow's own construction) but its two half-width COLUMNS
+//    cannot each also sit at the FULL CARD's centre; that is not achievable by
+//    any CSS short of abandoning the two-up layout. KNOWN DIVERGENCE from
+//    design §12's literal "all centred", exactly the same shape as
+//    one-stat-alignment's documented `.rpair-row` exclusion below: the
+//    per-item assertion is scoped to `readoutSharesRow[i] === false`
+//    (probe.mjs), so it inspects solo readouts only and does not see
+//    LightningCard's shared row's two items individually.
+//
+// 4. (reviewed and hardened after #3 landed) a probe field that narrows a
+//    check's scope without anything to show for the excluded case is itself a
+//    fail-loud risk -- exactly the "silent pass on absent coverage" shape
+//    this branch's standing rule targets, just at the level of an assertion
+//    rather than a value. readoutSharesRow narrows what CAN be asserted per
+//    item; it must not also delete all coverage of the row it excludes. So a
+//    SECOND, companion assertion covers exactly what per-item centring
+//    cannot: readoutRowGroupOffsets (probe.mjs) is the offset of a shared
+//    row's own ink extent -- leftmost readout's left edge to rightmost
+//    readout's right edge, as ONE group -- from the card's centre. A future
+//    regression that made a shared row lopsided as a WHOLE (not merely each
+//    column individually off-centre, which is expected) would move this
+//    value even though the per-item half of readouts-centred cannot see it.
+//    Driven red by temporarily forcing an asymmetric row-group in probe.mjs
+//    (see the task report) to confirm it actually bites, not merely computes.
+CHECKS.push({
+  id: 'readouts-centred',
+  section: '§6.5 Readout',
+  describe: (m) =>
+    [1512, 1000, 640, 390]
+      .map((w) => {
+        const d = m.widths[w].readoutCentreOffsets;
+        const shared = m.widths[w].readoutSharesRow;
+        const groups = m.widths[w].readoutRowGroupOffsets;
+        if (d.length !== 6 || shared.length !== 6) {
+          return `${w}: COUNT MISMATCH expected 6 got ${d.length}/${shared.length}`;
+        }
+        const solo = d.map((v, i) => (shared[i] ? `(shared:${v})` : v));
+        return `${w}: ${JSON.stringify(solo)} groups=${JSON.stringify(groups)}`;
+      })
+      .join('  '),
+  pass: (m) =>
+    [1512, 1000, 640, 390].every((w) => {
+      const d = m.widths[w].readoutCentreOffsets;
+      const shared = m.widths[w].readoutSharesRow;
+      const groups = m.widths[w].readoutRowGroupOffsets;
+      // null !== value BEFORE the numeric comparison: `null <= 2` is `true` in
+      // JavaScript (see probe.mjs's sentinel-fix comment on this field).
+      const soloOk =
+        d.length === 6 &&
+        shared.length === 6 &&
+        d.every((v, i) => shared[i] || (v !== null && v <= 2));
+      // Expected-count guard for the same reason as fix A above: LightningCard
+      // is today's one shared row, so exactly 1 group is expected. `.every`
+      // on an empty array is vacuously true, so an empty groups array (the
+      // row renamed away, or .stat-row itself renamed) must fail loud rather
+      // than read as "no lopsided rows found".
+      const groupsOk =
+        groups.length === 1 && groups.every((v) => v !== null && v <= 2);
+      return soloOk && groupsOk;
+    }),
+});
+
+// One alignment across every stat family -- the defect that started this: today
+// .humidity-stat centres while PRECIPITATION and STATION HEALTH render
+// hard-left and LIGHTNING sets flex-start.
+CHECKS.push({
+  id: 'one-stat-alignment',
+  section: '§6.5 Stat',
+  describe: (m) => JSON.stringify(m.widths['1512'].statAlignments),
+  pass: (m) => {
+    const a = m.widths['1512'].statAlignments;
+    return a.length > 0 && new Set(a).size === 1 && a[0] === 'center';
+  },
+});
+
+// The families are gone from App.css, not merely unused by the TSX.
+// KNOWN DIVERGENCE from design §12's "no card in the grid reports a stat family
+// with a different alignment": .rpair-row keeps align-items: flex-start, and
+// Task 22 keeps it deliberately -- a High/Low pair inside one bordered box is
+// not a label above a value. one-stat-alignment inspects only elements carrying
+// .stat, so it does not see .rpair-row, and that is intended rather than an
+// oversight.
+CHECKS.push({
+  id: 'label-value-families-collapsed',
+  section: '§4.3 / §6.5',
+  describe: (m) => `survivors: ${JSON.stringify(m.css.legacyFamilies)}`,
+  pass: (m) => m.css.legacyFamilies.length === 0,
 });
 
 await main();

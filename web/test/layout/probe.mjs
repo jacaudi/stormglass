@@ -128,31 +128,12 @@ export async function probe(page) {
       ? 0
       : clipped.filter((c) => c.cardIndex === almanacIndex).length;
 
-    const readoutSelectors = [
-      '.pressure-value',
-      '.humidity-value',
-      '.uv-number',
-      '.lightning-count',
-      '.lightning-distance',
-      '.wind-speed-value',
-    ];
-    const readouts = {};
-    for (const sel of readoutSelectors) readouts[sel] = fontPx(sel);
-
-    const centredWithin = (sel) => {
-      const el = q(sel);
-      if (!el) return null;
-      const card = cardOf(el);
-      if (!card) return null;
-      const p = padBox(card);
-      const r = el.getBoundingClientRect();
-      return Math.abs((r.left + r.right) / 2 - (p.left + p.right) / 2);
-    };
-
-    const alignOf = (sel) => {
-      const el = q(sel);
-      return el ? getComputedStyle(el).alignItems : null;
-    };
+    // Single source for the three readoutValues.primary / readoutCentreOffsets
+    // / readoutSharesRow fields below -- all three describe the same set of
+    // elements from the same selector, so it is queried once.
+    const readoutPrimaryValues = Array.from(
+      document.querySelectorAll('.readout-primary .readout-value')
+    );
 
     return {
       viewport: { width: window.innerWidth, height: window.innerHeight },
@@ -217,26 +198,100 @@ export async function probe(page) {
       titleFontPx: fontPx('.card-title'),
       rootFontPx: parseFloat(getComputedStyle(document.documentElement).fontSize),
       records: { height: box('.records-card')?.height ?? null },
-      readouts,
       // Converted readouts, read by structure rather than by the eight legacy
       // class names -- which vanish one card at a time through Phase 2.
       readoutValues: {
-        primary: Array.from(document.querySelectorAll('.readout-primary .readout-value')).map(
-          (el) => parseFloat(getComputedStyle(el).fontSize)
-        ),
+        primary: readoutPrimaryValues.map((el) => parseFloat(getComputedStyle(el).fontSize)),
         hero: Array.from(document.querySelectorAll('.readout-hero .readout-value')).map(
           (el) => parseFloat(getComputedStyle(el).fontSize)
         ),
       },
-      readoutCentre: Object.fromEntries(
-        readoutSelectors.map((sel) => [sel, centredWithin(sel)])
+      // .readout-value, NOT .readout: .readout is a block-level child of a
+      // flex-column card with the default align-items: stretch, so it is
+      // full-width and its centre equals the card's centre by construction --
+      // measuring it would pass regardless of where the NUMBER sits.
+      //
+      // Sentinel fix (Task 24, disclosed per the branch's standing
+      // fail-loud-on-absent-data rule): the brief's snippet returned 0 when
+      // `.closest('.glass-card')` found no card, and 0 <= 2 passes -- the
+      // identical shape to the almanacIndex === -1 -> 0 sentinel already found
+      // and fixed elsewhere on this branch. A readout outside a .glass-card (or
+      // a renamed .glass-card) must report "unmeasurable", not "perfectly
+      // centred". Returns null; readouts-centred (measure.mjs) excludes null
+      // before comparing, because `null <= 2` is true in JavaScript.
+      readoutCentreOffsets: readoutPrimaryValues.map((el) => {
+        const card = el.closest('.glass-card');
+        if (!card) return null;
+        const p = padBox(card);
+        const r = el.getBoundingClientRect();
+        return Math.abs((r.left + r.right) / 2 - (p.left + p.right) / 2);
+      }),
+      // True when this readout shares its StatRow with a sibling readout --
+      // LightningCard.tsx renders lightning-count and lightning-distance side
+      // by side in one <StatRow>. Two half-width columns cannot each
+      // independently sit at the FULL CARD's centre (measured: both offset by
+      // an equal ~110px at 1512, symmetric around the card centre -- the ROW is
+      // centred, by construction of StatRow's centred grid; the two ITEMS
+      // cannot be). readouts-centred (measure.mjs) uses this to scope its
+      // per-item assertion to solo readouts, the only ones the design's "all
+      // centred within 2px of their card's content-box centre" (§12) can
+      // possibly hold for.
+      readoutSharesRow: readoutPrimaryValues.map((el) => {
+        const row = el.closest('.stat-row');
+        if (!row) return false;
+        return row.querySelectorAll('.readout-primary .readout-value').length > 1;
+      }),
+      // Companion to readoutSharesRow, so narrowing readouts-centred's per-item
+      // assertion does not also remove ALL coverage of a shared row: even
+      // though LightningCard's two columns cannot each individually centre on
+      // the card, the pair should be MIRRORED around the card's centre (one
+      // sits left, the other right, by equal amounts) -- that is what "the row
+      // is centred" actually means for a 2-up StatRow. One value per distinct
+      // .stat-row that holds 2+ primary readouts: the SIGNED per-item centre
+      // offsets (not the absolute values readoutCentreOffsets stores) summed
+      // and taken as one magnitude -- a genuinely symmetric pair sums to ~0
+      // (a left offset and an equal-magnitude right offset cancel); a row that
+      // became lopsided as a WHOLE would not.
+      //
+      // Rejected: leftmost-edge-to-rightmost-edge of the group's ink extent.
+      // Each `.readout-value` is individually centred within ITS OWN column
+      // via `.readout`'s `text-align: center` on a full-width block parent, so
+      // its rect's CENTRE equals its column's centre regardless of the text's
+      // own width -- but its EDGES do not, when the two readouts hold
+      // different-length text (e.g. "3" vs "12.4 km"). Measured: the edge-based
+      // version read 2.1-3.3px of "imbalance" on a row already proven
+      // symmetric by readoutCentreOffsets (110.5 / 110.5, equal to four
+      // decimal places) -- an artifact of unequal text width, not a real
+      // off-centre row. Signed centre offsets are invariant to that.
+      readoutRowGroupOffsets: (() => {
+        const groups = new Map();
+        for (const el of readoutPrimaryValues) {
+          const row = el.closest('.stat-row');
+          if (!row) continue;
+          if (!groups.has(row)) groups.set(row, []);
+          groups.get(row).push(el);
+        }
+        const offsets = [];
+        for (const [row, els] of groups) {
+          if (els.length < 2) continue;
+          const card = cardOf(row);
+          if (!card) {
+            offsets.push(null);
+            continue;
+          }
+          const p = padBox(card);
+          const cardCentre = (p.left + p.right) / 2;
+          const signedSum = els.reduce((sum, el) => {
+            const r = el.getBoundingClientRect();
+            return sum + ((r.left + r.right) / 2 - cardCentre);
+          }, 0);
+          offsets.push(Math.abs(signedSum));
+        }
+        return offsets;
+      })(),
+      statAlignments: Array.from(document.querySelectorAll('.stat')).map(
+        (el) => getComputedStyle(el).alignItems
       ),
-      align: {
-        rain: alignOf('.rain-stat-block'),
-        health: alignOf('.health-item'),
-        lightning: alignOf('.lightning-stat'),
-        humidity: alignOf('.humidity-stat'),
-      },
       // RadarCard's DOM differs by resolved status; recorded so a nondeterministic
       // WebGL/fetch race fails loudly rather than drifting the row heights.
       radarStatusMessage: !!q('.radar-status-message'),

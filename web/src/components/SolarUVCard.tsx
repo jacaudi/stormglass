@@ -69,7 +69,7 @@ function SolarUVCardImpl({ current }: SolarUVCardProps) {
           />
         </div>
 
-        <StatRow minColumn={130}>
+        <StatRow>
           <Stat
             label="Solar Radiation"
             value={`${formatX(current.solarRadiation, (n) => `${Math.round(n * 10) / 10}`)} W/m²`}
