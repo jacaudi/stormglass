@@ -4,6 +4,8 @@ import { PrecipitationType } from '../types/weather';
 import { formatRain } from '../hooks/useUnits';
 import { GlassCard } from './GlassCard';
 import { Badge } from './primitives/Badge';
+import { Stat } from './primitives/Stat';
+import { StatRow } from './primitives/StatRow';
 
 interface RainCardProps {
   current: CurrentObservation;
@@ -54,17 +56,14 @@ function RainCardImpl({ current, unit }: RainCardProps) {
         {isRaining && <Badge tone="info" animation="pulse" className="alert-badge-slot">Active</Badge>}
       </div>
 
-      <div className="rain-grid">
-        <div className="rain-stat-block">
-          <span className="rain-stat-label">Current</span>
-          <span className="rain-stat-value">{formatRain(current.rainAccumulated, unit)}</span>
-          <span className="rain-stat-type">{precipLabel(current.precipitationType)}</span>
-        </div>
-        <div className="rain-stat-block">
-          <span className="rain-stat-label">Today</span>
-          <span className="rain-stat-value">{formatRain(current.localDayRainAccumulation, unit)}</span>
-        </div>
-      </div>
+      <StatRow className="rain-grid" minColumn={110}>
+        <Stat
+          label="Current"
+          value={formatRain(current.rainAccumulated, unit)}
+          sublabel={precipLabel(current.precipitationType)}
+        />
+        <Stat label="Today" value={formatRain(current.localDayRainAccumulation, unit)} />
+      </StatRow>
 
       {isRaining && (
         <div className="rain-animation">

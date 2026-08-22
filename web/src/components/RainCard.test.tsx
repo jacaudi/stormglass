@@ -72,4 +72,14 @@ describe('RainCard interior centring precondition (design §6.4)', () => {
     expect(dryCard.querySelector('.rain-animation')).toBeNull();
     expect(dryCard.lastElementChild).toHaveClass('rain-grid');
   });
+
+  it('renders the rain grid as a StatRow that keeps its probe hook', () => {
+    // .rain-grid is what web/test/layout/probe.mjs reads to assert the card
+    // centres in both states, so the class has to survive the conversion.
+    const { container } = render(<RainCard current={baseCurrent} unit="in" />);
+    const grid = container.querySelector('.rain-grid')!;
+    expect(grid).not.toBeNull();
+    expect(grid).toHaveClass('stat-row');
+    expect(grid.querySelectorAll('.stat')).toHaveLength(2);
+  });
 });
