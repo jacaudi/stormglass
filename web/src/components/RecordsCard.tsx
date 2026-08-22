@@ -3,6 +3,7 @@ import type { RecordsSummary, UserPreferences } from '../types/weather';
 import { formatTemp, formatWind, formatPressure, formatRain } from '../hooks/useUnits';
 import { GlassCard } from './GlassCard';
 import { Badge } from './primitives/Badge';
+import { Stat } from './primitives/Stat';
 
 interface RecordsCardProps {
   summary: RecordsSummary | null;
@@ -99,20 +100,19 @@ function RecordsCardImpl({ summary, prefs }: RecordsCardProps) {
         </div>
 
         <div className="rstat">
-          <span className="rstat-label">Rain</span>
-          <div className="rstat-body">
-            <span className="rstat-value">{fmt(rainTotal, (v) => formatRain(v, prefs.rainUnit))}</span>
-          </div>
+          <Stat label="Rain" value={fmt(rainTotal, (v) => formatRain(v, prefs.rainUnit))} />
         </div>
 
         <div className="rstat">
-          <span className="rstat-label">Lightning</span>
-          <div className="rstat-body">
-            <span className="rstat-value">
-              {fmt(lightningTotal, (v) => `${v}`)}
-              {lightningTotal !== null && <span className="rstat-unit">strikes</span>}
-            </span>
-          </div>
+          <Stat
+            label="Lightning"
+            value={
+              <>
+                {fmt(lightningTotal, (v) => `${v}`)}
+                {lightningTotal !== null && <span className="rstat-unit">strikes</span>}
+              </>
+            }
+          />
         </div>
       </div>
     </GlassCard>
