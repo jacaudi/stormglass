@@ -2,6 +2,7 @@ import { memo } from 'react';
 import type { StationAlmanac, TemperatureUnit } from '../types/weather';
 import { formatTemp } from '../hooks/useUnits';
 import { GlassCard } from './GlassCard';
+import { Stat } from './primitives/Stat';
 
 interface AlmanacCardProps {
   almanac: StationAlmanac;
@@ -66,21 +67,21 @@ function RecordColumn({ label, high, highDate, low, lowDate, unit }: RecordColum
   return (
     <div className="almanac-record">
       <span className="almanac-period">{label}</span>
-      <div className="almanac-high">
-        <span className="almanac-hl-label almanac-hl-high">H ↑</span>
-        <span className="almanac-temp-value almanac-temp-high">
-          {high === null ? EM_DASH : formatTemp(high, unit)}
-        </span>
-        <span className="almanac-temp-date">{highDate ?? EM_DASH}</span>
-      </div>
+      <Stat
+        label="H ↑"
+        value={high === null ? EM_DASH : formatTemp(high, unit)}
+        sublabel={highDate ?? EM_DASH}
+        className="almanac-hl-high"
+        valueClassName="almanac-temp-high"
+      />
       <div className="almanac-divider" />
-      <div className="almanac-low">
-        <span className="almanac-hl-label almanac-hl-low">L ↓</span>
-        <span className="almanac-temp-value almanac-temp-low">
-          {low === null ? EM_DASH : formatTemp(low, unit)}
-        </span>
-        <span className="almanac-temp-date">{lowDate ?? EM_DASH}</span>
-      </div>
+      <Stat
+        label="L ↓"
+        value={low === null ? EM_DASH : formatTemp(low, unit)}
+        sublabel={lowDate ?? EM_DASH}
+        className="almanac-hl-low"
+        valueClassName="almanac-temp-low"
+      />
     </div>
   );
 }

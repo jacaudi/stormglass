@@ -90,6 +90,55 @@ describe('AlmanacCard temperature records', () => {
   });
 });
 
+describe('AlmanacCard RecordColumn characterization', () => {
+  // Guards the Task 23 Stat conversion: a dropped triple or a swapped
+  // value/date across columns must fail this test.
+  it('renders H/L labels, values, and date sublabels for every window', () => {
+    const record: TempRecord = { high: 83, highDate: 'Aug 18', low: 47, lowDate: 'Aug 10' };
+    render(
+      <AlmanacCard
+        almanac={makeAlmanac({ today: record, week: record, month: record, year: record })}
+        unit="C"
+      />
+    );
+    expect(screen.getAllByText('H ↑')).toHaveLength(4);
+    expect(screen.getAllByText('L ↓')).toHaveLength(4);
+    expect(screen.getAllByText('83°C')).toHaveLength(4);
+    expect(screen.getAllByText('47°C')).toHaveLength(4);
+    expect(screen.getAllByText('Aug 18')).toHaveLength(4);
+    expect(screen.getAllByText('Aug 10')).toHaveLength(4);
+  });
+
+  it("pairs each column's own high/low value and date, not a neighbour's", () => {
+    const { container } = render(
+      <AlmanacCard
+        almanac={makeAlmanac({
+          today: { high: 83, highDate: 'Aug 18', low: 47, lowDate: 'Aug 10' },
+          week: { high: 90, highDate: 'Aug 15', low: 52, lowDate: 'Aug 12' },
+          month: { high: 95, highDate: 'Aug 01', low: 40, lowDate: 'Jul 20' },
+          year: { high: 101, highDate: 'Jul 04', low: 12, lowDate: 'Jan 15' },
+        })}
+        unit="C"
+      />
+    );
+    const records = container.querySelectorAll('.almanac-record');
+    expect(records).toHaveLength(4);
+    const expected = [
+      { high: '83°C', highDate: 'Aug 18', low: '47°C', lowDate: 'Aug 10' },
+      { high: '90°C', highDate: 'Aug 15', low: '52°C', lowDate: 'Aug 12' },
+      { high: '95°C', highDate: 'Aug 01', low: '40°C', lowDate: 'Jul 20' },
+      { high: '101°C', highDate: 'Jul 04', low: '12°C', lowDate: 'Jan 15' },
+    ];
+    records.forEach((record, i) => {
+      const text = record.textContent ?? '';
+      expect(text).toContain(expected[i].high);
+      expect(text).toContain(expected[i].highDate);
+      expect(text).toContain(expected[i].low);
+      expect(text).toContain(expected[i].lowDate);
+    });
+  });
+});
+
 describe('AlmanacCard moon phase', () => {
   it('renders the moon phase name and rounded illumination percentage', () => {
     render(<AlmanacCard almanac={makeAlmanac({ moonPhaseName: 'Waxing Gibbous', moonIllumination: 0.678 })} unit="F" />);

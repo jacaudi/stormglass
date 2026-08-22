@@ -1021,34 +1021,28 @@
   margin-bottom: 0.1rem;
 }
 
-.almanac-high,
-.almanac-low {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.1rem;
+.almanac-record .stat-value {
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
-.almanac-hl-label {
-  font-size: 0.7rem;
+.almanac-record .stat-sublabel {
+  font-weight: 500;
+}
+
+.almanac-hl-high .stat-label {
+  color: var(--warning-color);
+  opacity: 0.8;
   font-weight: 700;
   letter-spacing: 0.05em;
 }
 
-.almanac-hl-high {
-  color: var(--warning-color);
-  opacity: 0.8;
-}
-
-.almanac-hl-low {
+.almanac-hl-low .stat-label {
   color: var(--info-color);
   opacity: 0.8;
-}
-
-.almanac-temp-value {
-  font-size: 1.4rem;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: 0.05em;
 }
 
 .almanac-temp-high {
@@ -1057,12 +1051,6 @@
 
 .almanac-temp-low {
   color: var(--info-color);
-}
-
-.almanac-temp-date {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  font-weight: 500;
 }
 
 .almanac-divider {
