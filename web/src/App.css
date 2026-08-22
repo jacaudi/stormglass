@@ -449,6 +449,23 @@
   gap: 1rem;
 }
 
+/* FIX 3 (final-review fix wave): the Badge consolidation folded the header's
+   always-visible "Live"/"Offline" pill and .records-window's pill into one
+   .badge-neutral tone, and .records-window's muted colour won -- the header
+   text silently dropped from --text-primary (its old .status-badge set no
+   color, so it inherited full white) to --text-muted at 55% opacity, and grew
+   0.75rem -> 0.8rem (.badge's size). Restoring an explicit rule here rather
+   than moving color off .badge-neutral: RecordsCard's pill (Badge pill, tone
+   neutral) still needs --text-muted, and .badge.online/.badge.offline (two
+   classes, specificity 0,2,0) already exists as the selector shape for this
+   exact element below -- it naturally wins over .badge-neutral's single-class
+   0,1,0 regardless of source order, so nothing else moves. */
+.badge.online,
+.badge.offline {
+  color: var(--text-primary);
+  font-size: 0.75rem;
+}
+
 .status-dot {
   width: 8px;
   height: 8px;
@@ -717,14 +734,16 @@
 /* Always exactly two columns for Solar Radiation / Illuminance, independent
    of width -- the original .solar-section was `display: flex`, always side
    by side, never wrapping. Same defect as .station-health-card and the same
-   fix: StatRow's auto-fit model (minColumn={130}, needing 2*130+16=276px)
-   collapses to one column below that, and this card's content width crosses
-   276px at the same 660/1001px widths Task 24's bounded-drift comparison
-   caught. Scoped to `.stat-row` specifically, not `.solar-uv-card *`: this
-   card also has a `.uv-section` (Readout + ScaleBar), which is not a
-   .stat-row and is untouched by this rule. Call-site override, not a
-   `columns` prop on StatRow -- three consumers now need "always N", each
-   stated at its own call site. */
+   fix: StatRow's auto-fit model collapses this card's row to one column
+   below its wrap floor, and that crosses at the same 660/1001px widths
+   Task 24's bounded-drift comparison caught. Scoped to `.stat-row`
+   specifically, not `.solar-uv-card *`: this card also has a `.uv-section`
+   (Readout + ScaleBar), which is not a .stat-row and is untouched by this
+   rule. Call-site override, not a `columns` prop on StatRow -- three
+   consumers now need "always N", each stated at its own call site. This
+   card's `<StatRow>` call passes no `minColumn` -- the override below fixes
+   the column count directly, so a `minColumn` here would be inert and was
+   removed rather than left as a misleading prop. */
 .solar-uv-card .stat-row {
   grid-template-columns: 1fr 1fr;
 }
@@ -779,9 +798,11 @@
 /* Always exactly two columns for strike count / avg distance, independent of
    width -- the original .lightning-stats-row was `display: flex`, always
    side by side, never wrapping. Same defect and fix as .station-health-card
-   and .solar-uv-card above: StatRow's auto-fit model (minColumn={130},
-   needing 2*130+16=276px) collapses to one column below that, and this
-   card's content width crosses 276px at the same 660/1001px widths. */
+   and .solar-uv-card above: StatRow's auto-fit model collapses this card's
+   row to one column below its wrap floor, and that crosses at the same
+   660/1001px widths. This card's `<StatRow>` call passes no `minColumn`,
+   for the same reason as .solar-uv-card's above -- the override below fixes
+   the column count directly, so the prop would be inert. */
 .lightning-card .stat-row {
   grid-template-columns: 1fr 1fr;
 }
@@ -1128,18 +1149,21 @@
 /* Always exactly two columns, independent of width -- the original
    .health-grid was `grid-template-columns: 1fr 1fr`, always. StatRow's
    auto-fit model (`repeat(auto-fit, minmax(var(--stat-row-min), 1fr))`)
-   cannot express "always two": Task 14's minColumn={180} was chosen to avoid
-   a THIRD column on wide cards, but there is no single minColumn that also
-   guarantees two on narrow ones -- .station-health-card's own content width
-   crosses 180*2 + 16px gap = 376px at exactly the widths the Task 24
-   bounded-drift comparison caught (413.0px at 1512 keeps two; 336.4 / 277.4 /
-   238.3px at 1280 / 1100 / 660 each collapse to one). A one-column health
-   card stands ~75px taller, and grid rows stretch to their tallest member --
-   handing that height to rain-card and lightning-card as pure slack even
-   though neither card changed. Call-site override, the same pattern already
-   used five times on this branch (.rstat, .almanac-record, .uv-scale,
-   .hero-details) rather than a `columns` prop on StatRow: one consumer needs
-   this, and a prop for one caller is the abstraction YAGNI forbids. */
+   cannot express "always two": Task 14 originally tried a taller
+   `minColumn` on this StatRow to avoid a THIRD column on wide cards, but no
+   single minColumn value also guarantees two columns on narrow ones --
+   .station-health-card's own content width crossed the chosen threshold at
+   exactly the widths the Task 24 bounded-drift comparison caught (two
+   columns at 1512/1280/1100, one at 660). A one-column health card stands
+   ~75px taller, and grid rows stretch to their tallest member -- handing
+   that height to rain-card and lightning-card as pure slack even though
+   neither card changed. Fixed with a call-site override instead, the same
+   pattern already used five times on this branch (.rstat, .almanac-record,
+   .uv-scale, .hero-details) rather than a `columns` prop on StatRow: one
+   consumer needs this, and a prop for one caller is the abstraction YAGNI
+   forbids. This card's `<StatRow>` call now passes no `minColumn` -- the
+   override below fixes the column count directly, so the prop was removed
+   rather than left as an inert, misleading value. */
 .station-health-card .stat-row {
   grid-template-columns: 1fr 1fr;
 }
@@ -1534,7 +1558,14 @@
   .header-right  { gap: 0.5rem; flex-shrink: 0; }
   .station-name  { font-size: 1.05rem; gap: 0.4rem; }
   .logo-icon svg { width: 20px; height: 20px; }
-  .badge         { padding: 0.25rem 0.5rem; font-size: 0.7rem; }
+  /* FIX 4 (final-review fix wave): this was `.badge` before Task 13's Badge
+     rename -- it started life scoped to the header's status pill
+     (.status-badge) and the rename widened it to match every badge in the
+     app, shrinking RecordsCard's "Last N days" pill and the Rain/Lightning
+     alert badges too, none of which had a responsive override before this
+     branch. Re-scoped to the two classes that identify the header pill. */
+  .badge.online,
+  .badge.offline { padding: 0.25rem 0.5rem; font-size: 0.7rem; }
   .last-updated  { font-size: 0.7rem; }
 }
 

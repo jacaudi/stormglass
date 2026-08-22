@@ -302,8 +302,15 @@ export async function probe(page) {
       almanacSunMoonOverlap: (() => {
         const moon = q('.almanac-moon');
         if (!moon) return null;
+        const suns = Array.from(document.querySelectorAll('.almanac-sun'));
+        // Sibling fix to the `.almanac-moon` null guard above (identical shape
+        // to the almanacIndex === -1 -> 0 sentinel this branch already found and
+        // fixed elsewhere): `.reduce` over an EMPTY array returns its seed, 0,
+        // unconditionally -- a renamed/deleted `.almanac-sun` would read as "no
+        // overlap" instead of "unmeasurable". Fail loud instead.
+        if (suns.length === 0) return null;
         const mr = moon.getBoundingClientRect();
-        return Array.from(document.querySelectorAll('.almanac-sun')).reduce((worst, sun) => {
+        return suns.reduce((worst, sun) => {
           const sr = sun.getBoundingClientRect();
           const dx = Math.min(sr.right, mr.right) - Math.max(sr.left, mr.left);
           const dy = Math.min(sr.bottom, mr.bottom) - Math.max(sr.top, mr.top);
@@ -333,7 +340,14 @@ export async function probe(page) {
         const text = q('.humidity-ring-text');
         if (!ring || !text) return null;
         const rr = ring.getBoundingClientRect();
-        return Array.from(text.querySelectorAll('*')).reduce((worst, el) => {
+        const descendants = Array.from(text.querySelectorAll('*'));
+        // Same shape as almanacSunMoonOverlap's fix above: `.reduce` over an
+        // EMPTY array returns its seed, 0, unconditionally -- an
+        // element-child-free `.humidity-ring-text` (the Readout markup
+        // changing to bare text, or the readout being removed) would read as
+        // "fits" instead of "unmeasurable". Fail loud instead.
+        if (descendants.length === 0) return null;
+        return descendants.reduce((worst, el) => {
           if (el.getClientRects().length === 0) return worst;
           const r = el.getBoundingClientRect();
           return Math.max(worst, r.right - rr.right, rr.left - r.left, r.bottom - rr.bottom, rr.top - r.top);

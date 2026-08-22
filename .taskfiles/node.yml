@@ -66,6 +66,13 @@ tasks:
     desc: Production build
     cmds:
       - npm run build
+      # vite's emptyOutDir defaults to true and its skip list is only
+      # [...outDirs, ".git"] -- dist/.gitkeep is not spared, so every build
+      # deletes the file web/embed.go's `//go:embed all:dist` needs present on
+      # a fresh checkout (an empty dist/ fails that embed directive outright).
+      # Restore it here rather than setting `emptyOutDir: false`, which would
+      # ship stale assets from a previous build.
+      - touch dist/.gitkeep
 
   layout:
     desc: Responsive-layout probe — 19 viewport widths against a built dist

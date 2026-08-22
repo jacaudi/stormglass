@@ -310,9 +310,12 @@ CHECKS.push({
   id: 'almanac-sun-clears-the-moon',
   section: '§6.7',
   describe: (m) => {
-    // null means .almanac-moon is gone -- Tasks 8/23 rewrite the almanac and
-    // could delete it outright, not just mispositioning it. A deleted moon
-    // must fail loudly here, not read as "0px overlap".
+    // null means either .almanac-moon or .almanac-sun is gone -- Tasks 8/23
+    // rewrite the almanac and could delete either outright, not just
+    // mispositioning it (probe.mjs guards both: a missing moon short-circuits
+    // before querying suns, and an empty sun NodeList would otherwise feed
+    // `.reduce`'s seed, 0, straight through as "no overlap"). A deleted
+    // selector must fail loudly here, not read as "0px overlap".
     const bad = WIDTHS.filter((w) => {
       const v = m.widths[w].almanacSunMoonOverlap;
       return v === null || v > 1;
@@ -321,7 +324,9 @@ CHECKS.push({
       ? bad
           .map((w) => {
             const v = m.widths[w].almanacSunMoonOverlap;
-            return v === null ? `${w}:SELECTOR MISSING (.almanac-moon)` : `${w}:${v.toFixed(1)}px`;
+            return v === null
+              ? `${w}:SELECTOR MISSING (.almanac-moon or .almanac-sun)`
+              : `${w}:${v.toFixed(1)}px`;
           })
           .join(' ')
       : 'no overlap at any width';
@@ -370,9 +375,11 @@ CHECKS.push({
   id: 'humidity-ring-text-fits',
   section: '§6.5 Readout',
   describe: (m) => {
-    // null means .humidity-ring-container or .humidity-ring-text is gone --
-    // Task 18 rewrites HumidityCard and could delete the ring outright, not
-    // just mispositioning its text. A deleted ring must fail loudly here,
+    // null means .humidity-ring-container or .humidity-ring-text is gone, OR
+    // .humidity-ring-text has no element descendants left to measure (same
+    // empty-array-reduce shape as almanacSunMoonOverlap, fixed in probe.mjs)
+    // -- Task 18 rewrites HumidityCard and could delete the ring outright,
+    // not just mispositioning its text. Either case must fail loudly here,
     // not read as "0px overflow".
     const bad = WIDTHS.filter((w) => {
       const v = m.widths[w].humidityRingOverflow;
@@ -383,7 +390,7 @@ CHECKS.push({
           .map((w) => {
             const v = m.widths[w].humidityRingOverflow;
             return v === null
-              ? `${w}:SELECTOR MISSING (.humidity-ring-container/.humidity-ring-text)`
+              ? `${w}:UNMEASURABLE (missing .humidity-ring-container/.humidity-ring-text, or no element descendants)`
               : `${w}:${v.toFixed(1)}px`;
           })
           .join(' ')
@@ -971,6 +978,138 @@ CHECKS.push({
   section: '§4.3 / §6.5',
   describe: (m) => `survivors: ${JSON.stringify(m.css.legacyFamilies)}`,
   pass: (m) => m.css.legacyFamilies.length === 0,
+});
+
+// --- Final-review fix wave / FIX 2 -- the Phase 1 gate had no enforcer ------
+// `phase1-baseline.json` (committed at the Task 12 gate, `520acff`) was
+// stated as "the acceptance criterion for every Phase 2 task", but every
+// comparison against it only ever existed as an inline `node -e` block pasted
+// into a task brief -- and task briefs live under docs/plans/ and
+// .superpowers/, both gitignored. A grep across web/, .taskfiles/ and
+// .github/ for "phase1-baseline" returned zero matches outside this file
+// before this check existed: the criterion that graded all eleven Phase 2
+// tasks disappeared from the repository the moment this branch merged.
+// Registered here as the 31st check so the frozen comparand actually gates
+// something going forward, instead of sitting as 6,473 committed lines
+// nothing reads.
+const PHASE1_BASELINE = JSON.parse(readFileSync(join(HERE, 'phase1-baseline.json'), 'utf8'));
+
+// Deliberately EXCLUDED from every comparison below -- both measured
+// nondeterministic AT the Task 12 gate itself and neither feeds any threshold
+// above, so comparing them would report spurious "drift" forever rather than
+// a real regression:
+//   - widths[w].widestOffender.right -- sub-pixel font-rendering jitter.
+//   - top-level requestLog ordering -- a fetch race between the radar tile
+//     request and the sweep's own navigation, not a layout property.
+
+// Reads a possibly-nested field off one width's measurement object, returning
+// null the moment any hop is missing rather than throwing or coercing to
+// `undefined` -- `undefined <= N` is `false` and `null <= N` is context
+// dependent, so every caller below is written to treat BOTH the same way:
+// exclude before comparing, never fold a missing value into the arithmetic.
+function phase1Field(widthData, path) {
+  let v = widthData;
+  for (const key of path) {
+    if (v == null) return null;
+    v = v[key];
+  }
+  return v === undefined ? null : v;
+}
+
+// name -> { pick(widthData) -> number|null, tolerance: number | (before) -> number }
+const PHASE1_FIELDS = [
+  // --- hard invariants: Phase 2 rewrote card INTERIORS, and none of these
+  // should move at all. ---
+  { name: 'clippedCount', pick: (w) => phase1Field(w, ['clippedCount']), tolerance: 0 },
+  { name: 'docOverflow', pick: (w) => phase1Field(w, ['docOverflow']), tolerance: 0 },
+  { name: 'trackSpread', pick: (w) => phase1Field(w, ['trackSpread']), tolerance: 1 },
+  { name: 'rowSpread', pick: (w) => phase1Field(w, ['rowSpread']), tolerance: 1 },
+  { name: 'gutter', pick: (w) => phase1Field(w, ['gutter']), tolerance: 2 },
+  {
+    name: 'heroOverflow',
+    // scrollWidth - clientWidth isn't a stored field -- computed identically
+    // from both the frozen baseline's hero and the live measurement's hero,
+    // so a regression in either dimension shows up as drift.
+    pick: (w) => {
+      const hero = phase1Field(w, ['hero']);
+      if (hero == null || hero.scrollWidth == null || hero.clientWidth == null) return null;
+      return hero.scrollWidth - hero.clientWidth;
+    },
+    tolerance: 0,
+  },
+  // --- bounded: card interiors are EXPECTED to move -- Phase 2 rewrote ten
+  // cards by hand -- so these are drift budgets, not pins. ---
+  {
+    name: 'asymmetry',
+    pick: (w) => phase1Field(w, ['asymmetry']),
+    tolerance: (before) => Math.max(40, 0.35 * before),
+  },
+  {
+    name: 'records.height',
+    // NOT guarded behind `if (records && height)`: `.records-card`'s height
+    // is a real, possibly-falsy-looking-but-never-actually-zero number, and a
+    // skipped comparison reads as a pass. `phase1Field` already returns null
+    // (not 0, not undefined) the moment `.records-card` itself is missing, so
+    // the null-exclusion below is the only guard this needs.
+    pick: (w) => phase1Field(w, ['records', 'height']),
+    tolerance: 60,
+  },
+  { name: 'header.height', pick: (w) => phase1Field(w, ['header', 'height']), tolerance: 4 },
+];
+
+function phase1DriftIssues(m) {
+  const issues = [];
+  for (const { name, pick, tolerance } of PHASE1_FIELDS) {
+    for (const w of WIDTHS) {
+      const before = pick(PHASE1_BASELINE.widths[String(w)]);
+      const after = pick(m.widths[w]);
+      if (before == null || after == null) {
+        issues.push(`${name}@${w}: MISSING (baseline ${before} -> current ${after})`);
+        continue;
+      }
+      const tol = typeof tolerance === 'function' ? tolerance(before) : tolerance;
+      if (Math.abs(after - before) > tol) {
+        issues.push(`${name}@${w}: ${before.toFixed(2)} -> ${after.toFixed(2)} (tol ${tol.toFixed(2)})`);
+      }
+    }
+  }
+
+  // cardText at 1512 only (per FIX 2), ORDER-INDEPENDENT: Phase 2 rewrote ten
+  // cards by hand and no geometric threshold above can see a dropped label or
+  // a swapped value -- #178 was literally "WIND CHILL and UV INDEX are
+  // absent". Sorted before comparing because DOM order was never part of the
+  // guarantee cardText exists to police; content is.
+  const beforeText = phase1Field(PHASE1_BASELINE.widths['1512'], ['cardText']);
+  const afterText = phase1Field(m.widths['1512'], ['cardText']);
+  if (beforeText == null || afterText == null) {
+    issues.push(`cardText@1512: MISSING (baseline ${beforeText} -> current ${afterText})`);
+  } else {
+    const sortedBefore = [...beforeText].sort();
+    const sortedAfter = [...afterText].sort();
+    if (sortedBefore.length !== sortedAfter.length) {
+      issues.push(`cardText@1512: length ${sortedBefore.length} -> ${sortedAfter.length}`);
+    } else {
+      for (let i = 0; i < sortedBefore.length; i++) {
+        if (sortedBefore[i] !== sortedAfter[i]) {
+          issues.push(
+            `cardText@1512[${i}]: ${JSON.stringify(sortedBefore[i])} -> ${JSON.stringify(sortedAfter[i])}`
+          );
+        }
+      }
+    }
+  }
+
+  return issues;
+}
+
+CHECKS.push({
+  id: 'phase1-baseline-enforced',
+  section: 'Phase 1 gate / final review fix wave',
+  describe: (m) => {
+    const issues = phase1DriftIssues(m);
+    return issues.length ? issues.join('  ') : 'no drift vs phase1-baseline.json';
+  },
+  pass: (m) => phase1DriftIssues(m).length === 0,
 });
 
 await main();
