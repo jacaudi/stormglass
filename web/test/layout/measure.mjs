@@ -818,4 +818,19 @@ CHECKS.push({
     Math.min(...m.widths['320'].readoutValues.primary) >= 26,
 });
 
+// --- Task 21 / design §6.5 + §6.6 -------------------------------------------
+CHECKS.push({
+  id: 'hero-uses-the-hero-readout',
+  section: '§6.5 Readout',
+  describe: (m) =>
+    [1512, 640, 390].map((w) => `${w}: ${JSON.stringify(m.widths[w].readoutValues.hero)}`).join('  '),
+  pass: (m) =>
+    WIDTHS.every((w) => m.widths[w].readoutValues.hero.length === 1) &&
+    // Flat 4rem: it rides the root scale and nothing else. ~60px at 320-390
+    // (15px root) up to 72px at >= 1429px (18px root). A second clamp measured
+    // SMALLER than today at mobile, which is why the token is not clamped.
+    m.widths['390'].readoutValues.hero[0] >= 55 &&
+    m.widths['1512'].readoutValues.hero[0] >= 70,
+});
+
 await main();
