@@ -44,7 +44,7 @@ function RecordsCardImpl({ summary, prefs }: RecordsCardProps) {
 
       <div className="records-grid">
         <div className="rstat">
-          <span className="rstat-label">Temperature</span>
+          <span className="stat-label">Temperature</span>
           <div className="rstat-body rstat-pair">
             <div className="rpair-row">
               <span className="rpair-tag">High</span>
@@ -58,7 +58,7 @@ function RecordsCardImpl({ summary, prefs }: RecordsCardProps) {
         </div>
 
         <div className="rstat">
-          <span className="rstat-label">Humidity</span>
+          <span className="stat-label">Humidity</span>
           <div className="rstat-body rstat-pair">
             <div className="rpair-row">
               <span className="rpair-tag">High</span>
@@ -72,7 +72,7 @@ function RecordsCardImpl({ summary, prefs }: RecordsCardProps) {
         </div>
 
         <div className="rstat">
-          <span className="rstat-label">Pressure</span>
+          <span className="stat-label">Pressure</span>
           <div className="rstat-body rstat-pair">
             <div className="rpair-row">
               <span className="rpair-tag">High</span>
@@ -86,7 +86,7 @@ function RecordsCardImpl({ summary, prefs }: RecordsCardProps) {
         </div>
 
         <div className="rstat">
-          <span className="rstat-label">Wind</span>
+          <span className="stat-label">Wind</span>
           <div className="rstat-body rstat-pair">
             <div className="rpair-row">
               <span className="rpair-tag">Sustained</span>
