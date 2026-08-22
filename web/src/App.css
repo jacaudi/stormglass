@@ -665,31 +665,6 @@
   gap: 0.15rem;
 }
 
-.wind-speed-value {
-  font-size: 2.2rem;
-  font-weight: 700;
-  line-height: 1;
-}
-
-.wind-direction-text {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-}
-
-.wind-stats {
-  display: flex;
-  justify-content: space-between;
-  padding-top: 0.75rem;
-  border-top: 1px solid var(--border-color);
-}
-
-.wind-stat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  flex: 1;
-}
-
 .wind-avg {
   color: var(--accent-color);
 }

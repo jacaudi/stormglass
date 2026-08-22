@@ -799,22 +799,23 @@ CHECKS.push({
 // width -- including .lightning-count and .lightning-distance, which share a
 // row. A floor at 320 as well as a ceiling at 1512, because the scale reduces
 // the UV and lightning numbers on phones.
-// UNCOMMENT IN TASK 19, when all six --readout-primary consumers are converted.
-// CHECKS.push({
-//   id: 'readout-scale-unified',
-//   section: '§6.5 Readout',
-//   describe: (m) =>
-//     [1512, 1000, 640, 320]
-//       .map((w) => `${w}: n=${m.widths[w].readoutValues.primary.length} ` +
-//         `${JSON.stringify(m.widths[w].readoutValues.primary)}`)
-//       .join('  '),
-//   pass: (m) =>
-//     WIDTHS.every((w) => {
-//       const p = m.widths[w].readoutValues.primary;
-//       return p.length === 6 && Math.max(...p) - Math.min(...p) <= 0.5;
-//     }) &&
-//     Math.min(...m.widths['1512'].readoutValues.primary) >= 40 &&
-//     Math.min(...m.widths['320'].readoutValues.primary) >= 26,
-// });
+// Uncommented in Task 19: WindCard is the sixth and last --readout-primary
+// consumer, so all six can now be asserted equal at every width.
+CHECKS.push({
+  id: 'readout-scale-unified',
+  section: '§6.5 Readout',
+  describe: (m) =>
+    [1512, 1000, 640, 320]
+      .map((w) => `${w}: n=${m.widths[w].readoutValues.primary.length} ` +
+        `${JSON.stringify(m.widths[w].readoutValues.primary)}`)
+      .join('  '),
+  pass: (m) =>
+    WIDTHS.every((w) => {
+      const p = m.widths[w].readoutValues.primary;
+      return p.length === 6 && Math.max(...p) - Math.min(...p) <= 0.5;
+    }) &&
+    Math.min(...m.widths['1512'].readoutValues.primary) >= 40 &&
+    Math.min(...m.widths['320'].readoutValues.primary) >= 26,
+});
 
 await main();
