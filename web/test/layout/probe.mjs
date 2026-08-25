@@ -308,6 +308,14 @@ export async function probe(page) {
       statAlignments: Array.from(document.querySelectorAll('.stat')).map(
         (el) => getComputedStyle(el).alignItems
       ),
+      // RecordsCard's High/Low boxes are the one label/value family that never
+      // carried .stat, so statAlignments could not see them and they sat at
+      // flex-start beside two centred boxes in the same grid. Recorded
+      // separately (not folded into statAlignments) so the two families stay
+      // legible in `describe` when one of them drifts.
+      pairAlignments: Array.from(document.querySelectorAll('.rpair-row')).map(
+        (el) => getComputedStyle(el).alignItems
+      ),
       // RadarCard's DOM differs by resolved status; recorded so a nondeterministic
       // WebGL/fetch race fails loudly rather than drifting the row heights.
       radarStatusMessage: !!q('.radar-status-message'),

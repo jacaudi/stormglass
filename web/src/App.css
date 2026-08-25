@@ -1633,13 +1633,22 @@
 .records-title { font-size: .82rem; letter-spacing: .08em; text-transform: uppercase; color: var(--text-secondary); font-weight: 600; }
 .records-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); align-items: stretch; }
 .rstat { padding: 14px 16px; border-radius: 14px; border: 1px solid var(--border-color); background: rgba(255,255,255,.05); display: flex; flex-direction: column; }
-.rstat > .stat-label { margin-bottom: 10px; }
+/* Centred to match the Rain and Lightning boxes, which render through Stat and
+   centre by construction. Before this the four pair boxes read hard-left beside
+   two centred ones in the same grid. */
+.rstat > .stat-label { margin-bottom: 10px; text-align: center; }
 .rstat-body { flex: 1; display: flex; flex-direction: column; justify-content: center; }
-.rstat .stat { flex: 1; justify-content: center; }
+/* Stat's own 0.15rem is too tight under a 1.6rem number -- the label crowded the
+   value in a way the 1.28rem .rpair-val does not. Scoped here because it is this
+   card's larger type that needs it, not Stat everywhere. */
+.rstat .stat { flex: 1; justify-content: center; gap: 0.35rem; }
 .rstat .stat-value { font-size: 1.6rem; font-weight: 650; line-height: 1; font-variant-numeric: tabular-nums; }
 .rstat-unit { font-size: .82rem; color: var(--text-muted); font-weight: 500; margin-left: 3px; }
 .rstat-pair { display: flex; flex-direction: column; gap: 12px; }
-.rpair-row { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
+/* center, not flex-start: this box sits in the same grid as Rain and Lightning,
+   and design §12 asks for one alignment across every stat family. It was the
+   last family diverging, and one-stat-alignment now asserts it. */
+.rpair-row { display: flex; flex-direction: column; align-items: center; gap: 3px; }
 .rpair-tag { font-size: .7rem; letter-spacing: .04em; text-transform: uppercase; color: var(--text-secondary); font-weight: 600; }
 .rpair-val { font-size: 1.28rem; font-weight: 650; line-height: 1; font-variant-numeric: tabular-nums; white-space: nowrap; }
 

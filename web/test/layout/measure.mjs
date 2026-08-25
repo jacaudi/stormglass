@@ -911,7 +911,7 @@ CHECKS.push({
 //    cannot each also sit at the FULL CARD's centre; that is not achievable by
 //    any CSS short of abandoning the two-up layout. KNOWN DIVERGENCE from
 //    design §12's literal "all centred", exactly the same shape as
-//    one-stat-alignment's documented `.rpair-row` exclusion below: the
+//    one-stat-alignment's former `.rpair-row` exclusion below (since closed): the
 //    per-item assertion is scoped to `readoutSharesRow[i] === false`
 //    (probe.mjs), so it inspects solo readouts only and does not see
 //    LightningCard's shared row's two items individually.
@@ -975,20 +975,30 @@ CHECKS.push({
 CHECKS.push({
   id: 'one-stat-alignment',
   section: '§6.5 Stat',
-  describe: (m) => JSON.stringify(m.widths['1512'].statAlignments),
+  describe: (m) =>
+    `stat ${JSON.stringify(m.widths['1512'].statAlignments)} ` +
+    `rpair ${JSON.stringify(m.widths['1512'].pairAlignments)}`,
+  // Both families, not just the one carrying .stat. .rpair-row used to be a
+  // documented exclusion here; it is now centred like every other family, so
+  // the exclusion is gone and the assertion covers it. Each list must be
+  // non-empty: a renamed or deleted family must fail loudly rather than pass
+  // by having nothing left to check.
   pass: (m) => {
     const a = m.widths['1512'].statAlignments;
-    return a.length > 0 && new Set(a).size === 1 && a[0] === 'center';
+    const b = m.widths['1512'].pairAlignments;
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length === 0 || b.length === 0) return false;
+    const all = new Set([...a, ...b]);
+    return all.size === 1 && all.has('center');
   },
 });
 
 // The families are gone from App.css, not merely unused by the TSX.
-// KNOWN DIVERGENCE from design §12's "no card in the grid reports a stat family
-// with a different alignment": .rpair-row keeps align-items: flex-start, and
-// Task 22 keeps it deliberately -- a High/Low pair inside one bordered box is
-// not a label above a value. one-stat-alignment inspects only elements carrying
-// .stat, so it does not see .rpair-row, and that is intended rather than an
-// oversight.
+// The KNOWN DIVERGENCE that stood here is resolved: .rpair-row was the last
+// family at align-items: flex-start, kept that way by Task 22 on the reasoning
+// that a High/Low pair inside one bordered box is not a label above a value.
+// It rendered hard-left beside the centred Rain and Lightning boxes in the same
+// grid, so it is now centred and one-stat-alignment asserts it directly rather
+// than excluding it.
 CHECKS.push({
   id: 'label-value-families-collapsed',
   section: '§4.3 / §6.5',
