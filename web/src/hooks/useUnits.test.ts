@@ -3,10 +3,12 @@ import {
   convertTemp,
   convertWind,
   convertPressure,
+  convertDistance,
   convertRain,
   formatTemp,
   formatWind,
   formatPressure,
+  formatDistance,
   formatRain,
 } from './useUnits';
 
@@ -95,5 +97,31 @@ describe('formatRain', () => {
 
   it('formats mm to one decimal', () => {
     expect(formatRain(25.4, 'mm')).toBe('25.4 mm');
+  });
+});
+
+// The Tempest reports strike distance in km and the sensor's own range is a
+// round 40 km, so km stays the storage unit and the preference converts on the
+// way out -- the same shape as every other unit here.
+describe('convertDistance', () => {
+  it('is identity for km', () => {
+    expect(convertDistance(8.05, 'km')).toBe(8.05);
+  });
+
+  it('converts km to statute miles', () => {
+    expect(convertDistance(8.0467, 'mi')).toBeCloseTo(5, 3);
+    expect(convertDistance(40, 'mi')).toBeCloseTo(24.855, 3);
+  });
+});
+
+describe('formatDistance', () => {
+  it('renders one decimal in either unit', () => {
+    expect(formatDistance(8.05, 'km')).toBe('8.1 km');
+    expect(formatDistance(8.05, 'mi')).toBe('5.0 mi');
+  });
+
+  it('rounds to whole units when asked, for the range labels', () => {
+    expect(formatDistance(40, 'km', 0)).toBe('40 km');
+    expect(formatDistance(40, 'mi', 0)).toBe('25 mi');
   });
 });

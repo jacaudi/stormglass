@@ -1,4 +1,10 @@
 # JS/TS project — include with `dir:` (the JS always lives in a subdirectory). Rationale: github-actions-align/templates/README.md#nodeyml
+# LOCAL DIVERGENCE from the github-actions-align template: this repo adds a
+# `layout` target (web/test/layout) and calls it from `ci`. The dashboard's
+# responsive behaviour is only checkable in a real browser, and CLAUDE.md's CI
+# contract requires every `task ci` check to be runnable locally with one
+# command -- so the probe is hermetic (recorded API fixtures, no live backend)
+# and lives in the contract rather than in a workflow.
 version: '3'
 
 tasks:
@@ -9,6 +15,7 @@ tasks:
       - task: lint
       - task: typecheck
       - task: test
+      - task: layout
 
   install:
     desc: Install dependencies from the lockfile
@@ -58,4 +65,27 @@ tasks:
   build:
     desc: Production build
     cmds:
+      # vite's emptyOutDir defaults to true and its skip list is only
+      # [...outDirs, ".git"] -- dist/.gitkeep is not spared, so every build
+      # deletes the file web/embed.go's `//go:embed all:dist` needs present on
+      # a fresh checkout (an empty dist/ fails that embed directive outright).
+      # The restore lives in package.json's own `build` script (`&& touch
+      # dist/.gitkeep`), NOT here: a `touch` appended only to this Task target
+      # left the hole open on the most natural path a developer takes --
+      # running `npm run build` directly restores nothing, since this task's
+      # own `touch` line never fires without `task node:build`. Moving it into
+      # the npm script closes the class of the bug, not one route into it.
+      # Not `emptyOutDir: false` either -- that would ship stale assets from a
+      # previous build.
       - npm run build
+
+  layout:
+    desc: Responsive-layout probe — 19 viewport widths against a built dist
+    cmds:
+      # The probe reads web/dist, so the build is a hard prerequisite rather
+      # than an assumption; measure.mjs fails loudly naming this if dist is
+      # missing.
+      - task: build
+      # Idempotent and cached in ~/.cache/ms-playwright after the first run.
+      - npx playwright install chromium
+      - node test/layout/measure.mjs

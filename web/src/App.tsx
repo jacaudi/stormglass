@@ -59,6 +59,13 @@ function App() {
 
   if (!current) return null;
 
+  // A window with no observations reports every aggregate as absent, so the
+  // cards that borrow from the summary render em-dashes rather than zeros.
+  // RecordsCard applies the same two rules to the same data; a third consumer
+  // is the point at which this should move to one shared helper.
+  const records = summary === null || summary.count === 0 ? null : summary;
+  const recordsWindowDays = summary?.window.days ?? prefs.recordsWindowDays;
+
   return (
     <div className="app">
       <div className="app-bg-orbs">
@@ -81,10 +88,20 @@ function App() {
             <TemperatureHero current={current} unit={prefs.temperatureUnit} precipProbability={forecast[0]?.precipProbability} />
             <WindCard current={current} unit={prefs.windUnit} />
             <HumidityCard current={current} tempUnit={prefs.temperatureUnit} />
-            <PressureCard current={current} unit={prefs.pressureUnit} />
+            <PressureCard
+              current={current}
+              unit={prefs.pressureUnit}
+              range={records?.pressure ?? null}
+              windowDays={recordsWindowDays}
+            />
             <SolarUVCard current={current} />
-            <RainCard current={current} unit={prefs.rainUnit} />
-            <LightningCard current={current} />
+            <RainCard
+              current={current}
+              unit={prefs.rainUnit}
+              windowTotal={records?.rainTotal ?? null}
+              windowDays={recordsWindowDays}
+            />
+            <LightningCard current={current} unit={prefs.distanceUnit} />
             {status && <StationHealth status={status} />}
             <RecordsCard summary={summary} prefs={prefs} />
             {capabilities?.forecast && <ForecastStrip forecast={forecast} unit={prefs.temperatureUnit} />}

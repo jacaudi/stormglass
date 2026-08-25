@@ -129,4 +129,20 @@ describe('Header fallbacks on omitted station fields', () => {
     expect(container.querySelector('.station-location')).toBeNull();
     expect(screen.queryByText(/0\.0000°N/)).not.toBeInTheDocument();
   });
+
+  it('puts a space before the coordinate/elevation separator', () => {
+    // JSX drops the newline-plus-indent around a comment-only line, so the
+    // separator rendered as "122.2043°W· 150m" until an explicit {' '} was
+    // added. Asserted on textContent because it is a whitespace defect that no
+    // getByText query would notice.
+    render(
+      <Header
+        station={{ name: 'Test', latitude: 35.4676, longitude: -97.5164, elevation: 361 }}
+        status={null}
+        lastUpdated={null}
+        onSettingsClick={() => {}}
+      />
+    );
+    expect(document.querySelector('.station-location')?.textContent).toMatch(/°[WE] ·/);
+  });
 });

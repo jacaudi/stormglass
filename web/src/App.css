@@ -76,6 +76,66 @@
   text-shadow: var(--text-shadow);
 }
 
+/* Card interiors (#180). Scoped to `.dashboard-grid >` deliberately:
+   SettingsPanel.tsx:68 renders `settings-panel glass-card`, and an unscoped rule
+   would turn the modal into a flex column with auto margins on its body, against
+   its own overflow-y: auto and max-height: 85dvh. The probe never opens it and
+   no test covers it, so that would ship unseen.
+
+   The radar card is excluded with :not() rather than overridden. Per Selectors-4
+   the general rule below is (0,6,0) once :nth-last-child(1 of :not(.rain-animation))
+   contributes its inner selector's specificity, so a `.dashboard-grid > .radar-card >`
+   override would LOSE the margin-bottom -- and per Flexbox §8.1 auto margins
+   absorb positive free space before flex-grow, so `flex: 1 1 auto` would be
+   neutered whenever free space is positive. Excluding is exact; overriding was
+   measured to lose.
+
+   Rows keep stretching to the tallest sibling --
+   uniform block heights are the design's signature. The card's first block
+   pins to the top and the remaining content is centred as a GROUP via auto
+   margins, rather than each block growing (which strands the pressure gauge at
+   the card's bottom edge with a void above it).
+
+   Deliberately sets NO `display` on children: a blanket `display: flex`
+   destroys `display: grid` on .records-grid and .almanac-records -- measured,
+   the records card went 238px -> 1014px.
+
+   `:first-child`, not `.card-header`: RecordsCard.tsx:38 heads with
+   .records-header, and .hero-card has no header element at all (it is already
+   centred by :264-269, so `:first-child + *` correctly matches nothing there).
+
+   `:nth-last-child(1 of :not(.rain-animation))`, not `:last-child`:
+   RainCard.tsx:68 renders .rain-animation as a third child ONLY while it is
+   raining. It is position: absolute (:714-723) so it absorbs no free space, yet
+   it is structurally :last-child -- a plain :last-child rule hands it the
+   margin-bottom: auto it cannot use and bottom-pins the card (measured 270/0
+   raining against 135/135 dry). Both "just move it in the DOM" fixes were
+   tested and break the other way; the out-of-flow element has to be excluded.
+   Supported Safari 9+ / Chrome 111+ / Firefox 113+. Phase 2 removes the need
+   for the exclusion, because the primitives give every card one body element. */
+.dashboard-grid > .glass-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard-grid > .glass-card > :first-child {
+  flex: 0 0 auto;
+}
+
+.dashboard-grid > .glass-card:not(.radar-card) > :first-child + * {
+  margin-top: auto;
+}
+
+.dashboard-grid > .glass-card:not(.radar-card) > :first-child ~ :nth-last-child(1 of :not(.rain-animation)) {
+  margin-bottom: auto;
+}
+
+/* The radar map is the one body that should CONSUME the height rather than be
+   centred in it. No margin override needed -- it is excluded above. */
+.dashboard-grid > .radar-card > :first-child + * {
+  flex: 1 1 auto;
+}
+
 .glass-card::before {
   content: '';
   position: absolute;
@@ -107,6 +167,14 @@
 }
 
 .card-icon {
+  /* Sized in CSS over the SVG's width/height presentational attributes: those
+     have specificity 0 at the start of the author origin, so a CSS rule wins and
+     they survive as a no-CSS fallback. All ten card icons are
+     <svg className="card-icon" width="20" height="20">, so no component changes.
+     The hero glyph (TemperatureHero.tsx:40) and the two Header SVGs are sized in
+     TSX and deliberately do NOT ride this scale -- see design §6.8. */
+  width: 1.25rem;
+  height: 1.25rem;
   opacity: 0.7;
   flex-shrink: 0;
 }
@@ -118,6 +186,219 @@
   letter-spacing: 0.08em;
   color: var(--text-secondary);
 }
+
+/* --- Badge (primitive) --------------------------------------------- */
+/* One pill shape, replacing .status-badge / .stale-badge /
+   .rain-active-badge / .lightning-alert-badge / .records-window. */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 10px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge-neutral {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  font-weight: 500;
+  padding: 0.3rem 0.75rem;
+  border-radius: 20px;
+}
+
+.badge-info    { background: var(--info-color);    color: #fff; }
+.badge-warning { background: var(--warning-color); color: #1a1a1a; }
+.badge-danger  { background: var(--danger-color);  color: var(--bg-primary); }
+.badge-success { background: var(--success-color); color: #1a1a1a; }
+
+/* AFTER the tone rules, not before: `pill` composes with a tone (RecordsCard
+   renders <Badge pill> at the default neutral tone), and at equal specificity
+   the later rule wins. Placed above .badge-neutral it would lose its radius and
+   padding to it. These are .records-window's declarations. */
+.badge-pill {
+  border-radius: 999px;
+  padding: 4px 12px;
+  background: transparent;
+  font-weight: 500;
+}
+
+/* Two distinct animations, kept because the two alert badges genuinely differ
+   in keyframe AND duration -- collapsing them would be a visual change wearing
+   a refactor's clothes. */
+.badge-anim-pulse { animation: pulse 1.5s ease-in-out infinite; }
+.badge-anim-flash { animation: flashBadge 2s ease-in-out infinite; }
+
+/* Call-site slot classes. These follow .badge in source order so they win at
+   equal specificity -- e.g. .stale-marker's font-size: 0.7rem only beats
+   .badge's 0.8rem because it comes later. */
+.stale-marker {
+  margin-left: 0.4rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-size: 0.7rem;
+}
+
+.alert-badge-slot { margin-left: auto; }
+
+.records-window-slot { margin-left: auto; }
+
+/* --- Stat / StatRow (primitives) ------------------------------------ */
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  min-width: 0;
+  text-align: center;
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.stat-value {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.stat-sublabel {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(var(--stat-row-min, 120px), 1fr));
+  gap: 0.5rem 1rem;
+}
+
+.stat-row-divided {
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-color);
+}
+
+/* --- Readout (primitive) -------------------------------------------- */
+.readout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  min-width: 0;
+  /* Not redundant with align-items: a qualifier holding block children (the
+     hero's .hero-condition and .hero-feels-like) is shrink-to-fit, and its
+     children then fill that width and left-align their own text. This is what
+     lets Task 21 delete the hero's two text-align rules rather than keep them. */
+  text-align: center;
+}
+
+/* Grid, not flex row + justify-content: center: a centered flex ROW centers
+   the value+qualifier GROUP, which leaves .readout-value itself off-centre by
+   half the qualifier's width -- measured 35px (Pressure's "↑ Rising") and
+   20.5px (Solar & UV's "Moderate") against the design's own 2px tolerance
+   (§12, readouts-centred). The symmetric 1fr/auto/1fr track keeps an empty
+   spacer column balancing the qualifier, so the NUMBER -- not the group --
+   lands on the card's true centre regardless of qualifier text length. */
+.readout-inline {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: baseline;
+  column-gap: 0.5rem;
+}
+
+.readout-inline .readout-value {
+  grid-column: 2;
+  justify-self: center;
+}
+
+.readout-inline .readout-qualifier {
+  grid-column: 3;
+  justify-self: start;
+}
+
+.readout-value {
+  font-weight: 700;
+  line-height: 1;
+  font-size: var(--readout-primary);
+}
+
+.readout-hero .readout-value {
+  font-size: var(--readout-hero);
+  letter-spacing: -0.03em;
+}
+
+.readout-qualifier {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+/* --- ScaleBar (primitive) ------------------------------------------- */
+/* Geometry only. The pressure gauge and the UV bar are inside-out relative to
+   each other -- the gauge's gradient is on its FILL, the UV bar's is on its
+   TRACK with a transparent fill and a position indicator -- so colour stays at
+   the call sites and only the shape is shared.
+   No `overflow: hidden` on the track: it would clip the indicator, which sits at
+   top: -3px and is 12px tall. The fill's own border-radius rounds its leading
+   edge, which is what both originals already relied on. */
+.scale-bar { margin-top: 0.25rem; }
+
+.scale-bar-track {
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg-secondary);
+}
+
+.scale-bar-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.6s ease;
+}
+
+.scale-bar-indicator {
+  position: absolute;
+  top: -3px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--text-primary);
+  border: 2px solid var(--bg-card);
+  transform: translateX(-50%);
+  box-shadow: 0 0 6px var(--shadow-color);
+  transition: left 0.6s ease;
+}
+
+.scale-bar-ticks {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.3rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* Call-site colour: the pressure gauge reads from its fill. */
+.pressure-gauge-fill {
+  background: linear-gradient(90deg, var(--info-color), var(--success-color), var(--warning-color));
+}
+
+/* Call-site colour: the UV bar reads from its track plus its indicator, so its
+   fill stays invisible. Added here so Task 17 only has to delete the old rules. */
+.uv-scale .scale-bar-track {
+  background: linear-gradient(90deg, #00e676, #ffeb3b, #ff9800, #f44336, #9c27b0);
+}
+.uv-scale .scale-bar-fill { background: transparent; }
 
 /* --- Header -------------------------------------------------- */
 .app-header {
@@ -168,16 +449,21 @@
   gap: 1rem;
 }
 
-.status-badge {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
+/* FIX 3 (final-review fix wave): the Badge consolidation folded the header's
+   always-visible "Live"/"Offline" pill and .records-window's pill into one
+   .badge-neutral tone, and .records-window's muted colour won -- the header
+   text silently dropped from --text-primary (its old .status-badge set no
+   color, so it inherited full white) to --text-muted at 55% opacity, and grew
+   0.75rem -> 0.8rem (.badge's size). Restoring an explicit rule here rather
+   than moving color off .badge-neutral: RecordsCard's pill (Badge pill, tone
+   neutral) still needs --text-muted, and .badge.online/.badge.offline (two
+   classes, specificity 0,2,0) already exists as the selector shape for this
+   exact element below -- it naturally wins over .badge-neutral's single-class
+   0,1,0 regardless of source order, so nothing else moves. */
+.badge.online,
+.badge.offline {
+  color: var(--text-primary);
   font-size: 0.75rem;
-  font-weight: 500;
-  padding: 0.3rem 0.75rem;
-  border-radius: 20px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
 }
 
 .status-dot {
@@ -186,13 +472,13 @@
   border-radius: 50%;
 }
 
-.status-badge.online .status-dot {
+.badge.online .status-dot {
   background: var(--success-color);
   box-shadow: 0 0 8px var(--success-color);
   animation: pulse 2s ease-in-out infinite;
 }
 
-.status-badge.offline .status-dot {
+.badge.offline .status-dot {
   background: var(--danger-color);
 }
 
@@ -210,17 +496,6 @@
   color: var(--danger-color);
 }
 
-.stale-badge {
-  margin-left: 0.4rem;
-  padding: 0.1rem 0.4rem;
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  border-radius: 10px;
-  background: var(--danger-color);
-  color: var(--bg-primary);
-}
 
 .settings-btn {
   display: flex;
@@ -249,14 +524,30 @@
 .dashboard {
   position: relative;
   z-index: 1;
-  max-width: 1200px;
+  /* 1200 -> 1600 (#179). A FIXED cap, not fluid: a weather card 850px wide
+     reads worse than one at 500px, and 1600px holds the widest card at ~500px.
+     The residual gutter at 2560px is intentional margin. A fourth column above
+     1400px was measured (page height 2109 -> 1672) and deliberately deferred --
+     a fourth breakpoint and a fourth span-clamp level for density nobody asked
+     for. */
+  max-width: 1600px;
   margin: 0 auto;
   padding: 1.5rem;
 }
 
 .dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  /* minmax(0, 1fr) here is a measured NO-OP for today's DOM: .glass-card sets
+     overflow: hidden (:75), which makes every grid child a scroll container, and
+     per CSS Grid L1 §6.6 the automatic minimum size does not apply to those.
+     It is kept as a Patchbay seam -- one line, zero present cost -- so a future
+     card WITHOUT overflow: hidden degrades to an equal track instead of a
+     content-sized one. The SPAN CLAMPS below are the actual fix. */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* Likewise a seam: with the clamps in place no implicit track is ever
+     created, so this governs nothing today. It catches a future span the
+     clamps miss. */
+  grid-auto-columns: minmax(0, 1fr);
   gap: 1.25rem;
 }
 
@@ -272,6 +563,11 @@
   display: flex;
   align-items: center;
   gap: 1.5rem;
+  /* The stats wrap below the temperature rather than shrinking or relocating.
+     Shrink-in-place was rejected: the hero needs 463px of content box, so
+     values truncate or the 4rem temperature shrinks out of its hero role. */
+  flex-wrap: wrap;
+  row-gap: 1.25rem;
 }
 
 .hero-icon {
@@ -285,54 +581,33 @@
 .hero-temp-block {
   display: flex;
   flex-direction: column;
-}
-
-.hero-temp {
-  font-size: 4rem;
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  line-height: 1;
+  min-width: 0;
 }
 
 .hero-condition {
   font-size: 1.1rem;
-  font-weight: 500;
   color: var(--text-secondary);
-  margin-top: 0.25rem;
+  display: block;
 }
 
 .hero-feels-like {
   font-size: 0.8rem;
   color: var(--text-muted);
-  margin-top: 0.15rem;
+  display: block;
 }
 
 .hero-details {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* flex: 1 1 200px replaces flex-shrink: 0, so .hero-details becomes the only
+     growing item on the line and absorbs the free space. Its StatRow grid
+     therefore REFLOWS 2x2 -> 1x4 at >= 900px (202.2 -> 625.2px at 1512). That
+     is intended: it spreads the four stats across the hero's width instead of
+     huddling them in a 202px column. Read the design's "do not shrink" as: the
+     stats keep their content and their place in the card; their column count
+     follows the width they are given. */
+  flex: 1 1 200px;
+  min-width: 0;
   gap: 0.5rem 1.25rem;
   margin-left: auto;
-  flex-shrink: 0;
-}
-
-.hero-detail-item {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-}
-
-.detail-label {
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
-  font-weight: 500;
-}
-
-.detail-value {
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--text-primary);
 }
 
 /* --- Wind card ----------------------------------------------- */
@@ -394,58 +669,25 @@
   gap: 0.15rem;
 }
 
-.wind-speed-value {
-  font-size: 2.2rem;
-  font-weight: 700;
-  line-height: 1;
-}
-
-.wind-direction-text {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-}
-
-.wind-stats {
-  display: flex;
-  justify-content: space-between;
-  padding-top: 0.75rem;
-  border-top: 1px solid var(--border-color);
-}
-
-.wind-stat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  flex: 1;
-}
-
-.stat-label {
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
-  font-weight: 500;
-}
-
-.stat-value {
-  font-size: 0.9rem;
-  font-weight: 600;
-}
-
-.stat-sublabel {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-
-.wind-avg {
-  color: var(--accent-color);
-}
-
 /* --- Humidity card ------------------------------------------- */
+/* The ring grows with the readout it contains, rather than staying 140px while
+   --readout-primary scales past it.
+   The usable width inside the circle is NOT its inner diameter -- the readout is
+   a text box with height, so what constrains it is the CHORD at the glyphs'
+   vertical extent, which is ~21px narrower at 1512. Measured against the chord,
+   a plain three-character "93%" overflowed by 6.0px/side at 1512 and 12.3px/side
+   at 2560, and "Very Humid" by 0.6px/side at 2560. Comparing against the
+   diameter is what made this read as "fits" while the render disagreed.
+   Solving chord >= value width for the container: 3.9 would be the bare minimum
+   (~160px at 1512, 2.8px/side). 4.42 was chosen from the render instead -- the
+   owner asked for visible separation between the glyphs and the arc, not a fit
+   -- and gives 181px at 1512 with 11.9px/side. `max()` keeps the 140px floor, so
+   narrow widths are unchanged. The multiplier is derived, not tuned:
+   innerR = 0.37 * container, chord = 2*sqrt(innerR^2 - dy^2), dy ~= 31.3px. */
 .humidity-ring-container {
   position: relative;
-  width: 140px;
-  height: 140px;
+  width: max(140px, calc(var(--readout-primary) * 4.42));
+  height: max(140px, calc(var(--readout-primary) * 4.42));
   margin: 0 auto 0.75rem;
 }
 
@@ -478,63 +720,11 @@
   justify-content: center;
 }
 
-.humidity-value {
-  font-size: 1.6rem;
-  font-weight: 600;
-  line-height: 1;
-}
-
-.humidity-level {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-weight: 500;
-}
-
-.humidity-stats-row {
-  display: flex;
-  justify-content: space-between;
-  padding-top: 0.6rem;
-  border-top: 1px solid var(--border-color);
-  gap: 0.5rem;
-}
-
-.humidity-stat {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.15rem;
-}
-
-.humidity-stat-label {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
-  font-weight: 500;
-}
-
-.humidity-stat-value {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--text-primary);
+.humidity-ring-readout {
+  gap: 0;
 }
 
 /* --- Pressure card ------------------------------------------- */
-.pressure-value-block {
-  display: flex;
-  align-items: baseline;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-}
-
-.pressure-value {
-  font-size: 1.6rem;
-  font-weight: 600;
-}
-
 .pressure-trend {
   font-size: 0.8rem;
   font-weight: 500;
@@ -545,32 +735,46 @@
 .trend-steady { color: var(--text-muted); }
 
 .pressure-gauge {
-  margin-top: 0.5rem;
+  /* Restores the 1.5rem readout-to-gauge gap the pre-primitive markup had
+     (.pressure-value-block's margin-bottom: 1rem + this rule's original
+     margin-top: 0.5rem). Measured: dropping the 1rem shrank the gap from
+     ~27px to ~9px at 1512 and pushed cards-fill-their-height's asymmetry
+     check from 133.1 over its 129.9 (0.6x baseline) threshold -- restoring
+     it here, at the call site, brings both back in line. */
+  margin-top: 1.5rem;
+  /* Air above the window-range row's hairline. The gap above a divided StatRow
+     is owned by the element ABOVE it throughout this file -- .wind-compass
+     sets 1rem, .humidity-ring-container 0.75rem -- because .stat-row-divided
+     only pads BELOW its border. Without this the hairline sits flush on the
+     gauge's tick labels (measured 0.0px against humidity's 13.5px). */
+  margin-bottom: 0.75rem;
 }
 
-.gauge-track {
-  height: 6px;
-  background: var(--bg-secondary);
-  border-radius: 3px;
-  overflow: hidden;
-}
-
-.gauge-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--info-color), var(--success-color), var(--warning-color));
-  border-radius: 3px;
-  transition: width 0.6s ease;
-}
-
-.gauge-labels {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 0.3rem;
-  font-size: 0.8rem;
-  color: var(--text-muted);
+/* Same rule as .pressure-gauge above: the element above a divided StatRow owns
+   the air over its hairline, which .stat-row-divided does not provide itself.
+   Measured 0.0px before this, against .humidity-ring-container's 13.5px. */
+.rain-grid {
+  margin-bottom: 0.75rem;
 }
 
 /* --- Solar & UV card ----------------------------------------- */
+/* Always exactly two columns for Solar Radiation / Illuminance, independent
+   of width -- the original .solar-section was `display: flex`, always side
+   by side, never wrapping. Same defect as .station-health-card and the same
+   fix: StatRow's auto-fit model collapses this card's row to one column
+   below its wrap floor, and that crosses at the same 660/1001px widths
+   Task 24's bounded-drift comparison caught. Scoped to `.stat-row`
+   specifically, not `.solar-uv-card *`: this card also has a `.uv-section`
+   (Readout + ScaleBar), which is not a .stat-row and is untouched by this
+   rule. Call-site override, not a `columns` prop on StatRow -- three
+   consumers now need "always N", each stated at its own call site. This
+   card's `<StatRow>` call passes no `minColumn` -- the override below fixes
+   the column count directly, so a `minColumn` here would be inert and was
+   removed rather than left as a misleading prop. */
+.solar-uv-card .stat-row {
+  grid-template-columns: 1fr 1fr;
+}
+
 .solar-uv-grid {
   display: flex;
   flex-direction: column;
@@ -583,134 +787,13 @@
   gap: 0.5rem;
 }
 
-.uv-index-display {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-}
-
-.uv-number {
-  font-size: 2rem;
-  font-weight: 700;
-  line-height: 1;
-}
-
 .uv-low { color: var(--success-color); }
 .uv-moderate { color: var(--warning-color); }
 .uv-high { color: #ff9100; }
 .uv-very-high { color: var(--danger-color); }
 .uv-extreme { color: #d500f9; }
 
-.uv-label {
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: var(--text-secondary);
-}
-
-.uv-bar {
-  margin-top: 0.25rem;
-}
-
-.uv-bar-track {
-  position: relative;
-  height: 6px;
-  border-radius: 3px;
-  background: linear-gradient(90deg, #00e676, #ffeb3b, #ff9800, #f44336, #9c27b0);
-}
-
-.uv-bar-fill {
-  position: absolute;
-  top: 0;
-  left: 0;
-  height: 100%;
-  border-radius: 3px;
-  background: transparent;
-}
-
-.uv-bar-indicator {
-  position: absolute;
-  top: -3px;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: var(--text-primary);
-  border: 2px solid var(--bg-card);
-  transform: translateX(-50%);
-  box-shadow: 0 0 6px var(--shadow-color);
-  transition: left 0.6s ease;
-}
-
-.uv-bar-labels {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 0.3rem;
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-
-.solar-section {
-  display: flex;
-  gap: 1rem;
-}
-
-.solar-stat {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
 /* --- Rain card ----------------------------------------------- */
-.rain-card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-}
-
-.rain-card .rain-grid {
-  margin-top: auto;
-  margin-bottom: auto;
-}
-
-.rain-active-badge {
-  font-size: 0.8rem;
-  font-weight: 600;
-  padding: 0.15rem 0.5rem;
-  border-radius: 10px;
-  background: var(--info-color);
-  color: #fff;
-  margin-left: auto;
-  animation: pulse 1.5s ease-in-out infinite;
-}
-
-.rain-grid {
-  display: flex;
-  gap: 1.5rem;
-}
-
-.rain-stat-block {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.rain-stat-label {
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
-  font-weight: 500;
-}
-
-.rain-stat-value {
-  font-size: 1.4rem;
-  font-weight: 600;
-}
-
-.rain-stat-type {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-}
-
 .rain-animation {
   position: absolute;
   top: 0;
@@ -739,29 +822,20 @@
 }
 
 /* --- Lightning card ------------------------------------------ */
-.lightning-card {
-  display: flex;
-  flex-direction: column;
-}
-
-.lightning-card .lightning-content {
-  margin-top: auto;
-  margin-bottom: auto;
+/* Always exactly two columns for strike count / avg distance, independent of
+   width -- the original .lightning-stats-row was `display: flex`, always
+   side by side, never wrapping. Same defect and fix as .station-health-card
+   and .solar-uv-card above: StatRow's auto-fit model collapses this card's
+   row to one column below its wrap floor, and that crosses at the same
+   660/1001px widths. This card's `<StatRow>` call passes no `minColumn`,
+   for the same reason as .solar-uv-card's above -- the override below fixes
+   the column count directly, so the prop would be inert. */
+.lightning-card .stat-row {
+  grid-template-columns: 1fr 1fr;
 }
 
 .lightning-active {
   border-color: var(--warning-color) !important;
-}
-
-.lightning-alert-badge {
-  font-size: 0.8rem;
-  font-weight: 600;
-  padding: 0.15rem 0.5rem;
-  border-radius: 10px;
-  background: var(--warning-color);
-  color: #1a1a1a;
-  margin-left: auto;
-  animation: flashBadge 2s ease-in-out infinite;
 }
 
 @keyframes flashBadge {
@@ -775,39 +849,13 @@
   gap: 0.75rem;
 }
 
-.lightning-stats-row {
-  display: flex;
-  gap: 2rem;
-  align-items: flex-start;
-}
-
-.lightning-stat {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-}
-
-.lightning-count {
-  font-size: 2rem;
-  font-weight: 700;
-  line-height: 1;
+.lightning-count-value {
   color: var(--warning-color);
-}
-
-.lightning-distance {
-  font-size: 2rem;
-  font-weight: 600;
-  line-height: 1;
 }
 
 .lightning-distance-none {
   color: var(--text-muted);
   font-weight: 300;
-}
-
-.lightning-label {
-  font-size: 0.8rem;
-  color: var(--text-muted);
 }
 
 .lightning-clear {
@@ -942,6 +990,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   padding: 1rem 0;
   min-height: 130px;
 }
@@ -950,8 +999,11 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  /* keep sun sections away from center moon */
-  max-width: calc(50% - 100px);
+  /* was max-width: calc(50% - 100px) -- a 50px cap on a block holding a 40px
+     SVG plus text in a 300px-wide card, which is what clipped "Sunrise" and its
+     time at phone widths. Safe to remove ONLY because .almanac-moon is now a
+     flex item; see the media queries below. */
+  max-width: none;
 }
 
 .almanac-sun-right {
@@ -1028,7 +1080,8 @@
 
 .almanac-records {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  /* was repeat(4, 1fr) with no floor, which clipped 7 text leaves at 390px */
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
   gap: 0;
 }
 
@@ -1054,34 +1107,28 @@
   margin-bottom: 0.1rem;
 }
 
-.almanac-high,
-.almanac-low {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.1rem;
+.almanac-record .stat-value {
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
-.almanac-hl-label {
-  font-size: 0.7rem;
+.almanac-record .stat-sublabel {
+  font-weight: 500;
+}
+
+.almanac-hl-high .stat-label {
+  color: var(--warning-color);
+  opacity: 0.8;
   font-weight: 700;
   letter-spacing: 0.05em;
 }
 
-.almanac-hl-high {
-  color: var(--warning-color);
-  opacity: 0.8;
-}
-
-.almanac-hl-low {
+.almanac-hl-low .stat-label {
   color: var(--info-color);
   opacity: 0.8;
-}
-
-.almanac-temp-value {
-  font-size: 1.4rem;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: 0.05em;
 }
 
 .almanac-temp-high {
@@ -1092,12 +1139,6 @@
   color: var(--info-color);
 }
 
-.almanac-temp-date {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  font-weight: 500;
-}
-
 .almanac-divider {
   width: 40px;
   height: 1px;
@@ -1105,40 +1146,78 @@
   margin: 0.25rem 0;
 }
 
+/* Correction to design §6.7 -- .almanac-moon is position: absolute; left: 50%
+   (above), so it is NOT a flex item and .almanac-astro's flex-wrap cannot
+   displace it: removing .almanac-sun's max-width cap without this returns the
+   moon to normal flow so it can share the wrapped row instead of sitting
+   pinned over the card's centre with the sun blocks now free to grow under
+   it. Scoped to the one-column band: at 504px and up all three blocks still
+   fit across the card and that layout already reads correctly, so it keeps
+   the row. */
+@media (max-width: 640px) {
+  .almanac-moon { position: static; left: auto; top: auto; transform: none; }
+
+  /* In this band the moon is a flex item rather than being pinned at
+     left: 50%, so `space-between` centres it in the LEFTOVER space, not on the
+     card. The two sun blocks are not the same width -- "Sunrise" and "Sunset"
+     differ, and so do their times -- so the moon lands off-centre by half that
+     difference: measured 3.83/3.88/3.91/3.92px at 504/561/620/640.
+     The check's 4px tolerance was sized to cover exactly this, which left it
+     0.08px of headroom and made it a font-metrics coin flip -- it passed on
+     macOS and failed at 4.5px on ubuntu-latest.
+     Equal flex basis makes the two blocks equal width, so the middle item is
+     centred by construction and the offset goes to 0 on any platform. */
+  .almanac-astro > .almanac-sun { flex: 1 1 0; min-width: 0; }
+}
+
+/* Below 480px the three blocks can no longer share a line. Left as a wrapping
+   row, `justify-content: space-between` drops the moon at whichever end of the
+   wrapped line it lands on -- measured 69/89/104/123px off the card's centre at
+   320/360/390/430. A centred column stacks sunrise / moon / sunset in reading
+   order with the moon on the centre line. */
+@media (max-width: 480px) {
+  .almanac-astro {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+  }
+}
+
 /* --- Station health card ------------------------------------- */
-.station-health-card {
-  display: flex;
-  flex-direction: column;
-}
-
-.station-health-card .health-grid {
-  margin-top: auto;
-  margin-bottom: auto;
-}
-
-.health-grid {
-  display: grid;
+/* Always exactly two columns, independent of width -- the original
+   .health-grid was `grid-template-columns: 1fr 1fr`, always. StatRow's
+   auto-fit model (`repeat(auto-fit, minmax(var(--stat-row-min), 1fr))`)
+   cannot express "always two": Task 14 originally tried a taller
+   `minColumn` on this StatRow to avoid a THIRD column on wide cards, but no
+   single minColumn value also guarantees two columns on narrow ones --
+   .station-health-card's own content width crossed the chosen threshold at
+   exactly the widths the Task 24 bounded-drift comparison caught (two
+   columns at 1512/1280/1100, one at 660). A one-column health card stands
+   ~75px taller, and grid rows stretch to their tallest member -- handing
+   that height to rain-card and lightning-card as pure slack even though
+   neither card changed. Fixed with a call-site override instead, the same
+   pattern already used five times on this branch (.rstat, .almanac-record,
+   .uv-scale, .hero-details) rather than a `columns` prop on StatRow: one
+   consumer needs this, and a prop for one caller is the abstraction YAGNI
+   forbids. This card's `<StatRow>` call now passes no `minColumn` -- the
+   override below fixes the column count directly, so the prop was removed
+   rather than left as an inert, misleading value. */
+.station-health-card .stat-row {
   grid-template-columns: 1fr 1fr;
-  gap: 1rem;
 }
 
-.health-item {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-
-.health-label {
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
-  font-weight: 500;
-}
-
-.health-value {
-  font-size: 0.85rem;
-  font-weight: 500;
+/* Stat centres its children, which makes .stat-value shrink-to-fit -- and
+   .battery-bar declares no width and has no width-contributing content (its only
+   child is width: X%), so it collapsed from 203px to 90px at 1512 when this card
+   was converted, reading as a chip rather than a gauge.
+   `align-self: stretch` returns the value box to full column width so the bar is
+   a gauge again. The label and the text stay centred: .stat's text-align: center
+   is inherited and is unaffected by the box's width. Scoped to this card because
+   it is the only one whose value is a graphic sized by its container rather than
+   by its own content. */
+.station-health-card .stat-value {
+  align-self: stretch;
 }
 
 .battery-display {
@@ -1470,7 +1549,8 @@
 
 .radar-map-container {
   width: 100%;
-  height: 280px;
+  height: 100%;
+  min-height: 280px;
   border-radius: 12px;
   overflow: hidden;
 }
@@ -1483,15 +1563,34 @@
 }
 
 /* --- Responsive dashboard grid ------------------------------------ */
-@media (max-width: 900px) {
+/* The ladder. Span classes are ABSOLUTE track counts while the column count is
+   a VARIABLE set by these queries -- that asymmetry is the defect. Every level
+   clamps the spans to its own column count, which is what stops an implicit
+   content-sized track from ever being minted. */
+@media (max-width: 1000px) {
   .dashboard-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .card-span-2,
+  .card-span-3 {
+    grid-column: span 2;
   }
 }
 
-@media (max-width: 560px) {
+/* 640, not the file's previous 560: 561px was the worst point in the whole
+   range (25 clipped leaves across 5 cards), and two columns still clip nothing
+   at 641px, so the 3->2->1 boundaries are safe where placed. */
+@media (max-width: 640px) {
+  /* The hero centres as a whole in the one-column band. Wrapping alone leaves
+     it mixed-alignment -- icon and temperature centred as a flex row, stats
+     grid left-aligned beneath -- which reads as misaligned rather than
+     deliberate. (.hero-icon needs no `order`: it is already the first DOM child
+     at TemperatureHero.tsx:40, and flex wrapping does not reorder.) */
+  .hero-content { justify-content: center; }
+
   .dashboard-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .card-span-2,
@@ -1499,6 +1598,32 @@
     grid-column: span 1;
   }
 
+  /* Header at phone widths (in no filed issue; found by the probe). Shrink the
+     competing parts -- do NOT truncate and do NOT hide anything. Every
+     information-removing alternative was measured and rejected; see design
+     §6.6a. `.logo-icon svg` is sized in CSS over the SVG's presentational
+     width/height attributes, the same override .card-icon relies on.
+     This is also what closes the last of the 320px page overflow: the widest
+     offender today is .header-right reaching right = 337.3 on a 320px
+     viewport, nothing to do with the grid. */
+  .app-header    { padding: 0.6rem 1rem; gap: 0.5rem; }
+  .header-right  { gap: 0.5rem; flex-shrink: 0; }
+  .station-name  { font-size: 1.05rem; gap: 0.4rem; }
+  .logo-icon svg { width: 20px; height: 20px; }
+  /* FIX 4 (final-review fix wave): this was `.badge` before Task 13's Badge
+     rename -- it started life scoped to the header's status pill
+     (.status-badge) and the rename widened it to match every badge in the
+     app, shrinking RecordsCard's "Last N days" pill and the Rain/Lightning
+     alert badges too, none of which had a responsive override before this
+     branch. Re-scoped to the two classes that identify the header pill. */
+  .badge.online,
+  .badge.offline { padding: 0.25rem 0.5rem; font-size: 0.7rem; }
+  .last-updated  { font-size: 0.7rem; }
+}
+
+/* The settings panel keeps its OWN 560px query -- it is an overlay whose sizing
+   is unrelated to the column count. Only the grid rules moved to 640px. */
+@media (max-width: 560px) {
   .settings-overlay {
     padding: 0.75rem;
     align-items: flex-end;
@@ -1518,15 +1643,24 @@
 .records-card { grid-column: 1 / -1; }
 .records-header { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
 .records-title { font-size: .82rem; letter-spacing: .08em; text-transform: uppercase; color: var(--text-secondary); font-weight: 600; }
-.records-window { margin-left: auto; font-size: .8rem; color: var(--text-muted); display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border: 1px solid var(--border-color); border-radius: 999px; }
-.records-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); align-items: stretch; }
+.records-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); align-items: stretch; }
 .rstat { padding: 14px 16px; border-radius: 14px; border: 1px solid var(--border-color); background: rgba(255,255,255,.05); display: flex; flex-direction: column; }
-.rstat-label { font-size: .68rem; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 10px; }
+/* Centred to match the Rain and Lightning boxes, which render through Stat and
+   centre by construction. Before this the four pair boxes read hard-left beside
+   two centred ones in the same grid. */
+.rstat > .stat-label { margin-bottom: 10px; text-align: center; }
 .rstat-body { flex: 1; display: flex; flex-direction: column; justify-content: center; }
-.rstat-value { font-size: 1.6rem; font-weight: 650; line-height: 1; font-variant-numeric: tabular-nums; }
+/* Stat's own 0.15rem is too tight under a 1.6rem number -- the label crowded the
+   value in a way the 1.28rem .rpair-val does not. Scoped here because it is this
+   card's larger type that needs it, not Stat everywhere. */
+.rstat .stat { flex: 1; justify-content: center; gap: 0.35rem; }
+.rstat .stat-value { font-size: 1.6rem; font-weight: 650; line-height: 1; font-variant-numeric: tabular-nums; }
 .rstat-unit { font-size: .82rem; color: var(--text-muted); font-weight: 500; margin-left: 3px; }
 .rstat-pair { display: flex; flex-direction: column; gap: 12px; }
-.rpair-row { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
+/* center, not flex-start: this box sits in the same grid as Rain and Lightning,
+   and design §12 asks for one alignment across every stat family. It was the
+   last family diverging, and one-stat-alignment now asserts it. */
+.rpair-row { display: flex; flex-direction: column; align-items: center; gap: 3px; }
 .rpair-tag { font-size: .7rem; letter-spacing: .04em; text-transform: uppercase; color: var(--text-secondary); font-weight: 600; }
 .rpair-val { font-size: 1.28rem; font-weight: 650; line-height: 1; font-variant-numeric: tabular-nums; white-space: nowrap; }
 

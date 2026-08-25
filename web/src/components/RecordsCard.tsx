@@ -2,6 +2,8 @@ import { memo } from 'react';
 import type { RecordsSummary, UserPreferences } from '../types/weather';
 import { formatTemp, formatWind, formatPressure, formatRain } from '../hooks/useUnits';
 import { GlassCard } from './GlassCard';
+import { Badge } from './primitives/Badge';
+import { Stat } from './primitives/Stat';
 
 interface RecordsCardProps {
   summary: RecordsSummary | null;
@@ -37,12 +39,12 @@ function RecordsCardImpl({ summary, prefs }: RecordsCardProps) {
     <GlassCard className="records-card">
       <div className="records-header">
         <span className="records-title">Records</span>
-        <span className="records-window">Last {windowDays} days</span>
+        <Badge pill className="records-window-slot">Last {windowDays} days</Badge>
       </div>
 
       <div className="records-grid">
         <div className="rstat">
-          <span className="rstat-label">Temperature</span>
+          <span className="stat-label">Temperature</span>
           <div className="rstat-body rstat-pair">
             <div className="rpair-row">
               <span className="rpair-tag">High</span>
@@ -56,7 +58,7 @@ function RecordsCardImpl({ summary, prefs }: RecordsCardProps) {
         </div>
 
         <div className="rstat">
-          <span className="rstat-label">Humidity</span>
+          <span className="stat-label">Humidity</span>
           <div className="rstat-body rstat-pair">
             <div className="rpair-row">
               <span className="rpair-tag">High</span>
@@ -70,7 +72,7 @@ function RecordsCardImpl({ summary, prefs }: RecordsCardProps) {
         </div>
 
         <div className="rstat">
-          <span className="rstat-label">Pressure</span>
+          <span className="stat-label">Pressure</span>
           <div className="rstat-body rstat-pair">
             <div className="rpair-row">
               <span className="rpair-tag">High</span>
@@ -84,7 +86,7 @@ function RecordsCardImpl({ summary, prefs }: RecordsCardProps) {
         </div>
 
         <div className="rstat">
-          <span className="rstat-label">Wind</span>
+          <span className="stat-label">Wind</span>
           <div className="rstat-body rstat-pair">
             <div className="rpair-row">
               <span className="rpair-tag">Sustained</span>
@@ -98,20 +100,19 @@ function RecordsCardImpl({ summary, prefs }: RecordsCardProps) {
         </div>
 
         <div className="rstat">
-          <span className="rstat-label">Rain</span>
-          <div className="rstat-body">
-            <span className="rstat-value">{fmt(rainTotal, (v) => formatRain(v, prefs.rainUnit))}</span>
-          </div>
+          <Stat label="Rain" value={fmt(rainTotal, (v) => formatRain(v, prefs.rainUnit))} />
         </div>
 
         <div className="rstat">
-          <span className="rstat-label">Lightning</span>
-          <div className="rstat-body">
-            <span className="rstat-value">
-              {fmt(lightningTotal, (v) => `${v}`)}
-              {lightningTotal !== null && <span className="rstat-unit">strikes</span>}
-            </span>
-          </div>
+          <Stat
+            label="Lightning"
+            value={
+              <>
+                {fmt(lightningTotal, (v) => `${v}`)}
+                {lightningTotal !== null && <span className="rstat-unit">strikes</span>}
+              </>
+            }
+          />
         </div>
       </div>
     </GlassCard>

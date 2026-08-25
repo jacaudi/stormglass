@@ -1,13 +1,27 @@
 import { memo } from 'react';
-import type { CurrentObservation, RainUnit } from '../types/weather';
+import type { CurrentObservation, RainUnit, RecordsWindowDays } from '../types/weather';
 import { PrecipitationType } from '../types/weather';
 import { formatRain } from '../hooks/useUnits';
 import { GlassCard } from './GlassCard';
+import { Badge } from './primitives/Badge';
+import { Stat } from './primitives/Stat';
+import { StatRow } from './primitives/StatRow';
 
 interface RainCardProps {
   current: CurrentObservation;
   unit: RainUnit;
+  /**
+   * Accumulation over the records window, or null before the summary has
+   * arrived. A real 0 is a reading -- a dry week -- and renders as 0, not as
+   * the em-dash, so the absent case cannot be confused with a dry one.
+   */
+  windowTotal: number | null;
+  /** Window the total covers, so the label says what it is measuring. */
+  windowDays: RecordsWindowDays;
 }
+
+// The almanac, RecordsCard and StationHealth all render absent data this way.
+const EM_DASH = '\u2014';
 
 const RAINDROP_COUNT = 12;
 
@@ -37,7 +51,7 @@ function precipLabel(type: PrecipitationType): string {
   }
 }
 
-function RainCardImpl({ current, unit }: RainCardProps) {
+function RainCardImpl({ current, unit, windowTotal, windowDays }: RainCardProps) {
   const isRaining = current.precipitationType !== PrecipitationType.None;
 
   return (
@@ -50,20 +64,24 @@ function RainCardImpl({ current, unit }: RainCardProps) {
           <line x1="16" y1="16" x2="16" y2="20" />
         </svg>
         <span className="card-title">Precipitation</span>
-        {isRaining && <span className="rain-active-badge">Active</span>}
+        {isRaining && <Badge tone="info" animation="pulse" className="alert-badge-slot">Active</Badge>}
       </div>
 
-      <div className="rain-grid">
-        <div className="rain-stat-block">
-          <span className="rain-stat-label">Current</span>
-          <span className="rain-stat-value">{formatRain(current.rainAccumulated, unit)}</span>
-          <span className="rain-stat-type">{precipLabel(current.precipitationType)}</span>
-        </div>
-        <div className="rain-stat-block">
-          <span className="rain-stat-label">Today</span>
-          <span className="rain-stat-value">{formatRain(current.localDayRainAccumulation, unit)}</span>
-        </div>
-      </div>
+      <StatRow className="rain-grid" minColumn={110}>
+        <Stat
+          label="Current"
+          value={formatRain(current.rainAccumulated, unit)}
+          sublabel={precipLabel(current.precipitationType)}
+        />
+        <Stat label="Today" value={formatRain(current.localDayRainAccumulation, unit)} />
+      </StatRow>
+
+      <StatRow divider minColumn={110}>
+        <Stat
+          label={`${windowDays}-Day Total`}
+          value={windowTotal === null ? EM_DASH : formatRain(windowTotal, unit)}
+        />
+      </StatRow>
 
       {isRaining && (
         <div className="rain-animation">

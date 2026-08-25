@@ -2,6 +2,9 @@ import { memo, useState, useEffect, useRef } from 'react';
 import type { CurrentObservation, WindUnit } from '../types/weather';
 import { formatWind } from '../hooks/useUnits';
 import { GlassCard } from './GlassCard';
+import { Readout } from './primitives/Readout';
+import { Stat } from './primitives/Stat';
+import { StatRow } from './primitives/StatRow';
 
 interface WindCardProps {
   current: CurrentObservation;
@@ -53,21 +56,17 @@ function WindCardImpl({ current, unit }: WindCardProps) {
           </div>
         </div>
         <div className="compass-center-text">
-          <span className="wind-speed-value">{formatWind(current.windAvg, unit)}</span>
-          <span className="wind-direction-text">{compassDir} ({current.windDirection}°)</span>
+          <Readout
+            value={formatWind(current.windAvg, unit)}
+            qualifier={`${compassDir} (${current.windDirection}°)`}
+          />
         </div>
       </div>
 
-      <div className="wind-stats">
-        <div className="wind-stat">
-          <span className="stat-label">Lull</span>
-          <span className="stat-value">{formatWind(current.windLull, unit)}</span>
-        </div>
-        <div className="wind-stat">
-          <span className="stat-label">Gust</span>
-          <span className="stat-value">{formatWind(current.windGust, unit)}</span>
-        </div>
-      </div>
+      <StatRow divider minColumn={110}>
+        <Stat label="Lull" value={formatWind(current.windLull, unit)} />
+        <Stat label="Gust" value={formatWind(current.windGust, unit)} />
+      </StatRow>
     </GlassCard>
   );
 }

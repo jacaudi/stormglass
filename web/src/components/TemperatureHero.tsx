@@ -3,6 +3,9 @@ import type { CurrentObservation, TemperatureUnit } from '../types/weather';
 import { formatTemp } from '../hooks/useUnits';
 import { GlassCard } from './GlassCard';
 import { WeatherIcon } from './WeatherIcon';
+import { Readout } from './primitives/Readout';
+import { Stat } from './primitives/Stat';
+import { StatRow } from './primitives/StatRow';
 
 interface TemperatureHeroProps {
   current: CurrentObservation;
@@ -39,30 +42,25 @@ function TemperatureHeroImpl({ current, unit, precipProbability }: TemperatureHe
       <div className="hero-content">
         <div className="hero-icon"><WeatherIcon icon={icon} size={72} /></div>
         <div className="hero-temp-block">
-          <span className="hero-temp">{formatTemp(current.airTemperature, unit)}</span>
-          <span className="hero-condition">{condition}</span>
-          <span className="hero-feels-like">
-            Feels like {formatTemp(current.feelsLike, unit)}
-          </span>
+          <Readout
+            size="hero"
+            value={formatTemp(current.airTemperature, unit)}
+            qualifier={
+              <>
+                <span className="hero-condition">{condition}</span>
+                <span className="hero-feels-like">
+                  Feels like {formatTemp(current.feelsLike, unit)}
+                </span>
+              </>
+            }
+          />
         </div>
-        <div className="hero-details">
-          <div className="hero-detail-item">
-            <span className="detail-label">Heat Index</span>
-            <span className="detail-value">{formatTemp(current.heatIndex, unit)}</span>
-          </div>
-          <div className="hero-detail-item">
-            <span className="detail-label">Wind Chill</span>
-            <span className="detail-value">{formatTemp(current.windChill, unit)}</span>
-          </div>
-          <div className="hero-detail-item">
-            <span className="detail-label">Rain Chance</span>
-            <span className="detail-value">{Math.round(precipProbability ?? 0)}%</span>
-          </div>
-          <div className="hero-detail-item">
-            <span className="detail-label">UV Index</span>
-            <span className="detail-value">{current.uvIndex.toFixed(1)}</span>
-          </div>
-        </div>
+        <StatRow className="hero-details" minColumn={88}>
+          <Stat label="Heat Index" value={formatTemp(current.heatIndex, unit)} />
+          <Stat label="Wind Chill" value={formatTemp(current.windChill, unit)} />
+          <Stat label="Rain Chance" value={`${Math.round(precipProbability ?? 0)}%`} />
+          <Stat label="UV Index" value={current.uvIndex.toFixed(1)} />
+        </StatRow>
       </div>
     </GlassCard>
   );

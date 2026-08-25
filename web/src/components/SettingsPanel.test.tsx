@@ -8,6 +8,7 @@ const prefs: UserPreferences = {
   windUnit: 'mph',
   pressureUnit: 'inHg',
   rainUnit: 'in',
+  distanceUnit: 'mi',
   theme: 'liquid-glass',
   recordsWindowDays: 7,
 };
@@ -194,5 +195,28 @@ describe('SettingsPanel dialog semantics (P2.14)', () => {
     fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true });
 
     expect(document.activeElement).toBe(last);
+  });
+});
+
+// Lightning is the only distance the dashboard shows today, and it arrives in
+// km from a sensor whose range is quoted in km -- so the unit has to be a
+// reader preference rather than a constant.
+describe('SettingsPanel distance unit', () => {
+  it('offers km and mi, with the current preference marked active', () => {
+    render(
+      <SettingsPanel isOpen={true} prefs={prefs} onPrefsChange={vi.fn()} onClose={vi.fn()} />
+    );
+    expect(screen.getByText('Distance')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'mi' })).toHaveClass('active');
+    expect(screen.getByRole('button', { name: 'km' })).not.toHaveClass('active');
+  });
+
+  it('reports the change rather than mutating prefs itself', () => {
+    const onPrefsChange = vi.fn();
+    render(
+      <SettingsPanel isOpen={true} prefs={prefs} onPrefsChange={onPrefsChange} onClose={vi.fn()} />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'km' }));
+    expect(onPrefsChange).toHaveBeenCalledWith({ distanceUnit: 'km' });
   });
 });

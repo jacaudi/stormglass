@@ -1,6 +1,8 @@
 import { memo } from 'react';
 import type { StationStatus } from '../types/weather';
 import { GlassCard } from './GlassCard';
+import { Stat } from './primitives/Stat';
+import { StatRow } from './primitives/StatRow';
 
 interface StationHealthProps {
   status: StationStatus;
@@ -15,7 +17,15 @@ function batteryLevel(volts: number): { pct: number; label: string } {
   return { pct, label };
 }
 
-function signalBars(strength: number): number[] {
+// The em-dash the almanac already uses for "not reported", so absent data
+// reads the same way everywhere on the dashboard.
+const EM_DASH = '—';
+
+// null in, null out: with no signal source the card must say "not reported"
+// rather than draw four empty bars beside "0/4", which states no signal on a
+// healthy station. The bars are only meaningful once a real reading exists.
+function signalBars(strength: number | null): number[] | null {
+  if (strength === null) return null;
   return [1, 2, 3, 4].map((n) => (n <= strength ? 1 : 0));
 }
 
@@ -40,50 +50,49 @@ function StationHealthImpl({ status }: StationHealthProps) {
         <span className="card-title">Station Health</span>
       </div>
 
-      <div className="health-grid">
-        <div className="health-item">
-          <span className="health-label">Battery</span>
-          <div className="battery-display">
-            <div className="battery-bar">
-              <div
-                className="battery-fill"
-                style={{
-                  width: `${battery.pct}%`,
-                  backgroundColor: battery.pct < 20 ? 'var(--danger-color)' :
-                    battery.pct < 50 ? 'var(--warning-color)' : 'var(--success-color)',
-                }}
-              />
-            </div>
-            <span className="battery-text">{status.batteryLevel.toFixed(2)}V &middot; {battery.label}</span>
-          </div>
-        </div>
-
-        <div className="health-item">
-          <span className="health-label">Signal</span>
-          <div className="signal-display">
-            <div className="signal-bars">
-              {bars.map((active, i) => (
+      <StatRow>
+        <Stat
+          label="Battery"
+          value={
+            <div className="battery-display">
+              <div className="battery-bar">
                 <div
-                  key={i}
-                  className={`signal-bar ${active ? 'active' : ''}`}
-                  style={{ height: `${(i + 1) * 6}px` }}
+                  className="battery-fill"
+                  style={{
+                    width: `${battery.pct}%`,
+                    backgroundColor: battery.pct < 20 ? 'var(--danger-color)' :
+                      battery.pct < 50 ? 'var(--warning-color)' : 'var(--success-color)',
+                  }}
                 />
-              ))}
+              </div>
+              <span className="battery-text">{status.batteryLevel.toFixed(2)}V &middot; {battery.label}</span>
             </div>
-            <span className="signal-text">{status.signalStrength}/4</span>
-          </div>
-        </div>
-
-        <div className="health-item">
-          <span className="health-label">Last Report</span>
-          <span className="health-value">{timeSince(status.lastReport)}</span>
-        </div>
-
-        <div className="health-item">
-          <span className="health-label">Firmware</span>
-          <span className="health-value">{status.firmwareVersion}</span>
-        </div>
-      </div>
+          }
+        />
+        <Stat
+          label="Signal"
+          value={
+            bars === null ? (
+              EM_DASH
+            ) : (
+              <div className="signal-display">
+                <div className="signal-bars">
+                  {bars.map((active, i) => (
+                    <div
+                      key={i}
+                      className={`signal-bar ${active ? 'active' : ''}`}
+                      style={{ height: `${(i + 1) * 6}px` }}
+                    />
+                  ))}
+                </div>
+                <span className="signal-text">{status.signalStrength}/4</span>
+              </div>
+            )
+          }
+        />
+        <Stat label="Last Report" value={timeSince(status.lastReport)} />
+        <Stat label="Firmware" value={status.firmwareVersion ?? EM_DASH} />
+      </StatRow>
     </GlassCard>
   );
 }

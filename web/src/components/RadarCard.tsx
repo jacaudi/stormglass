@@ -5,6 +5,25 @@ import { useEffect, useRef, useState } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Protocol } from 'pmtiles';
+// maplibre-gl v6 derives its worker URL from import.meta.url, resolving to
+// /assets/maplibre-gl-worker.mjs -- a chunk Vite emits no such thing for, so the
+// worker script 404s on every page load and the map's pipeline never completes.
+//
+// `?worker&url`, NOT a bare `?url`: maplibre-gl-worker.mjs imports
+// ./maplibre-gl-shared.mjs as a relative sibling, and a plain asset copy loses
+// it. `?worker` routes through Vite's bundleWorkerEntry, which resolves that
+// import. setWorkerUrl is a documented export (maplibre-gl.d.ts:16731).
+//
+// Cost: +470.82 kB uncompressed in dist/assets, and thence into the Go binary
+// via web/embed.go's //go:embed all:dist. Cause is Vite's default
+// worker.format: "iife", which inlines maplibre-gl-shared.mjs into the worker
+// while the main bundle keeps its own copy. The mitigation was measured and
+// does not work: `build.worker.format` is not a real option path (Vite silently
+// ignores it, byte-identical bundle), and the correct top-level
+// `worker: { format: 'es' }` produces 471.08 kB -- 0.26 kB LARGER. Accepted:
+// the alternative is a radar card that cannot render at all.
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
+maplibregl.setWorkerUrl(maplibreWorkerUrl);
 import type { LocatedStation } from '../types/weather';
 import { GlassCard } from './GlassCard';
 

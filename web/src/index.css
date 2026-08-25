@@ -33,9 +33,25 @@
   --danger-color: #ff5252;
   --info-color: #40c4ff;
 
+  /* Headline-number scale (design §6.5). Two steps for one concept, replacing
+     eight ad-hoc sizes. --readout-hero is FLAT, not clamped: the root font-size
+     clamp already shrinks it, and a second clamp measured smaller than today at
+     mobile. --readout-primary is what makes the pressure and UV numbers legible
+     at desktop widths -- and, deliberately, ~12% smaller on phones, which is
+     what a scale means. */
+  --readout-hero: 4rem;
+  --readout-primary: clamp(1.75rem, 1.35rem + 1.1vw, 2.5rem);
+
   font-family: 'Inter Variable', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   font-weight: 400;
   line-height: 1.5;
+  /* Fluid root scale (#177). rem, NOT px: in a root font-size, `rem` resolves
+     against the property's INITIAL value -- the user's browser default -- so a
+     reader who has raised their font size keeps the increase (WCAG 1.4.4). At a
+     16px default this is arithmetically identical to
+     clamp(15px, 14px + 0.28vw, 18px). Everything rem-sized in the file rides
+     this, so it CONTRACTS below ~1000px by up to 6% at 320px. */
+  font-size: clamp(0.9375rem, 0.875rem + 0.28vw, 1.125rem);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
