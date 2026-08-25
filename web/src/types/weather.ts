@@ -121,6 +121,9 @@ export type TemperatureUnit = 'C' | 'F';
 export type WindUnit = 'ms' | 'mph' | 'kph' | 'kts';
 export type PressureUnit = 'mb' | 'inHg' | 'hPa';
 export type RainUnit = 'mm' | 'in';
+// Statute miles, not nautical: this is lightning distance for a person looking
+// out of a window, and the wind unit already carries 'kts' for the nautical case.
+export type DistanceUnit = 'km' | 'mi';
 
 export interface TempRecord {
   high: number | null;      // °C -- null when the window holds no reading
@@ -160,6 +163,7 @@ export interface UserPreferences {
   windUnit: WindUnit;
   pressureUnit: PressureUnit;
   rainUnit: RainUnit;
+  distanceUnit: DistanceUnit;
   theme: string;
   recordsWindowDays: RecordsWindowDays;
 }

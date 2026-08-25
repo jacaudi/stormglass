@@ -3,6 +3,7 @@ import type {
   TemperatureUnit,
   WindUnit,
   PressureUnit,
+  DistanceUnit,
   RainUnit,
   UserPreferences,
 } from '../types/weather';
@@ -12,6 +13,7 @@ const DEFAULT_PREFS: UserPreferences = {
   windUnit: 'mph',
   pressureUnit: 'mb',
   rainUnit: 'in',
+  distanceUnit: 'mi',
   theme: 'nord',
   recordsWindowDays: 7,
 };
@@ -50,6 +52,22 @@ export function convertPressure(mb: number, unit: PressureUnit): number {
     case 'hPa': return mb; // 1 mb = 1 hPa
     default: return mb;
   }
+}
+
+// 1 statute mile = 1.609344 km exactly (international definition).
+const KM_PER_MILE = 1.609344;
+
+export function convertDistance(km: number, unit: DistanceUnit): number {
+  if (unit === 'mi') return km / KM_PER_MILE;
+  return km;
+}
+
+/**
+ * `decimals` exists for the range labels, which read as round numbers ("40 km",
+ * "25 mi") rather than as measurements. Everything else takes the default 1.
+ */
+export function formatDistance(km: number, unit: DistanceUnit, decimals = 1): string {
+  return `${convertDistance(km, unit).toFixed(decimals)} ${unit}`;
 }
 
 export function convertRain(mm: number, unit: RainUnit): number {

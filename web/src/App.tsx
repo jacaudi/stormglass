@@ -101,7 +101,7 @@ function App() {
               windowTotal={records?.rainTotal ?? null}
               windowDays={recordsWindowDays}
             />
-            <LightningCard current={current} />
+            <LightningCard current={current} unit={prefs.distanceUnit} />
             {status && <StationHealth status={status} />}
             <RecordsCard summary={summary} prefs={prefs} />
             {capabilities?.forecast && <ForecastStrip forecast={forecast} unit={prefs.temperatureUnit} />}

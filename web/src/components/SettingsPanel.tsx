@@ -136,6 +136,19 @@ export function SettingsPanel({ isOpen, prefs, onPrefsChange, onClose }: Setting
               >mm</button>
             </div>
           </div>
+          <div className="setting-row">
+            <label>Distance</label>
+            <div className="toggle-group">
+              <button
+                className={prefs.distanceUnit === 'mi' ? 'active' : ''}
+                onClick={() => onPrefsChange({ distanceUnit: 'mi' })}
+              >mi</button>
+              <button
+                className={prefs.distanceUnit === 'km' ? 'active' : ''}
+                onClick={() => onPrefsChange({ distanceUnit: 'km' })}
+              >km</button>
+            </div>
+          </div>
         </div>
 
         <div className="settings-section">

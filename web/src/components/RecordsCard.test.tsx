@@ -8,6 +8,7 @@ const prefs: UserPreferences = {
   windUnit: 'mph',
   pressureUnit: 'inHg',
   rainUnit: 'in',
+  distanceUnit: 'mi',
   theme: 'nord',
   recordsWindowDays: 7,
 };
