@@ -20,7 +20,8 @@
   "packages": {
     ".": {
       "release-type": "go",
-      "include-v-in-tag": true
+      "include-v-in-tag": true,
+      "release-as": "1.0.0"
     }
   }
 }
