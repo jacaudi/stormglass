@@ -350,7 +350,17 @@ CHECKS.push({
 // The moon must also be CENTRED, not merely clear of the sun blocks. With the
 // moon back in flow and the row still wrapping, it sits 69/89/104/123px off the
 // card's centre at 320/360/390/430 -- no overlap, no clipping, and visibly
-// wrong. 4px of tolerance covers the existing space-between rounding at 504/640.
+// wrong.
+//
+// The bound was 4px, sized to cover the space-between rounding at 504-640 where
+// the moon is a flex item between two unequal-width sun blocks. That left 0.08px
+// of headroom and made the check a font-metrics coin flip: it passed on macOS at
+// 3.92px and failed on ubuntu-latest at 4.5px. The sun blocks now share an equal
+// flex basis, so every width measures 0 (0.0078 at the wrapped column widths),
+// and the bound is 1px -- still far above sub-pixel noise, but tight enough to
+// see a regression the old 4px would have hidden.
+const MOON_CENTRE_TOLERANCE_PX = 1;
+
 CHECKS.push({
   id: 'almanac-moon-centred',
   section: '§6.7',
@@ -359,7 +369,7 @@ CHECKS.push({
     // sibling check above for why a deleted moon must fail loudly.
     const bad = WIDTHS.filter((w) => {
       const v = m.widths[w].almanacMoonOffset;
-      return v === null || v > 4;
+      return v === null || v > MOON_CENTRE_TOLERANCE_PX;
     });
     return bad.length
       ? bad
@@ -373,7 +383,7 @@ CHECKS.push({
   pass: (m) =>
     WIDTHS.every((w) => {
       const v = m.widths[w].almanacMoonOffset;
-      return v !== null && v <= 4;
+      return v !== null && v <= MOON_CENTRE_TOLERANCE_PX;
     }),
 });
 

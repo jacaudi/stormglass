@@ -1156,6 +1156,18 @@
    the row. */
 @media (max-width: 640px) {
   .almanac-moon { position: static; left: auto; top: auto; transform: none; }
+
+  /* In this band the moon is a flex item rather than being pinned at
+     left: 50%, so `space-between` centres it in the LEFTOVER space, not on the
+     card. The two sun blocks are not the same width -- "Sunrise" and "Sunset"
+     differ, and so do their times -- so the moon lands off-centre by half that
+     difference: measured 3.83/3.88/3.91/3.92px at 504/561/620/640.
+     The check's 4px tolerance was sized to cover exactly this, which left it
+     0.08px of headroom and made it a font-metrics coin flip -- it passed on
+     macOS and failed at 4.5px on ubuntu-latest.
+     Equal flex basis makes the two blocks equal width, so the middle item is
+     centred by construction and the offset goes to 0 on any platform. */
+  .almanac-astro > .almanac-sun { flex: 1 1 0; min-width: 0; }
 }
 
 /* Below 480px the three blocks can no longer share a line. Left as a wrapping
