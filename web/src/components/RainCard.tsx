@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import type { CurrentObservation, RainUnit } from '../types/weather';
+import type { CurrentObservation, RainUnit, RecordsWindowDays } from '../types/weather';
 import { PrecipitationType } from '../types/weather';
 import { formatRain } from '../hooks/useUnits';
 import { GlassCard } from './GlassCard';
@@ -10,7 +10,18 @@ import { StatRow } from './primitives/StatRow';
 interface RainCardProps {
   current: CurrentObservation;
   unit: RainUnit;
+  /**
+   * Accumulation over the records window, or null before the summary has
+   * arrived. A real 0 is a reading -- a dry week -- and renders as 0, not as
+   * the em-dash, so the absent case cannot be confused with a dry one.
+   */
+  windowTotal: number | null;
+  /** Window the total covers, so the label says what it is measuring. */
+  windowDays: RecordsWindowDays;
 }
+
+// The almanac, RecordsCard and StationHealth all render absent data this way.
+const EM_DASH = '\u2014';
 
 const RAINDROP_COUNT = 12;
 
@@ -40,7 +51,7 @@ function precipLabel(type: PrecipitationType): string {
   }
 }
 
-function RainCardImpl({ current, unit }: RainCardProps) {
+function RainCardImpl({ current, unit, windowTotal, windowDays }: RainCardProps) {
   const isRaining = current.precipitationType !== PrecipitationType.None;
 
   return (
@@ -63,6 +74,13 @@ function RainCardImpl({ current, unit }: RainCardProps) {
           sublabel={precipLabel(current.precipitationType)}
         />
         <Stat label="Today" value={formatRain(current.localDayRainAccumulation, unit)} />
+      </StatRow>
+
+      <StatRow divider minColumn={110}>
+        <Stat
+          label={`${windowDays}-Day Total`}
+          value={windowTotal === null ? EM_DASH : formatRain(windowTotal, unit)}
+        />
       </StatRow>
 
       {isRaining && (

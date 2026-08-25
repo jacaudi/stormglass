@@ -742,6 +742,19 @@
      check from 133.1 over its 129.9 (0.6x baseline) threshold -- restoring
      it here, at the call site, brings both back in line. */
   margin-top: 1.5rem;
+  /* Air above the window-range row's hairline. The gap above a divided StatRow
+     is owned by the element ABOVE it throughout this file -- .wind-compass
+     sets 1rem, .humidity-ring-container 0.75rem -- because .stat-row-divided
+     only pads BELOW its border. Without this the hairline sits flush on the
+     gauge's tick labels (measured 0.0px against humidity's 13.5px). */
+  margin-bottom: 0.75rem;
+}
+
+/* Same rule as .pressure-gauge above: the element above a divided StatRow owns
+   the air over its hairline, which .stat-row-divided does not provide itself.
+   Measured 0.0px before this, against .humidity-ring-container's 13.5px. */
+.rain-grid {
+  margin-bottom: 0.75rem;
 }
 
 /* --- Solar & UV card ----------------------------------------- */

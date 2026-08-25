@@ -746,19 +746,26 @@ CHECKS.push({
   id: 'rain-card-centres-while-raining',
   section: '§6.4 / §15 B-1',
   describe: (m) => {
-    const dry = m.widths['1512'].rainGrid;
-    const wet = m.rain.rainGrid;
-    return `dry ${dry.marginTop.toFixed(1)}/${dry.marginBottom.toFixed(1)} ` +
-      `wet ${wet.marginTop.toFixed(1)}/${wet.marginBottom.toFixed(1)} ` +
-      `(animation present: ${wet.hasAnimation})`;
+    const fmt = (g) =>
+      g == null
+        ? 'MISSING'
+        : `${g.interiorTop?.toFixed(1)}/${g.interiorBottom?.toFixed(1)} (last ${g.lastInFlow})`;
+    return `dry ${fmt(m.widths['1512'].rainGrid)}  wet ${fmt(m.rain.rainGrid)}  ` +
+      `(animation present: ${m.rain.rainGrid?.hasAnimation})`;
   },
+  // Centred means the gap above the first body child equals the gap below the
+  // last IN-FLOW child. Those are two different elements whenever the card has
+  // more than one body row, so this cannot be read off .rain-grid alone.
   pass: (m) => {
-    const dry = m.widths['1512'].rainGrid;
-    const wet = m.rain.rainGrid;
+    const centred = (g) =>
+      g != null &&
+      typeof g.interiorTop === 'number' &&
+      typeof g.interiorBottom === 'number' &&
+      Math.abs(g.interiorTop - g.interiorBottom) <= 1;
     return (
-      wet.hasAnimation === true &&
-      Math.abs(dry.marginTop - dry.marginBottom) <= 1 &&
-      Math.abs(wet.marginTop - wet.marginBottom) <= 1
+      m.rain.rainGrid?.hasAnimation === true &&
+      centred(m.widths['1512'].rainGrid) &&
+      centred(m.rain.rainGrid)
     );
   },
 });
@@ -1052,6 +1059,18 @@ const PHASE1_FIELDS = [
     name: 'asymmetry',
     pick: (w) => phase1Field(w, ['asymmetry']),
     tolerance: (before) => Math.max(40, 0.35 * before),
+    // ONE-SIDED, unlike every other field here. asymmetry is dead space below
+    // a card's content, so the metric has a direction: less is strictly
+    // better, and #180 exists to drive it down. A symmetric budget fired when
+    // the pressure and precipitation cards gained their window rows and the
+    // narrow widths improved by 41.9 and 43.9 against a 40 budget -- i.e. it
+    // failed the branch for succeeding. Regressions are still caught at the
+    // same bound; only improvement is unbounded.
+    //
+    // This does not create a blind spot for a card that VANISHES (which would
+    // also lower asymmetry): cardText below compares the full 1512 set by
+    // length and content, so a missing card fails there regardless.
+    oneSided: true,
   },
   {
     name: 'records.height',
@@ -1068,7 +1087,7 @@ const PHASE1_FIELDS = [
 
 function phase1DriftIssues(m) {
   const issues = [];
-  for (const { name, pick, tolerance } of PHASE1_FIELDS) {
+  for (const { name, pick, tolerance, oneSided } of PHASE1_FIELDS) {
     for (const w of WIDTHS) {
       const before = pick(PHASE1_BASELINE.widths[String(w)]);
       const after = pick(m.widths[w]);
@@ -1077,7 +1096,8 @@ function phase1DriftIssues(m) {
         continue;
       }
       const tol = typeof tolerance === 'function' ? tolerance(before) : tolerance;
-      if (Math.abs(after - before) > tol) {
+      const drift = oneSided ? after - before : Math.abs(after - before);
+      if (drift > tol) {
         issues.push(`${name}@${w}: ${before.toFixed(2)} -> ${after.toFixed(2)} (tol ${tol.toFixed(2)})`);
       }
     }

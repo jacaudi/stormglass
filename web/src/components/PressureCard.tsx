@@ -1,15 +1,33 @@
 import { memo } from 'react';
-import type { CurrentObservation, PressureUnit } from '../types/weather';
+import type {
+  CurrentObservation,
+  PressureUnit,
+  RecordsMinMax,
+  RecordsWindowDays,
+} from '../types/weather';
 import { formatPressure } from '../hooks/useUnits';
 import { PressureTrend } from '../types/weather';
 import { GlassCard } from './GlassCard';
 import { Readout } from './primitives/Readout';
 import { ScaleBar } from './primitives/ScaleBar';
+import { Stat } from './primitives/Stat';
+import { StatRow } from './primitives/StatRow';
 
 interface PressureCardProps {
   current: CurrentObservation;
   unit: PressureUnit;
+  /**
+   * The pressure extremes over the records window, or null before the summary
+   * has arrived. Either bound is independently null when the window holds no
+   * reading for it -- RecordsCard applies the same rule to the same data.
+   */
+  range: RecordsMinMax | null;
+  /** Window the range covers, so the labels say what they are measuring. */
+  windowDays: RecordsWindowDays;
 }
+
+// The almanac, RecordsCard and StationHealth all render absent data this way.
+const EM_DASH = '\u2014';
 
 function trendArrow(trend: PressureTrend): string {
   switch (trend) {
@@ -27,7 +45,12 @@ function trendLabel(trend: PressureTrend): string {
   }
 }
 
-function PressureCardImpl({ current, unit }: PressureCardProps) {
+function PressureCardImpl({ current, unit, range, windowDays }: PressureCardProps) {
+  // null stays null: 0 mb is not a pressure anyone should read, so an absent
+  // bound renders as an em-dash rather than as a number.
+  const bound = (v: number | null | undefined): string =>
+    v === null || v === undefined ? EM_DASH : formatPressure(v, unit);
+
   return (
     <GlassCard className="pressure-card">
       <div className="card-header">
@@ -53,6 +76,11 @@ function PressureCardImpl({ current, unit }: PressureCardProps) {
           ticks={['Low', 'Normal', 'High']}
         />
       </div>
+
+      <StatRow divider minColumn={110}>
+        <Stat label={`${windowDays}-Day Low`} value={bound(range?.min)} />
+        <Stat label={`${windowDays}-Day High`} value={bound(range?.max)} />
+      </StatRow>
     </GlassCard>
   );
 }

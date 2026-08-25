@@ -107,6 +107,18 @@ export async function probe(page) {
     const heroContent = q('.hero-content');
     const rainGrid = q('.rain-grid');
     const rainCS = rainGrid ? getComputedStyle(rainGrid) : null;
+    // The interior's two auto margins sit on the FIRST body child and on the
+    // LAST in-flow child. Those were the same element (.rain-grid) until the
+    // card gained its window-total row, so reading both off .rain-grid now
+    // reports 21.3/0.0 for a card that is in fact centred. Centring is the gap
+    // ABOVE the first body child against the gap BELOW the last in-flow one --
+    // record both ends and let the check compare them.
+    const rainCard = rainGrid ? rainGrid.closest('.glass-card') : null;
+    const rainInFlow = rainCard
+      ? Array.from(rainCard.children).filter((el) => !el.classList.contains('rain-animation'))
+      : [];
+    const rainLast = rainInFlow.length ? rainInFlow[rainInFlow.length - 1] : null;
+    const rainLastCS = rainLast ? getComputedStyle(rainLast) : null;
     const header = q('.app-header');
     const name = q('.station-name');
     const loc = q('.station-location');
@@ -177,8 +189,12 @@ export async function probe(page) {
         : null,
       rainGrid: rainCS
         ? {
-            marginTop: parseFloat(rainCS.marginTop),
-            marginBottom: parseFloat(rainCS.marginBottom),
+            interiorTop: parseFloat(rainCS.marginTop),
+            // null (never 0) when the last in-flow child can't be found, so a
+            // renamed or emptied card fails the check loudly instead of
+            // comparing 0 against 0 and reading as centred.
+            interiorBottom: rainLastCS ? parseFloat(rainLastCS.marginBottom) : null,
+            lastInFlow: rainLast ? rainLast.className : null,
             hasAnimation: !!q('.rain-animation'),
           }
         : null,
