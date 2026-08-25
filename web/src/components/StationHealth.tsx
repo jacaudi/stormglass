@@ -17,7 +17,15 @@ function batteryLevel(volts: number): { pct: number; label: string } {
   return { pct, label };
 }
 
-function signalBars(strength: number): number[] {
+// The em-dash the almanac already uses for "not reported", so absent data
+// reads the same way everywhere on the dashboard.
+const EM_DASH = '—';
+
+// null in, null out: with no signal source the card must say "not reported"
+// rather than draw four empty bars beside "0/4", which states no signal on a
+// healthy station. The bars are only meaningful once a real reading exists.
+function signalBars(strength: number | null): number[] | null {
+  if (strength === null) return null;
   return [1, 2, 3, 4].map((n) => (n <= strength ? 1 : 0));
 }
 
@@ -64,22 +72,26 @@ function StationHealthImpl({ status }: StationHealthProps) {
         <Stat
           label="Signal"
           value={
-            <div className="signal-display">
-              <div className="signal-bars">
-                {bars.map((active, i) => (
-                  <div
-                    key={i}
-                    className={`signal-bar ${active ? 'active' : ''}`}
-                    style={{ height: `${(i + 1) * 6}px` }}
-                  />
-                ))}
+            bars === null ? (
+              EM_DASH
+            ) : (
+              <div className="signal-display">
+                <div className="signal-bars">
+                  {bars.map((active, i) => (
+                    <div
+                      key={i}
+                      className={`signal-bar ${active ? 'active' : ''}`}
+                      style={{ height: `${(i + 1) * 6}px` }}
+                    />
+                  ))}
+                </div>
+                <span className="signal-text">{status.signalStrength}/4</span>
               </div>
-              <span className="signal-text">{status.signalStrength}/4</span>
-            </div>
+            )
           }
         />
         <Stat label="Last Report" value={timeSince(status.lastReport)} />
-        <Stat label="Firmware" value={status.firmwareVersion} />
+        <Stat label="Firmware" value={status.firmwareVersion ?? EM_DASH} />
       </StatRow>
     </GlassCard>
   );

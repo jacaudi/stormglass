@@ -103,8 +103,18 @@ export interface StationStatus {
   isOnline: boolean;
   lastReport: number;
   batteryLevel: number;
-  signalStrength: number; // 0-4
-  firmwareVersion: string;
+  // null means NOT REPORTED, which is the state today: neither field has a
+  // source in Contract C. They are carried over UDP -- device_status has rssi
+  // and firmware_revision, hub_status has rssi -- but device_status is dropped
+  // by the store and no firmware column exists, so nothing reaches the API.
+  //
+  // null rather than 0/'' on purpose. 0 is a VALID signal reading, so using it
+  // to mean "unknown" is a sentinel that collides with real data -- the same
+  // defect class this branch fixed eleven times in its own probes. The card
+  // renders an em-dash for null and a real value for anything else, so the
+  // follow-up that plumbs the data needs no further UI change.
+  signalStrength: number | null; // 0-4, or null when not reported
+  firmwareVersion: string | null;
 }
 
 export type TemperatureUnit = 'C' | 'F';

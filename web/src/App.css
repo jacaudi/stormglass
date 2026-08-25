@@ -670,10 +670,24 @@
 }
 
 /* --- Humidity card ------------------------------------------- */
+/* The ring grows with the readout it contains, rather than staying 140px while
+   --readout-primary scales past it.
+   The usable width inside the circle is NOT its inner diameter -- the readout is
+   a text box with height, so what constrains it is the CHORD at the glyphs'
+   vertical extent, which is ~21px narrower at 1512. Measured against the chord,
+   a plain three-character "93%" overflowed by 6.0px/side at 1512 and 12.3px/side
+   at 2560, and "Very Humid" by 0.6px/side at 2560. Comparing against the
+   diameter is what made this read as "fits" while the render disagreed.
+   Solving chord >= value width for the container: 3.9 would be the bare minimum
+   (~160px at 1512, 2.8px/side). 4.42 was chosen from the render instead -- the
+   owner asked for visible separation between the glyphs and the arc, not a fit
+   -- and gives 181px at 1512 with 11.9px/side. `max()` keeps the 140px floor, so
+   narrow widths are unchanged. The multiplier is derived, not tuned:
+   innerR = 0.37 * container, chord = 2*sqrt(innerR^2 - dy^2), dy ~= 31.3px. */
 .humidity-ring-container {
   position: relative;
-  width: 140px;
-  height: 140px;
+  width: max(140px, calc(var(--readout-primary) * 4.42));
+  height: max(140px, calc(var(--readout-primary) * 4.42));
   margin: 0 auto 0.75rem;
 }
 
@@ -1166,6 +1180,19 @@
    rather than left as an inert, misleading value. */
 .station-health-card .stat-row {
   grid-template-columns: 1fr 1fr;
+}
+
+/* Stat centres its children, which makes .stat-value shrink-to-fit -- and
+   .battery-bar declares no width and has no width-contributing content (its only
+   child is width: X%), so it collapsed from 203px to 90px at 1512 when this card
+   was converted, reading as a chip rather than a gauge.
+   `align-self: stretch` returns the value box to full column width so the bar is
+   a gauge again. The label and the text stay centred: .stat's text-align: center
+   is inherited and is unaffected by the box's width. Scoped to this card because
+   it is the only one whose value is a graphic sized by its container rather than
+   by its own content. */
+.station-health-card .stat-value {
+  align-self: stretch;
 }
 
 .battery-display {

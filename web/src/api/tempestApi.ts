@@ -94,8 +94,12 @@ export async function fetchForecast(
 // Station status / health -- Contract C has no dedicated status endpoint
 // (design §11), so this derives a best-effort StationStatus from the latest
 // CurrentObservation rather than inventing a server route out of scope for
-// this task. signalStrength and firmwareVersion have no source in Contract
-// C and fall back to a safe default (0 / empty string). A failure here
+// this task. signalStrength and firmwareVersion have no source in Contract C
+// and are reported as null -- NOT as 0 / empty string, which the card rendered
+// as "SIGNAL 0/4" and a blank FIRMWARE, i.e. absent data presented as a
+// reading. "0/4" states no signal on a healthy station, which is worse than
+// stating nothing. 0 is also a valid signal value, so it cannot double as the
+// unknown sentinel. A failure here
 // REJECTS like every other fetch* in this file (M5): the underlying
 // observation fetch is the one slice useWeatherData's allSettled can retain
 // the prior value for on failure, and swallowing the error into a fake
@@ -111,8 +115,8 @@ export async function fetchStationStatus(
     isOnline: ageSeconds <= STATION_ONLINE_THRESHOLD_SECONDS,
     lastReport: obs.timestamp,
     batteryLevel: obs.battery,
-    signalStrength: 0,
-    firmwareVersion: '',
+    signalStrength: null,
+    firmwareVersion: null,
   };
 }
 
