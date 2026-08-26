@@ -34,12 +34,12 @@ COPY . .
 COPY --from=ui /app/web/dist ./web/dist
 
 RUN CGO_ENABLED=0 \
-    go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o /tempestwx-utilities .
+    go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o /stormglass .
 
 # --- Final stage: non-root static image -------------------------------------
 FROM cgr.dev/chainguard/static:latest@sha256:f68e3a8244c7d0f4cd56635aaff8e6a533cf6cc3850d8fb339567a5782d6a0b0
 
-COPY --from=builder /tempestwx-utilities /tempestwx-utilities
+COPY --from=builder /stormglass /stormglass
 
 USER 65532:65532
 
@@ -49,6 +49,6 @@ EXPOSE 8080
 # its `healthcheck` subcommand (see runHealthcheck in main.go), which GETs
 # its own /healthz and exits 0/1 accordingly.
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD ["/tempestwx-utilities", "healthcheck"]
+    CMD ["/stormglass", "healthcheck"]
 
-ENTRYPOINT ["/tempestwx-utilities"]
+ENTRYPOINT ["/stormglass"]

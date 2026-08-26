@@ -91,8 +91,7 @@ docs/screenshots/
 
 # Built binaries (this repo's, by name — the managed block's bin/ does not cover
 # a binary written to the repo root, which `go build .` does by default)
-tempestwx-utilities
-tempestwx-exporter
+stormglass
 
 # Go build cache and coverage formats the managed block does not carry
 .cache/

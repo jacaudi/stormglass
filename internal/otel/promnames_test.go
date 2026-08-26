@@ -149,7 +149,7 @@ func TestPrometheusExporterEmitsContractBNames(t *testing.T) {
 	}
 }
 
-// oldNames is the CURRENT descriptor set in internal/tempest/metrics.go
+// oldNames is the CURRENT descriptor set in internal/metrics/metrics.go
 // (Contract B's left column) as of this task. *prometheus.Desc has no
 // exported name accessor, so this mirrors metrics.go's fqName literals
 // directly rather than parsing its unexported internals; the length check
@@ -165,7 +165,7 @@ var oldNames = []string{
 }
 
 // TestMetricMigrationList diffs Contract B's right column (contractBNames)
-// against the CURRENT descriptor names in internal/tempest/metrics.go
+// against the CURRENT descriptor names in internal/metrics/metrics.go
 // (oldNames) and asserts the diff is EXACTLY the documented break set:
 // 4 renames, 1 drop, 3 adds, plus the (not name-diffable) instance->serial
 // label rename, which is logged here for DOC.2 but already asserted

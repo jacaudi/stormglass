@@ -89,13 +89,13 @@ func (s *MetricsServer) Start() error {
 
 // WriteReport converts a UDP report to metrics and stores them.
 func (s *MetricsServer) WriteReport(ctx context.Context, report tempestudp.Report) error {
-	metrics := report.Metrics()
-	return s.WriteMetrics(ctx, metrics)
+	ms := report.Metrics()
+	return s.WriteMetrics(ctx, ms)
 }
 
 // WriteMetrics stores the latest metrics for scraping.
-func (s *MetricsServer) WriteMetrics(ctx context.Context, metrics []prometheus.Metric) error {
-	s.collector.Update(metrics)
+func (s *MetricsServer) WriteMetrics(ctx context.Context, ms []prometheus.Metric) error {
+	s.collector.Update(ms)
 	return nil
 }
 
@@ -129,11 +129,11 @@ type latestMetricsCollector struct {
 }
 
 // Update stores or replaces metrics with the same identity.
-func (c *latestMetricsCollector) Update(metrics []prometheus.Metric) {
+func (c *latestMetricsCollector) Update(ms []prometheus.Metric) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	for _, m := range metrics {
+	for _, m := range ms {
 		key := metricKey(m)
 		c.metrics[key] = m
 	}
@@ -148,12 +148,12 @@ func (c *latestMetricsCollector) Describe(descs chan<- *prometheus.Desc) {
 }
 
 // Collect sends all stored metrics to the channel.
-func (c *latestMetricsCollector) Collect(metrics chan<- prometheus.Metric) {
+func (c *latestMetricsCollector) Collect(out chan<- prometheus.Metric) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
 	for _, m := range c.metrics {
-		metrics <- m
+		out <- m
 	}
 }
 

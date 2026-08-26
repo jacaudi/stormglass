@@ -56,7 +56,7 @@ tasks:
       - task: node:build
       - task: go:build
 
-  # Service repo. Runs locally: IMAGE=ghcr.io/jacaudi/tempestwx-utilities:vX.Y.Z task smoke
+  # Service repo. Runs locally: IMAGE=ghcr.io/jacaudi/stormglass:vX.Y.Z task smoke
   smoke:
     desc: Boot the built image and assert it behaves
     requires:
@@ -105,7 +105,7 @@ tasks:
   radar-build:
     desc: Build the radar sidecar image locally (build-only; never pushed)
     cmds:
-      - docker build -f radar/Dockerfile -t tempestwx-radar:local radar/
+      - docker build -f radar/Dockerfile -t stormglass-radar:local radar/
 
   # Retained from the pre-migration taskfile: the local image build is not part
   # of the CI contract but is the documented way to build by hand (CLAUDE.md).

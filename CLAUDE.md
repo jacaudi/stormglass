@@ -65,30 +65,30 @@ docker buildx bake image-local
 docker run -it --rm --net=host \
   -e ENABLE_PROMETHEUS_PUSHGATEWAY=true \
   -e PROMETHEUS_PUSHGATEWAY_URL=http://localhost:9091 \
-  tempestwx-utilities:latest
+  stormglass:latest
 
 # UDP mode with scrape endpoint (Prometheus pulls from /metrics)
 docker run -it --rm --net=host \
   -e ENABLE_PROMETHEUS_METRICS=true \
-  tempestwx-utilities:latest
+  stormglass:latest
 
 # UDP mode with scrape endpoint on custom port
 docker run -it --rm --net=host \
   -e ENABLE_PROMETHEUS_METRICS=true \
   -e PROMETHEUS_METRICS_PORT=9090 \
-  tempestwx-utilities:latest
+  stormglass:latest
 
 # UDP mode with both push gateway and scrape endpoint
 docker run -it --rm --net=host \
   -e ENABLE_PROMETHEUS_PUSHGATEWAY=true \
   -e PROMETHEUS_PUSHGATEWAY_URL=http://localhost:9091 \
   -e ENABLE_PROMETHEUS_METRICS=true \
-  tempestwx-utilities:latest
+  stormglass:latest
 
 # API export mode
 docker run -it --rm \
   -e TOKEN=your_token \
-  tempestwx-utilities:latest
+  stormglass:latest
 ```
 
 ## Architecture
@@ -101,7 +101,7 @@ The application switches modes based on presence of `TOKEN` environment variable
 
 ### Internal Package Structure
 
-- **`internal/tempest/`**: Defines all Prometheus metric descriptors (`prometheus.Desc`)
+- **`internal/metrics/`**: Defines all Prometheus metric descriptors (`prometheus.Desc`)
 - **`internal/tempestudp/`**: Parses UDP broadcast messages into metrics, includes wet bulb temperature calculations
 - **`internal/tempestapi/`**: REST API client for fetching historical observations
 - **`internal/weather/`**: Store-neutral `Observation`, `Gap`, and `Bounds` types shared by the REST client and both stores
@@ -129,22 +129,22 @@ The application switches modes based on presence of `TOKEN` environment variable
 
 - `ENABLE_PROMETHEUS_PUSHGATEWAY`: Set to "true" or "1" to enable pushing metrics to a Prometheus Pushgateway
 - `PROMETHEUS_PUSHGATEWAY_URL`: URL of Prometheus Pushgateway or compatible service (e.g., VictoriaMetrics). Required when `ENABLE_PROMETHEUS_PUSHGATEWAY` is true
-- `JOB_NAME`: Job label for pushed metrics (default: "tempest")
+- `JOB_NAME`: Job label for pushed metrics (default: "stormglass")
 - `ENABLE_PROMETHEUS_METRICS`: Set to "true" or "1" to expose `/metrics` endpoint for Prometheus scraping
 - `PROMETHEUS_METRICS_PORT`: Port for the metrics endpoint (default: 9000)
 - `ENABLE_RADAR`: Set to "true" or "1" to render the radar card and register `GET /api/radar/{site}` (default: false). `RADAR_SITE` and `STATION_LATITUDE`/`STATION_LONGITUDE` are checked at startup, and **every** unmet precondition is reported, not just the first: if either is missing, or if `RADAR_SITE` is not one of the 163 WSR-88D codes in `internal/radar/sites.go`, the card is not mounted and an ERROR names it — the process still starts and keeps ingesting. An unknown `RADAR_SITE` is reported with the nearest WSR-88D site to the station's coordinates and the distance to it, so the message names an answer rather than a source file; with no coordinates configured there is nothing to compute a hint from, and the unknown-code ERROR names the format rule only. The radar sidecar must also be running to serve tiles, but its absence is **not** checked at startup; it surfaces as failing tile requests at runtime.
 - `ENABLE_FORECAST`: Set to "true" or "1" to enable the 7-day forecast card (default: false). **There is no forecast provider yet.** The WeatherFlow proxy was removed (issue #62, closed won't-do) and the tokenless NWS replacement is issue #81, so enabling this today logs an ERROR and mounts nothing.
 - `ENABLE_ALMANAC`: Set to "true" or "1" to render the station almanac card and register `GET /api/almanac` (default: false). Requires `STATION_LATITUDE`/`STATION_LONGITUDE` and an observation store (SQLite is the default).
 - `ENABLE_POSTGRES`: Set to "true" or "1" to enable writing metrics to PostgreSQL (opt-in; SQLite is the default store — see below)
-- `SQLITE_PATH`: Path to the default SQLite database file (default: `/data/tempest.db`)
+- `SQLITE_PATH`: Path to the default SQLite database file (default: `/data/stormglass.db`)
 - `SQLITE_BATCH_SIZE`: SQLite insert batch size (default: 100)
 - `SQLITE_FLUSH_INTERVAL`: SQLite batch flush interval (default: 10s)
 - `SQLITE_BUSY_TIMEOUT`: SQLite `busy_timeout` in milliseconds (default: 5000)
 - `LOG_UDP`: Optional. Set to "true" or "1" to log all UDP broadcasts received (default: false)
-- `TEMPEST_SERIAL`: Optional. Sets the OTel resource attribute `tempest.serial` (process-level station identity); the authoritative per-metric `serial` label comes from the UDP reports themselves
+- `STORMGLASS_SERIAL`: Optional. Sets the OTel resource attribute `stormglass.serial` (process-level station identity); the authoritative per-metric `serial` label comes from the UDP reports themselves
 - `TOKEN`: Optional. When set, switches to API export mode for historical data
 
-**Note:** In UDP mode, **SQLite is the default store**. If you set none of `ENABLE_PROMETHEUS_PUSHGATEWAY`, `ENABLE_PROMETHEUS_METRICS`, or `ENABLE_POSTGRES`, observations are still persisted to SQLite at `SQLITE_PATH` (default `/data/tempest.db`). SQLite is written only in UDP mode, and is disabled only when `ENABLE_POSTGRES` is the sole configured store **and** `SQLITE_PATH` is unset. See **SQLite Storage (default store)** below.
+**Note:** In UDP mode, **SQLite is the default store**. If you set none of `ENABLE_PROMETHEUS_PUSHGATEWAY`, `ENABLE_PROMETHEUS_METRICS`, or `ENABLE_POSTGRES`, observations are still persisted to SQLite at `SQLITE_PATH` (default `/data/stormglass.db`). SQLite is written only in UDP mode, and is disabled only when `ENABLE_POSTGRES` is the sole configured store **and** `SQLITE_PATH` is unset. See **SQLite Storage (default store)** below.
 
 ### Station Identity
 
@@ -163,12 +163,12 @@ once.
 
 ## SQLite Storage (default store)
 
-SQLite + Litestream is the **default** store in UDP mode: with no `ENABLE_POSTGRES`, observations are written to a local SQLite database at `SQLITE_PATH` (default `/data/tempest.db`). PostgreSQL is opt-in and can run alongside SQLite (fan-out) when both are configured. SQLite is written only in UDP mode (not in API-export mode).
+SQLite + Litestream is the **default** store in UDP mode: with no `ENABLE_POSTGRES`, observations are written to a local SQLite database at `SQLITE_PATH` (default `/data/stormglass.db`). PostgreSQL is opt-in and can run alongside SQLite (fan-out) when both are configured. SQLite is written only in UDP mode (not in API-export mode).
 
 - **Driver:** `modernc.org/sqlite` (pure Go, `CGO_ENABLED=0` — no CGO, preserving the static image). WAL journal mode; `busy_timeout=5000`, `synchronous=NORMAL`, `foreign_keys=ON`. WAL checkpointing is intentionally left to Litestream (no aggressive `wal_autocheckpoint`).
 - **`/data` must be a writable mount.** If the SQLite database cannot be opened, the process **exits on startup** (fail-loud). Mount a writable volume at `/data`, or set `SQLITE_PATH` to a writable location.
 - **Tunables:** `SQLITE_BATCH_SIZE` (default 100), `SQLITE_FLUSH_INTERVAL` (default 10s), `SQLITE_BUSY_TIMEOUT` (default 5000 ms).
-- **Schema:** the same four typed tables as Postgres (`tempest_observations`, `tempest_rapid_wind`, `tempest_hub_status`, `tempest_events`), UUIDv7 text primary keys, unix-epoch **integer** timestamps; created via an embedded versioned migration (`schema_version`) on startup.
+- **Schema:** the same four typed tables as Postgres (`stormglass_observations`, `stormglass_rapid_wind`, `stormglass_hub_status`, `stormglass_events`), UUIDv7 text primary keys, unix-epoch **integer** timestamps; created via an embedded versioned migration (`schema_version`) on startup.
 - **Litestream** runs as a sidecar streaming the WAL to S3/MinIO for backup/PITR; Litestream owns checkpointing. See the design doc for the sidecar config.
 
 > **Migration note (upgrading from a pre-SQLite build):** existing UDP deployments that ran with only `ENABLE_PROMETHEUS_*` now **also** persist to SQLite by default. Ensure `/data` is a writable mount (or set `SQLITE_PATH` to a writable path) **before** upgrading, or the container will fail to start. There is no flag to disable the default store; to avoid a local database entirely, run Postgres as the sole store (`ENABLE_POSTGRES=true`, `SQLITE_PATH` unset).
@@ -195,7 +195,7 @@ POSTGRES_URL=postgresql://user:pass@localhost:5432/weather
 ```bash
 POSTGRES_HOST=postgres
 POSTGRES_PORT=5432              # optional, default: 5432
-POSTGRES_USERNAME=tempest
+POSTGRES_USERNAME=stormglass
 POSTGRES_PASSWORD=secret
 POSTGRES_NAME=weather
 POSTGRES_SSLMODE=disable        # optional: disable, require, verify-ca, verify-full
@@ -211,10 +211,10 @@ POSTGRES_MAX_RETRIES=3          # default: 3
 ### Database Schema
 
 Four typed tables are automatically created on startup:
-- `tempest_observations` - Main weather data (~1/minute) with UUID primary keys
-- `tempest_rapid_wind` - High-frequency wind readings (~3 seconds)
-- `tempest_hub_status` - Device health metrics
-- `tempest_events` - Rain start and lightning strike events
+- `stormglass_observations` - Main weather data (~1/minute) with UUID primary keys
+- `stormglass_rapid_wind` - High-frequency wind readings (~3 seconds)
+- `stormglass_hub_status` - Device health metrics
+- `stormglass_events` - Rain start and lightning strike events
 
 All tables use UUIDv7 primary keys (generated in Go, no PostgreSQL extensions required).
 
@@ -231,7 +231,7 @@ All tables use UUIDv7 primary keys (generated in Go, no PostgreSQL extensions re
 | N/A | N/A | No | Yes | API export to .gz files |
 | N/A | N/A | Yes | Yes | API export to Postgres (+ optional .gz files) |
 
-> **SQLite default:** every UDP-mode row above (`TOKEN` unset) **also** persists to SQLite at `SQLITE_PATH` (default `/data/tempest.db`), unless `ENABLE_POSTGRES` is the only configured store and `SQLITE_PATH` is unset. SQLite is not written in API-export mode (`TOKEN` set).
+> **SQLite default:** every UDP-mode row above (`TOKEN` unset) **also** persists to SQLite at `SQLITE_PATH` (default `/data/stormglass.db`), unless `ENABLE_POSTGRES` is the only configured store and `SQLITE_PATH` is unset. SQLite is not written in API-export mode (`TOKEN` set).
 
 > **UI cards are gated separately from the operational mode.** `ENABLE_RADAR`,
 > `ENABLE_FORECAST` and `ENABLE_ALMANAC` decide which optional cards the
@@ -278,8 +278,8 @@ All tables use UUIDv7 primary keys (generated in Go, no PostgreSQL extensions re
 
 ```yaml
 services:
-  tempest-utilities:
-    image: tempestwx-utilities:latest
+  stormglass:
+    image: stormglass:latest
     network_mode: host
     environment:
       ENABLE_PROMETHEUS_PUSHGATEWAY: "true"
@@ -288,7 +288,7 @@ services:
       # PROMETHEUS_METRICS_PORT: "9090"  # Optional: override default port
       ENABLE_POSTGRES: "true"
       POSTGRES_HOST: postgres
-      POSTGRES_USERNAME: tempest
+      POSTGRES_USERNAME: stormglass
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_NAME: weather
     depends_on:
@@ -299,12 +299,12 @@ services:
     image: postgres:16
     environment:
       POSTGRES_DB: weather
-      POSTGRES_USER: tempest
+      POSTGRES_USER: stormglass
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U tempest"]
+      test: ["CMD-SHELL", "pg_isready -U stormglass"]
       interval: 10s
 
 volumes:
@@ -317,7 +317,7 @@ When using the metrics endpoint (`ENABLE_PROMETHEUS_METRICS=true`), configure Pr
 
 ```yaml
 scrape_configs:
-  - job_name: 'tempest'
+  - job_name: 'stormglass'
     static_configs:
       - targets: ['localhost:9000']  # Default port, or use PROMETHEUS_METRICS_PORT value
 ```
@@ -347,9 +347,9 @@ API Export Mode (which is selected by setting `TOKEN` and runs the whole export
 path), this is an explicit subcommand and can be run against a live database:
 
 ```bash
-TOKEN=your_api_token tempestwx-utilities backfill
-TOKEN=... tempestwx-utilities backfill --dry-run
-TOKEN=... tempestwx-utilities backfill --from 2026-07-01T00:00:00Z --to 2026-07-05T00:00:00Z
+TOKEN=your_api_token stormglass backfill
+TOKEN=... stormglass backfill --dry-run
+TOKEN=... stormglass backfill --from 2026-07-01T00:00:00Z --to 2026-07-05T00:00:00Z
 ```
 
 It writes to whichever store is configured (SQLite by default, Postgres when
@@ -377,9 +377,9 @@ API export, which sees one device per station.)
 (windows the station was genuinely offline for, which the API cannot fill
 either); `1` one or more gaps failed, or a runtime error; `2` usage error.
 
-**Scope:** `tempest_observations` only. There is no historical REST endpoint for
+**Scope:** `stormglass_observations` only. There is no historical REST endpoint for
 rapid wind, hub status, or discrete events. Lightning is partially recovered in
-aggregate through the observation columns, but not as `tempest_events` rows.
+aggregate through the observation columns, but not as `stormglass_events` rows.
 
 **Safety:** if the API's station serials and the store's serials have **no
 overlap at all** (on a non-empty store), backfill stops and writes nothing — that

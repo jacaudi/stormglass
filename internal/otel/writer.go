@@ -312,7 +312,7 @@ func (w *Writer) counter(ctx context.Context, c metric.Float64Counter, value flo
 	c.Add(ctx, value, metric.WithAttributes(serialAttrs(serial, extra...)...))
 }
 
-// writeMetricsHandlers maps each old internal/tempest Prometheus descriptor
+// writeMetricsHandlers maps each old internal/metrics Prometheus descriptor
 // pointer to the Contract B instrument WriteMetrics records it onto — the
 // exact case-by-case mapping the switch below used to encode directly, now
 // as a lookup table so WriteMetrics itself stays a flat dispatch loop. Being
@@ -381,7 +381,7 @@ var writeMetricsHandlers = map[*prometheus.Desc]func(w *Writer, ctx context.Cont
 
 // WriteMetrics implements sink.MetricsWriter for API-export mode: it
 // translates each incoming Prometheus metric (built against the OLD
-// internal/tempest descriptors) to its Contract B instrument by matching on
+// internal/metrics descriptors) to its Contract B instrument by matching on
 // the exact *prometheus.Desc pointer (metrics.Wind, metrics.Temperature,
 // etc. are package-level vars, so m.Desc() is the same pointer that
 // Report.Metrics() used to build m) and reading its label/value via
@@ -389,7 +389,7 @@ var writeMetricsHandlers = map[*prometheus.Desc]func(w *Writer, ctx context.Cont
 // attribute. See writeMetricsHandlers for the full per-descriptor mapping,
 // including the metrics with no Contract B counterpart that are skipped.
 //
-// Known gap: metrics.dewpoint.c and metrics.heat_index.c are never
+// Known gap: stormglass.dewpoint.c and stormglass.heat_index.c are never
 // populated via this path. Deriving them requires the SAME observation's
 // temperature AND humidity together, but Report.Metrics() emits temperature
 // and humidity as separate, independently-labeled prometheus.Metric values
@@ -397,8 +397,8 @@ var writeMetricsHandlers = map[*prometheus.Desc]func(w *Writer, ctx context.Cont
 // (especially once merged across multiple stations/timestamps in
 // API-export mode). WriteReport is the primary, fully correct path — it has
 // both raw fields together from the same ob row.
-func (w *Writer) WriteMetrics(ctx context.Context, metrics []prometheus.Metric) error {
-	for _, m := range metrics {
+func (w *Writer) WriteMetrics(ctx context.Context, ms []prometheus.Metric) error {
+	for _, m := range ms {
 		var d dto.Metric
 		if err := m.Write(&d); err != nil {
 			return fmt.Errorf("write prometheus metric %s: %w", m.Desc(), err)
