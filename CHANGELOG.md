@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.0.1](https://github.com/jacaudi/stormglass/compare/v1.0.0...v1.0.1) (2026-08-26)
+
+
+### Miscellaneous Chores
+
+* move .node-version into web/ ([7a8f837](https://github.com/jacaudi/stormglass/commit/7a8f8374b74ed73466b005f518ecba4dc6cb2466)), closes [#207](https://github.com/jacaudi/stormglass/issues/207)
+* move CLAUDE.md to .claude/CLAUDE.md and unbreak its ignore rule ([51ed7dd](https://github.com/jacaudi/stormglass/commit/51ed7dd4b8d87f11a4315b77c6125b6f7db557bf)), closes [#207](https://github.com/jacaudi/stormglass/issues/207)
+* move the binary into cmd/stormglass ([a6eccdf](https://github.com/jacaudi/stormglass/commit/a6eccdfe7c7cb67635592cb144ea34e50bfcda1b)), closes [#207](https://github.com/jacaudi/stormglass/issues/207)
+* move the release-please config and manifest into .github/ ([f290d91](https://github.com/jacaudi/stormglass/commit/f290d9188b5376868f3c5e5cb68f1e8b20de74bc)), closes [#207](https://github.com/jacaudi/stormglass/issues/207)
+* remove release-as now that v1.0.0 is cut ([ce905c0](https://github.com/jacaudi/stormglass/commit/ce905c080fd9a4ee5e1790860b1a3b2158ee47fc))
+* remove release-as now that v1.0.0 is cut ([38cd2bf](https://github.com/jacaudi/stormglass/commit/38cd2bf39e0de5d8cdde51dfc6d66d5bb5001212)), closes [#198](https://github.com/jacaudi/stormglass/issues/198)
+* tidy the repo root — cmd/ for the binary, .claude/ for CLAUDE.md, .github/ for release-please ([b2960fb](https://github.com/jacaudi/stormglass/commit/b2960fb8c59119d13784d7463714dd7d54803abc))
+
 ## 1.0.0 (2026-08-26)
 
 
