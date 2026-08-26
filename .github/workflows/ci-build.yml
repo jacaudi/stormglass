@@ -84,11 +84,11 @@ jobs:
           WANT: ${{ inputs.version }}
         run: |
           set -euo pipefail
-          if [ ! -f .release-please-manifest.json ]; then
-            echo "::error::.release-please-manifest.json missing — cannot verify ${WANT}"
+          if [ ! -f .github/.release-please-manifest.json ]; then
+            echo "::error::.github/.release-please-manifest.json missing — cannot verify ${WANT}"
             exit 1
           fi
-          have="v$(jq -r '.["."]' .release-please-manifest.json)"
+          have="v$(jq -r '.["."]' .github/.release-please-manifest.json)"
           echo "tag being stamped: ${WANT}"
           echo "manifest reports:  ${have}"
           [ "${WANT}" = "${have}" ] || { echo "::error::refusing to publish ${WANT} from a checkout that reports ${have}"; exit 1; }
