@@ -13,8 +13,8 @@ import (
 	"math"
 	"sync"
 
-	"tempestwx-utilities/internal/tempest"
-	"tempestwx-utilities/internal/tempestudp"
+	"github.com/jacaudi/stormglass/internal/metrics"
+	"github.com/jacaudi/stormglass/internal/tempestudp"
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
@@ -320,26 +320,26 @@ func (w *Writer) counter(ctx context.Context, c metric.Float64Counter, value flo
 // so they carry no complexity cost for WriteMetrics (verified against the
 // project's actual gocyclo tool before adopting this shape).
 //
-// tempest.Reboots and tempest.BusErrors have no entry: API-export (client.go's
+// metrics.Reboots and metrics.BusErrors have no entry: API-export (client.go's
 // type switch) only ever produces *TempestObservationReport, never
 // *HubStatusReport, so this path never carries a reboots/bus_errors metric to
 // translate. Also, reboots/busErrors are now ObservableCounters (see
 // handleHubStatusReport), which have no synchronous Add to call from here.
-// tempest.ReportInterval (dropped in Contract B) and tempest.RainTotal
+// metrics.ReportInterval (dropped in Contract B) and metrics.RainTotal
 // (never emitted by any Report.Metrics() implementation) likewise have no
 // entry and are silently skipped, matching the original switch's implicit
 // default.
 var writeMetricsHandlers = map[*prometheus.Desc]func(w *Writer, ctx context.Context, value float64, serial, kind string){
-	tempest.Wind: func(w *Writer, ctx context.Context, value float64, serial, kind string) {
+	metrics.Wind: func(w *Writer, ctx context.Context, value float64, serial, kind string) {
 		w.gauge(ctx, w.windMetersPerSecond, value, serial, attribute.String("kind", kind))
 	},
-	tempest.WindDirection: func(w *Writer, ctx context.Context, value float64, serial, _ string) {
+	metrics.WindDirection: func(w *Writer, ctx context.Context, value float64, serial, _ string) {
 		w.gauge(ctx, w.windDirectionDegrees, value, serial)
 	},
-	tempest.Pressure: func(w *Writer, ctx context.Context, value float64, serial, _ string) {
+	metrics.Pressure: func(w *Writer, ctx context.Context, value float64, serial, _ string) {
 		w.gauge(ctx, w.pressureMb, value, serial)
 	},
-	tempest.Temperature: func(w *Writer, ctx context.Context, value float64, serial, kind string) {
+	metrics.Temperature: func(w *Writer, ctx context.Context, value float64, serial, kind string) {
 		switch kind {
 		case "air":
 			w.gauge(ctx, w.temperatureC, value, serial, attribute.String("kind", "air"))
@@ -347,34 +347,34 @@ var writeMetricsHandlers = map[*prometheus.Desc]func(w *Writer, ctx context.Cont
 			w.gauge(ctx, w.wetBulbC, value, serial)
 		}
 	},
-	tempest.Humidity: func(w *Writer, ctx context.Context, value float64, serial, _ string) {
+	metrics.Humidity: func(w *Writer, ctx context.Context, value float64, serial, _ string) {
 		w.gauge(ctx, w.humidityPercent, value, serial)
 	},
-	tempest.Illuminance: func(w *Writer, ctx context.Context, value float64, serial, _ string) {
+	metrics.Illuminance: func(w *Writer, ctx context.Context, value float64, serial, _ string) {
 		w.gauge(ctx, w.illuminanceLux, value, serial)
 	},
-	tempest.UV: func(w *Writer, ctx context.Context, value float64, serial, _ string) {
+	metrics.UV: func(w *Writer, ctx context.Context, value float64, serial, _ string) {
 		w.gauge(ctx, w.uvIndex, value, serial)
 	},
-	tempest.Irradiance: func(w *Writer, ctx context.Context, value float64, serial, _ string) {
+	metrics.Irradiance: func(w *Writer, ctx context.Context, value float64, serial, _ string) {
 		w.gauge(ctx, w.irradianceWM2, value, serial)
 	},
-	tempest.RainRate: func(w *Writer, ctx context.Context, value float64, serial, _ string) {
+	metrics.RainRate: func(w *Writer, ctx context.Context, value float64, serial, _ string) {
 		w.gauge(ctx, w.rainRateMmMin, value, serial)
 	},
-	tempest.LightningDistance: func(w *Writer, ctx context.Context, value float64, serial, _ string) {
+	metrics.LightningDistance: func(w *Writer, ctx context.Context, value float64, serial, _ string) {
 		w.gauge(ctx, w.lightningDistanceKm, value, serial)
 	},
-	tempest.LightningStrikeCount: func(w *Writer, ctx context.Context, value float64, serial, _ string) {
+	metrics.LightningStrikeCount: func(w *Writer, ctx context.Context, value float64, serial, _ string) {
 		w.counter(ctx, w.lightningStrikeCount, value, serial)
 	},
-	tempest.Battery: func(w *Writer, ctx context.Context, value float64, serial, _ string) {
+	metrics.Battery: func(w *Writer, ctx context.Context, value float64, serial, _ string) {
 		w.gauge(ctx, w.batteryVolts, value, serial)
 	},
-	tempest.Uptime: func(w *Writer, ctx context.Context, value float64, serial, _ string) {
+	metrics.Uptime: func(w *Writer, ctx context.Context, value float64, serial, _ string) {
 		w.gauge(ctx, w.uptimeSeconds, value, serial)
 	},
-	tempest.Rssi: func(w *Writer, ctx context.Context, value float64, serial, _ string) {
+	metrics.Rssi: func(w *Writer, ctx context.Context, value float64, serial, _ string) {
 		w.gauge(ctx, w.rssiDbm, value, serial)
 	},
 }
@@ -382,14 +382,14 @@ var writeMetricsHandlers = map[*prometheus.Desc]func(w *Writer, ctx context.Cont
 // WriteMetrics implements sink.MetricsWriter for API-export mode: it
 // translates each incoming Prometheus metric (built against the OLD
 // internal/tempest descriptors) to its Contract B instrument by matching on
-// the exact *prometheus.Desc pointer (tempest.Wind, tempest.Temperature,
+// the exact *prometheus.Desc pointer (metrics.Wind, metrics.Temperature,
 // etc. are package-level vars, so m.Desc() is the same pointer that
 // Report.Metrics() used to build m) and reading its label/value via
 // m.Write(&dto.Metric{}). The "instance" label value becomes the "serial"
 // attribute. See writeMetricsHandlers for the full per-descriptor mapping,
 // including the metrics with no Contract B counterpart that are skipped.
 //
-// Known gap: tempest.dewpoint.c and tempest.heat_index.c are never
+// Known gap: metrics.dewpoint.c and metrics.heat_index.c are never
 // populated via this path. Deriving them requires the SAME observation's
 // temperature AND humidity together, but Report.Metrics() emits temperature
 // and humidity as separate, independently-labeled prometheus.Metric values

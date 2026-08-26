@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"tempestwx-utilities/internal/tempestudp"
+	"github.com/jacaudi/stormglass/internal/tempestudp"
 )
 
 // TestPostgresWriter_WriteMetrics_MapsEachFieldToItsColumn feeds WriteMetrics

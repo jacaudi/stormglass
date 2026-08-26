@@ -18,17 +18,17 @@ import (
 	"syscall"
 	"time"
 
-	"tempestwx-utilities/internal/config"
-	"tempestwx-utilities/internal/httpserver"
-	"tempestwx-utilities/internal/otel"
-	"tempestwx-utilities/internal/postgres"
-	"tempestwx-utilities/internal/prometheus"
-	"tempestwx-utilities/internal/radar"
-	"tempestwx-utilities/internal/sink"
-	"tempestwx-utilities/internal/sqlite"
-	"tempestwx-utilities/internal/tempestapi"
-	"tempestwx-utilities/internal/tempestudp"
-	"tempestwx-utilities/web"
+	"github.com/jacaudi/stormglass/internal/config"
+	"github.com/jacaudi/stormglass/internal/httpserver"
+	"github.com/jacaudi/stormglass/internal/otel"
+	"github.com/jacaudi/stormglass/internal/postgres"
+	"github.com/jacaudi/stormglass/internal/prometheus"
+	"github.com/jacaudi/stormglass/internal/radar"
+	"github.com/jacaudi/stormglass/internal/sink"
+	"github.com/jacaudi/stormglass/internal/sqlite"
+	"github.com/jacaudi/stormglass/internal/tempestapi"
+	"github.com/jacaudi/stormglass/internal/tempestudp"
+	"github.com/jacaudi/stormglass/web"
 
 	promclient "github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/expfmt"
@@ -154,7 +154,7 @@ func selectStore(enablePostgres bool, sqlitePathEnv string) storeChoice {
 	return c
 }
 
-// runHealthcheck implements the `tempestwx-utilities healthcheck` subcommand
+// runHealthcheck implements the `stormglass healthcheck` subcommand
 // used by the Docker HEALTHCHECK instruction: the chainguard/static final
 // image has no shell/curl/wget to run a conventional CMD probe, so the
 // binary probes itself instead. It GETs /healthz on the same HTTP_ADDR the
@@ -189,7 +189,7 @@ func runHealthcheck() int {
 // isKnownSubcommand reports whether name is a subcommand this binary
 // dispatches. It exists so an unrecognized argument becomes a usage error
 // instead of silently falling through to daemon mode — a typo such as
-// `tempestwx-utilities backfil` previously started a UDP listener.
+// `stormglass backfil` previously started a UDP listener.
 func isKnownSubcommand(name string) bool {
 	switch name {
 	case "healthcheck", "backfill":
@@ -199,14 +199,14 @@ func isKnownSubcommand(name string) bool {
 	}
 }
 
-const usageText = `tempestwx-utilities — Tempest weather station data utilities
+const usageText = `stormglass — Tempest weather station data utilities
 
 usage:
-  tempestwx-utilities                 run the UDP listener / API export daemon (configured by env)
-  tempestwx-utilities backfill [...]  fill gaps in the observation history from the Tempest REST API
-  tempestwx-utilities healthcheck     probe the running server's /healthz endpoint
+  stormglass                 run the UDP listener / API export daemon (configured by env)
+  stormglass backfill [...]  fill gaps in the observation history from the Tempest REST API
+  stormglass healthcheck     probe the running server's /healthz endpoint
 
-run "tempestwx-utilities backfill --help" for the backfill flags
+run "stormglass backfill --help" for the backfill flags
 `
 
 // dispatchSubcommand checks for a "backfill" or "healthcheck" subcommand as

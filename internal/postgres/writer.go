@@ -14,7 +14,7 @@ import (
 	"syscall"
 	"time"
 
-	"tempestwx-utilities/internal/tempestudp"
+	"github.com/jacaudi/stormglass/internal/tempestudp"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"

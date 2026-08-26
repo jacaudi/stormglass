@@ -8,15 +8,15 @@ import (
 	"slices"
 	"time"
 
-	"tempestwx-utilities/internal/tempestapi"
-	"tempestwx-utilities/internal/weather"
+	"github.com/jacaudi/stormglass/internal/tempestapi"
+	"github.com/jacaudi/stormglass/internal/weather"
 )
 
 const (
 	// insertBatchSize bounds one insert transaction.
 	//
 	// The realistic invocation is `docker exec <running container>
-	// tempestwx-utilities backfill` against a LIVE database. A long backfill
+	// stormglass backfill` against a LIVE database. A long backfill
 	// transaction contends with ingest writes; busy_timeout defaults to 5s
 	// and ingest's error path only LOGS (sqlite/writer.go:646), so an
 	// unbounded transaction could cause live observations to be silently lost

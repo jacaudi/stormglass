@@ -13,7 +13,7 @@ import (
 	"context"
 	"fmt"
 
-	"tempestwx-utilities/internal/tempestudp"
+	"github.com/jacaudi/stormglass/internal/tempestudp"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/codes"

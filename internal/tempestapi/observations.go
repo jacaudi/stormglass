@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"time"
 
-	"tempestwx-utilities/internal/weather"
+	"github.com/jacaudi/stormglass/internal/weather"
 )
 
 // observationSet mirrors the Tempest ObservationSet response schema.

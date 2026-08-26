@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"tempestwx-utilities/internal/tempestapi"
+	"github.com/jacaudi/stormglass/internal/tempestapi"
 )
 
 // chunkSize bounds one API request's window.

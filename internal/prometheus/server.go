@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"tempestwx-utilities/internal/tempest"
-	"tempestwx-utilities/internal/tempestudp"
+	"github.com/jacaudi/stormglass/internal/metrics"
+	"github.com/jacaudi/stormglass/internal/tempestudp"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -142,7 +142,7 @@ func (c *latestMetricsCollector) Update(metrics []prometheus.Metric) {
 // Describe sends all metric descriptors to the channel.
 func (c *latestMetricsCollector) Describe(descs chan<- *prometheus.Desc) {
 	// Send all known metric descriptors
-	for _, desc := range tempest.All {
+	for _, desc := range metrics.All {
 		descs <- desc
 	}
 }

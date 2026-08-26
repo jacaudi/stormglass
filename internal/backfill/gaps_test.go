@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"tempestwx-utilities/internal/weather"
+	"github.com/jacaudi/stormglass/internal/weather"
 )
 
 func ts(epoch int64) time.Time { return time.Unix(epoch, 0).UTC() }

@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"time"
 
-	"tempestwx-utilities/internal/sqlite"
-	"tempestwx-utilities/internal/tempestudp"
+	"github.com/jacaudi/stormglass/internal/sqlite"
+	"github.com/jacaudi/stormglass/internal/tempestudp"
 )
 
 // pressureTrendWindow is how far back HistoryPoints is queried to derive

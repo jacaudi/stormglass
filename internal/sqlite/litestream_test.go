@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"tempestwx-utilities/internal/tempestudp"
+	"github.com/jacaudi/stormglass/internal/tempestudp"
 )
 
 // selectAllObservationsSQL mirrors selectLatestObservationSQL's column list

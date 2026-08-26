@@ -1,4 +1,4 @@
-module tempestwx-utilities
+module github.com/jacaudi/stormglass
 
 go 1.25.0
 

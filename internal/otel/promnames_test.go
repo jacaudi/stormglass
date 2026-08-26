@@ -5,8 +5,8 @@ import (
 	"slices"
 	"testing"
 
-	"tempestwx-utilities/internal/tempest"
-	"tempestwx-utilities/internal/tempestudp"
+	"github.com/jacaudi/stormglass/internal/metrics"
+	"github.com/jacaudi/stormglass/internal/tempestudp"
 
 	prom "github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
@@ -154,7 +154,7 @@ func TestPrometheusExporterEmitsContractBNames(t *testing.T) {
 // exported name accessor, so this mirrors metrics.go's fqName literals
 // directly rather than parsing its unexported internals; the length check
 // in TestMetricMigrationList below guards against this list silently going
-// stale if a descriptor is added to or removed from tempest.All.
+// stale if a descriptor is added to or removed from metrics.All.
 var oldNames = []string{
 	"stormglass_uptime_seconds_total", "stormglass_rssi_dbm", "stormglass_reboots_total",
 	"stormglass_bus_errors_total", "stormglass_illuminance_lux", "stormglass_uv_index",
@@ -176,8 +176,8 @@ func TestMetricMigrationList(t *testing.T) {
 	// same-count rename. Acceptable here because metrics.go is the frozen
 	// legacy contract being replaced, not a list this test needs to track
 	// element-for-element going forward.
-	if len(oldNames) != len(tempest.All) {
-		t.Fatalf("oldNames has %d entries but tempest.All has %d — a descriptor was added/removed in metrics.go without updating this test's oldNames list", len(oldNames), len(tempest.All))
+	if len(oldNames) != len(metrics.All) {
+		t.Fatalf("oldNames has %d entries but metrics.All has %d — a descriptor was added/removed in metrics.go without updating this test's oldNames list", len(oldNames), len(metrics.All))
 	}
 
 	renamed := map[string]string{

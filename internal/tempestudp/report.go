@@ -6,7 +6,7 @@ import (
 	"math"
 	"time"
 
-	"tempestwx-utilities/internal/tempest"
+	"github.com/jacaudi/stormglass/internal/metrics"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -122,8 +122,8 @@ func (r RapidWindReport) Metrics() []prometheus.Metric {
 
 	ts := int64(r.Ob[0])
 	return withTime(ts, []prometheus.Metric{
-		prometheus.MustNewConstMetric(tempest.Wind, prometheus.GaugeValue, r.Ob[1], r.SerialNumber, "rapid"),
-		prometheus.MustNewConstMetric(tempest.WindDirection, prometheus.GaugeValue, r.Ob[2], r.SerialNumber),
+		prometheus.MustNewConstMetric(metrics.Wind, prometheus.GaugeValue, r.Ob[1], r.SerialNumber, "rapid"),
+		prometheus.MustNewConstMetric(metrics.WindDirection, prometheus.GaugeValue, r.Ob[2], r.SerialNumber),
 	})
 }
 
@@ -177,52 +177,52 @@ func (r TempestObservationReport) Metrics() []prometheus.Metric {
 
 		wetBulb := WetBulbTemperatureC(ob[7], ob[8], ob[6])
 
-		metrics := []prometheus.Metric{
-			prometheus.MustNewConstMetric(tempest.Wind, prometheus.GaugeValue, ob[1], r.SerialNumber, "lull"),
-			prometheus.MustNewConstMetric(tempest.Wind, prometheus.GaugeValue, ob[2], r.SerialNumber, "avg"),
-			prometheus.MustNewConstMetric(tempest.Wind, prometheus.GaugeValue, ob[3], r.SerialNumber, "gust"),
-			prometheus.MustNewConstMetric(tempest.WindDirection, prometheus.GaugeValue, ob[4], r.SerialNumber),
-			prometheus.MustNewConstMetric(tempest.Pressure, prometheus.GaugeValue, ob[6], r.SerialNumber),
-			prometheus.MustNewConstMetric(tempest.Temperature, prometheus.GaugeValue, ob[7], r.SerialNumber, "air"),
+		ms := []prometheus.Metric{
+			prometheus.MustNewConstMetric(metrics.Wind, prometheus.GaugeValue, ob[1], r.SerialNumber, "lull"),
+			prometheus.MustNewConstMetric(metrics.Wind, prometheus.GaugeValue, ob[2], r.SerialNumber, "avg"),
+			prometheus.MustNewConstMetric(metrics.Wind, prometheus.GaugeValue, ob[3], r.SerialNumber, "gust"),
+			prometheus.MustNewConstMetric(metrics.WindDirection, prometheus.GaugeValue, ob[4], r.SerialNumber),
+			prometheus.MustNewConstMetric(metrics.Pressure, prometheus.GaugeValue, ob[6], r.SerialNumber),
+			prometheus.MustNewConstMetric(metrics.Temperature, prometheus.GaugeValue, ob[7], r.SerialNumber, "air"),
 		}
 
 		// WetBulbTemperatureC returns NaN for non-convergent inputs (e.g.
 		// physically impossible humidity/pressure from a malformed report);
 		// skip emitting the metric rather than publishing NaN.
 		if !math.IsNaN(wetBulb) {
-			metrics = append(metrics,
-				prometheus.MustNewConstMetric(tempest.Temperature, prometheus.GaugeValue, wetBulb, r.SerialNumber, "wetbulb"),
+			ms = append(ms,
+				prometheus.MustNewConstMetric(metrics.Temperature, prometheus.GaugeValue, wetBulb, r.SerialNumber, "wetbulb"),
 			)
 		}
 
-		metrics = append(metrics,
-			prometheus.MustNewConstMetric(tempest.Humidity, prometheus.GaugeValue, ob[8], r.SerialNumber),
-			prometheus.MustNewConstMetric(tempest.Illuminance, prometheus.GaugeValue, ob[9], r.SerialNumber),
-			prometheus.MustNewConstMetric(tempest.UV, prometheus.GaugeValue, ob[10], r.SerialNumber),
-			prometheus.MustNewConstMetric(tempest.Irradiance, prometheus.GaugeValue, ob[11], r.SerialNumber),
-			prometheus.MustNewConstMetric(tempest.RainRate, prometheus.GaugeValue, ob[12], r.SerialNumber),
+		ms = append(ms,
+			prometheus.MustNewConstMetric(metrics.Humidity, prometheus.GaugeValue, ob[8], r.SerialNumber),
+			prometheus.MustNewConstMetric(metrics.Illuminance, prometheus.GaugeValue, ob[9], r.SerialNumber),
+			prometheus.MustNewConstMetric(metrics.UV, prometheus.GaugeValue, ob[10], r.SerialNumber),
+			prometheus.MustNewConstMetric(metrics.Irradiance, prometheus.GaugeValue, ob[11], r.SerialNumber),
+			prometheus.MustNewConstMetric(metrics.RainRate, prometheus.GaugeValue, ob[12], r.SerialNumber),
 		)
 
 		// Lightning metrics (fields 14 and 15)
 		if len(ob) >= 16 {
-			metrics = append(metrics,
-				prometheus.MustNewConstMetric(tempest.LightningDistance, prometheus.GaugeValue, ob[14], r.SerialNumber),
-				prometheus.MustNewConstMetric(tempest.LightningStrikeCount, prometheus.GaugeValue, ob[15], r.SerialNumber),
+			ms = append(ms,
+				prometheus.MustNewConstMetric(metrics.LightningDistance, prometheus.GaugeValue, ob[14], r.SerialNumber),
+				prometheus.MustNewConstMetric(metrics.LightningStrikeCount, prometheus.GaugeValue, ob[15], r.SerialNumber),
 			)
 		}
 
 		if len(ob) >= 17 {
-			metrics = append(metrics,
-				prometheus.MustNewConstMetric(tempest.Battery, prometheus.GaugeValue, ob[16], r.SerialNumber),
+			ms = append(ms,
+				prometheus.MustNewConstMetric(metrics.Battery, prometheus.GaugeValue, ob[16], r.SerialNumber),
 			)
 		}
 		if len(ob) >= 18 {
-			metrics = append(metrics,
-				prometheus.MustNewConstMetric(tempest.ReportInterval, prometheus.GaugeValue, ob[17], r.SerialNumber),
+			ms = append(ms,
+				prometheus.MustNewConstMetric(metrics.ReportInterval, prometheus.GaugeValue, ob[17], r.SerialNumber),
 			)
 		}
 
-		out = append(out, withTime(int64(ob[0]), metrics)...)
+		out = append(out, withTime(int64(ob[0]), ms)...)
 	}
 
 	return out
@@ -312,27 +312,27 @@ type HubStatusReport struct {
 // counts when RadioStats carries at least indices 0-2 (a malformed or
 // short array must not panic — see the guard below).
 func (r HubStatusReport) Metrics() []prometheus.Metric {
-	metrics := []prometheus.Metric{
-		prometheus.MustNewConstMetric(tempest.Uptime, prometheus.CounterValue, r.Uptime, r.SerialNumber),
-		prometheus.MustNewConstMetric(tempest.Rssi, prometheus.GaugeValue, r.Rssi, r.SerialNumber),
+	ms := []prometheus.Metric{
+		prometheus.MustNewConstMetric(metrics.Uptime, prometheus.CounterValue, r.Uptime, r.SerialNumber),
+		prometheus.MustNewConstMetric(metrics.Rssi, prometheus.GaugeValue, r.Rssi, r.SerialNumber),
 	}
 
 	// radio_stats[1] and [2] (reboots, bus errors) are only present on a
 	// well-formed hub_status broadcast; a malformed/short array must not panic.
 	if len(r.RadioStats) >= 3 {
-		metrics = append(metrics,
-			prometheus.MustNewConstMetric(tempest.Reboots, prometheus.CounterValue, r.RadioStats[1], r.SerialNumber),
-			prometheus.MustNewConstMetric(tempest.BusErrors, prometheus.CounterValue, r.RadioStats[2], r.SerialNumber),
+		ms = append(ms,
+			prometheus.MustNewConstMetric(metrics.Reboots, prometheus.CounterValue, r.RadioStats[1], r.SerialNumber),
+			prometheus.MustNewConstMetric(metrics.BusErrors, prometheus.CounterValue, r.RadioStats[2], r.SerialNumber),
 		)
 	}
 
-	return withTime(r.Timestamp, metrics)
+	return withTime(r.Timestamp, ms)
 }
 
-func withTime(unix int64, metrics []prometheus.Metric) []prometheus.Metric {
+func withTime(unix int64, ms []prometheus.Metric) []prometheus.Metric {
 	t := time.Unix(unix, 0)
-	out := make([]prometheus.Metric, 0, len(metrics))
-	for _, m := range metrics {
+	out := make([]prometheus.Metric, 0, len(ms))
+	for _, m := range ms {
 		out = append(out, prometheus.NewMetricWithTimestamp(t, m))
 	}
 	return out

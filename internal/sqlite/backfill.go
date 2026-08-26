@@ -7,8 +7,8 @@ import (
 	"math"
 	"time"
 
-	"tempestwx-utilities/internal/tempestudp"
-	"tempestwx-utilities/internal/weather"
+	"github.com/jacaudi/stormglass/internal/tempestudp"
+	"github.com/jacaudi/stormglass/internal/weather"
 
 	"github.com/google/uuid"
 )

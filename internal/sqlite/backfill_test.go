@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"tempestwx-utilities/internal/weather"
+	"github.com/jacaudi/stormglass/internal/weather"
 
 	"github.com/google/uuid"
 )

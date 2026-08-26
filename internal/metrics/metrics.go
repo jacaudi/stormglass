@@ -1,9 +1,9 @@
-// Package tempest holds the Prometheus metric descriptors shared by the UDP
+// Package metrics holds the Prometheus metric descriptors shared by the UDP
 // listener and API-export paths: one *prometheus.Desc per field a Tempest
 // station reports, registered once in init() and collected into All for
 // callers (e.g. the OTel bridge) that need to enumerate every descriptor
 // rather than reference one by name.
-package tempest
+package metrics
 
 import (
 	"github.com/prometheus/client_golang/prometheus"

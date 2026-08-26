@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"tempestwx-utilities/internal/weather"
+	"github.com/jacaudi/stormglass/internal/weather"
 )
 
 func f(v float64) *float64 { return &v }

@@ -1,4 +1,4 @@
-// Package main runs the tempestwx-utilities binary. With no subcommand it
+// Package main runs the stormglass binary. With no subcommand it
 // operates in one of two modes selected by environment: a UDP listener that
 // writes live observations to SQLite/PostgreSQL/Prometheus (default), or a
 // one-shot historical API export when TOKEN is set. Two explicit
@@ -19,12 +19,12 @@ import (
 	"strings"
 	"time"
 
-	"tempestwx-utilities/internal/backfill"
-	"tempestwx-utilities/internal/config"
-	"tempestwx-utilities/internal/postgres"
-	"tempestwx-utilities/internal/sqlite"
-	"tempestwx-utilities/internal/tempestapi"
-	"tempestwx-utilities/internal/weather"
+	"github.com/jacaudi/stormglass/internal/backfill"
+	"github.com/jacaudi/stormglass/internal/config"
+	"github.com/jacaudi/stormglass/internal/postgres"
+	"github.com/jacaudi/stormglass/internal/sqlite"
+	"github.com/jacaudi/stormglass/internal/tempestapi"
+	"github.com/jacaudi/stormglass/internal/weather"
 
 	"database/sql"
 

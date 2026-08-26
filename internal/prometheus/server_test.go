@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"tempestwx-utilities/internal/tempest"
-	"tempestwx-utilities/internal/tempestudp"
+	"github.com/jacaudi/stormglass/internal/metrics"
+	"github.com/jacaudi/stormglass/internal/tempestudp"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -90,7 +90,7 @@ func TestMetricsServer_WriteMetrics(t *testing.T) {
 
 	// Create a test metric
 	metric := prometheus.MustNewConstMetric(
-		tempest.Temperature,
+		metrics.Temperature,
 		prometheus.GaugeValue,
 		25.5,
 		"ST-00001", "air",
@@ -119,7 +119,7 @@ func TestMetricsServer_MetricsEndpoint(t *testing.T) {
 
 	// Add a metric
 	metric := prometheus.MustNewConstMetric(
-		tempest.Temperature,
+		metrics.Temperature,
 		prometheus.GaugeValue,
 		22.5,
 		"ST-00001", "air",
@@ -177,7 +177,7 @@ func TestLatestMetricsCollector_Update(t *testing.T) {
 
 	// Add initial metric
 	metric1 := prometheus.MustNewConstMetric(
-		tempest.Temperature,
+		metrics.Temperature,
 		prometheus.GaugeValue,
 		20.0,
 		"ST-00001", "air",
@@ -190,7 +190,7 @@ func TestLatestMetricsCollector_Update(t *testing.T) {
 
 	// Update with new value for same metric (should replace)
 	metric2 := prometheus.MustNewConstMetric(
-		tempest.Temperature,
+		metrics.Temperature,
 		prometheus.GaugeValue,
 		25.0,
 		"ST-00001", "air",
@@ -203,7 +203,7 @@ func TestLatestMetricsCollector_Update(t *testing.T) {
 
 	// Add different metric (different labels)
 	metric3 := prometheus.MustNewConstMetric(
-		tempest.Temperature,
+		metrics.Temperature,
 		prometheus.GaugeValue,
 		18.0,
 		"ST-00001", "wetbulb",
@@ -222,13 +222,13 @@ func TestLatestMetricsCollector_Collect(t *testing.T) {
 
 	// Add metrics
 	metric1 := prometheus.MustNewConstMetric(
-		tempest.Temperature,
+		metrics.Temperature,
 		prometheus.GaugeValue,
 		20.0,
 		"ST-00001", "air",
 	)
 	metric2 := prometheus.MustNewConstMetric(
-		tempest.Humidity,
+		metrics.Humidity,
 		prometheus.GaugeValue,
 		65.0,
 		"ST-00001",

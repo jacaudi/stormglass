@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"tempestwx-utilities/internal/tempestapi"
+	"github.com/jacaudi/stormglass/internal/tempestapi"
 )
 
 func TestChunkWindowSplitsMultiDayRange(t *testing.T) {

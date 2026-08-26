@@ -9,7 +9,7 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"tempestwx-utilities/internal/radar"
+	"github.com/jacaudi/stormglass/internal/radar"
 )
 
 // fakeRadarProxy is a hand-written RadarProxy test double (go-standards §8.4:
