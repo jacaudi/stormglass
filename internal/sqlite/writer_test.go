@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"tempestwx-utilities/internal/tempestudp"
+	"github.com/jacaudi/stormglass/internal/tempestudp"
 
 	"github.com/google/uuid"
 )
@@ -90,7 +90,7 @@ func TestWriter_InsertsObservation(t *testing.T) {
 			illuminance, uv_index, irradiance, rain_rate, precip_type,
 			lightning_distance, lightning_strike_count,
 			battery, report_interval
-			FROM tempest_observations`)
+			FROM stormglass_observations`)
 		if err := row.Scan(
 			&id, &serial, &ts,
 			&windLull, &windAvg, &windGust, &windDirection, &windSampleInterval,
@@ -205,7 +205,7 @@ func TestWriter_InsertsObservation(t *testing.T) {
 		row := w.db.QueryRowContext(ctx, `SELECT
 			wind_sample_interval, precip_type, lightning_distance, lightning_strike_count,
 			battery, report_interval
-			FROM tempest_observations WHERE serial_number = ?`, "ST-SHORT")
+			FROM stormglass_observations WHERE serial_number = ?`, "ST-SHORT")
 		if err := row.Scan(
 			&windSampleInterval, &precipType, &lightningDistance, &lightningStrikeCount,
 			&battery, &reportInterval,
@@ -266,7 +266,7 @@ func TestWriter_PreservesFractionalMeasurements(t *testing.T) {
 	)
 	err := w.db.QueryRowContext(ctx, `
 		SELECT wind_sample_interval, precip_type, lightning_strike_count, report_interval
-		FROM tempest_observations WHERE serial_number = ?`, "ST-FRAC",
+		FROM stormglass_observations WHERE serial_number = ?`, "ST-FRAC",
 	).Scan(&windSampleInterval, &precipType, &lightningStrikeCount, &reportInterval)
 	if err != nil {
 		t.Fatalf("scan observation row: %v", err)
@@ -315,7 +315,7 @@ func TestWriter_OnConflictIdempotent(t *testing.T) {
 
 	var count int
 	if err := w.db.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM tempest_observations WHERE serial_number = ?`, "ST-DUP",
+		`SELECT COUNT(*) FROM stormglass_observations WHERE serial_number = ?`, "ST-DUP",
 	).Scan(&count); err != nil {
 		t.Fatalf("count observations: %v", err)
 	}
@@ -378,11 +378,11 @@ func TestWriter_RoutesReportTypes(t *testing.T) {
 		}
 	}
 
-	assertCount("tempest_observations", "", 1)
-	assertCount("tempest_rapid_wind", "", 1)
-	assertCount("tempest_hub_status", "", 1)
-	assertCount("tempest_events", "event_type = 'rain_start'", 1)
-	assertCount("tempest_events", "event_type = 'lightning_strike'", 1)
+	assertCount("stormglass_observations", "", 1)
+	assertCount("stormglass_rapid_wind", "", 1)
+	assertCount("stormglass_hub_status", "", 1)
+	assertCount("stormglass_events", "event_type = 'rain_start'", 1)
+	assertCount("stormglass_events", "event_type = 'lightning_strike'", 1)
 }
 
 // TestWriter_EventsNotDroppedUnderBackpressure proves a discrete event
@@ -522,7 +522,7 @@ func TestWriter_BatchFullFlushSurvivesRunCtxCancel(t *testing.T) {
 
 	var count int
 	if err := db.QueryRowContext(t.Context(),
-		`SELECT COUNT(*) FROM tempest_observations WHERE serial_number = ?`,
+		`SELECT COUNT(*) FROM stormglass_observations WHERE serial_number = ?`,
 		"ST-BATCHFULL").Scan(&count); err != nil {
 		t.Fatalf("count observations: %v", err)
 	}
@@ -582,7 +582,7 @@ func TestWriter_DrainOnClose(t *testing.T) {
 
 	var count int
 	if err := reopened.QueryRowContext(t.Context(),
-		`SELECT COUNT(*) FROM tempest_observations WHERE serial_number = ?`, "ST-DRAIN",
+		`SELECT COUNT(*) FROM stormglass_observations WHERE serial_number = ?`, "ST-DRAIN",
 	).Scan(&count); err != nil {
 		t.Fatalf("count: %v", err)
 	}
@@ -736,15 +736,15 @@ func TestReader_HistoryPoints(t *testing.T) {
 		w := newTestWriter(t)
 		ctx := t.Context()
 
-		if _, err := w.HistoryPoints(ctx, "temp_air; DROP TABLE tempest_observations", 0, 1<<62); err == nil {
+		if _, err := w.HistoryPoints(ctx, "temp_air; DROP TABLE stormglass_observations", 0, 1<<62); err == nil {
 			t.Fatal("HistoryPoints with a malicious field name returned nil error, want rejection")
 		}
 
 		// The table must still exist and be queryable -- proves no query
 		// ever ran with the unvalidated field string.
 		var count int
-		if err := w.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM tempest_observations`).Scan(&count); err != nil {
-			t.Fatalf("tempest_observations unusable after rejected field: %v", err)
+		if err := w.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM stormglass_observations`).Scan(&count); err != nil {
+			t.Fatalf("stormglass_observations unusable after rejected field: %v", err)
 		}
 	})
 
@@ -764,7 +764,7 @@ func TestReader_HistoryPoints(t *testing.T) {
 		if err != nil {
 			t.Fatalf("begin tx: %v", err)
 		}
-		stmt, err := tx.PrepareContext(ctx, `INSERT INTO tempest_observations (id, serial_number, timestamp, temp_air) VALUES (?, ?, ?, ?)`)
+		stmt, err := tx.PrepareContext(ctx, `INSERT INTO stormglass_observations (id, serial_number, timestamp, temp_air) VALUES (?, ?, ?, ?)`)
 		if err != nil {
 			t.Fatalf("prepare: %v", err)
 		}

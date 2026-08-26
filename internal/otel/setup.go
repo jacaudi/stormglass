@@ -33,7 +33,7 @@ import (
 )
 
 // serviceName is the fixed OTel service.name attribute for this application.
-const serviceName = "tempestwx"
+const serviceName = "stormglass"
 
 // Config configures Setup.
 type Config struct {
@@ -45,12 +45,12 @@ type Config struct {
 	// service.version resource attribute.
 	ServiceVersion string
 	// Serial is the Tempest station serial number, recorded as the
-	// tempest.serial resource attribute.
+	// stormglass.serial resource attribute.
 	Serial string
 }
 
 // newResource builds the Resource identifying this process: service.name,
-// service.version, host.name, and the station's tempest.serial.
+// service.version, host.name, and the station's stormglass.serial.
 //
 // resource.WithHost() adds host.name via a Detector (os.Hostname()), which
 // can return an error wrapping resource.ErrPartialResource on the rare
@@ -64,7 +64,7 @@ func newResource(ctx context.Context, cfg Config) (*resource.Resource, error) {
 		resource.WithAttributes(
 			semconv.ServiceName(serviceName),
 			semconv.ServiceVersion(cfg.ServiceVersion),
-			attribute.String("tempest.serial", cfg.Serial),
+			attribute.String("stormglass.serial", cfg.Serial),
 		),
 	)
 	if err != nil && !errors.Is(err, resource.ErrPartialResource) {

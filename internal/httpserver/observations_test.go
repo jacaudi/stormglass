@@ -11,7 +11,7 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"tempestwx-utilities/internal/sqlite"
+	"github.com/jacaudi/stormglass/internal/sqlite"
 )
 
 // fakeObservationReader is a hand-written test double for ObservationReader

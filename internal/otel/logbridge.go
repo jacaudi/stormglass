@@ -13,9 +13,9 @@ import (
 )
 
 // logBridgeName is the instrumentation scope name for the slog bridge,
-// mirroring meterName/tracerName/serviceName's "tempestwx" value as this
+// mirroring meterName/tracerName/serviceName's "stormglass" value as this
 // package's identity.
-const logBridgeName = "tempestwx"
+const logBridgeName = "stormglass"
 
 // NewSlogHandler returns an slog.Handler that forwards every record to lp.
 // The active span's trace and span IDs are attached automatically: otelslog

@@ -5,6 +5,6 @@ scrape_configs:
   - job_name: "otel-collector"
     static_configs:
       # Bridge DNS: prometheus and otel-collector are both on the default
-      # compose network (only tempestwx runs on network_mode: host — see the
+      # compose network (only stormglass runs on network_mode: host — see the
       # host-networking note in docker-compose.yml).
       - targets: ["otel-collector:9464"]

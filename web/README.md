@@ -1,10 +1,10 @@
-# tempest-display
+# Stormglass dashboard
 
 A weather station dashboard SPA for [WeatherFlow Tempest](https://weatherflow.com/tempest-weather-system/) stations. Built with React 19 + TypeScript.
 
 > **Vendored copy.** This directory is vendored from the standalone
 > [`tempest-display`](https://github.com/jacaudi/tempest-display) repo into
-> `tempestwx-utilities` so its build (`web/dist`) can be embedded directly by
+> `stormglass` so its build (`web/dist`) can be embedded directly by
 > the Go server via `go:embed`. See [`PROVENANCE.md`](./PROVENANCE.md) for the
 > exact source commit and what was dropped in the move (upstream's standalone
 > `server/` and `Dockerfile`).
@@ -30,7 +30,7 @@ task ui-build   # from the repo root: npm ci --ignore-scripts && npm run build
 > fresh checkout doesn't fail before the first UI build; it is not a
 > substitute for actually running the build.
 
-> The app currently runs on **stub data** (`src/api/tempestApi.ts` /
+> The app currently runs on **stub data** (`src/api/stormglassApi.ts` /
 > `src/api/stubData.ts`). Wiring it up to the real `/api/*` endpoints served
 > by this repo's Go server is a later task in this workstream.
 
@@ -47,7 +47,7 @@ npm run dev        # Vite dev server at http://localhost:5173
 src/
   components/   # One file per card + shared GlassCard, WeatherIcon
   hooks/        # useWeatherData (data fetching), useUnits (unit prefs)
-  api/          # tempestApi.ts (fetch fns), stubData.ts (dev fixtures)
+  api/          # stormglassApi.ts (fetch fns), stubData.ts (dev fixtures)
   types/        # weather.ts — all shared TypeScript interfaces
   themes/       # CSS variable sets for each theme
 dist/           # Vite build output — go:embed'd by the parent Go server
@@ -55,6 +55,6 @@ dist/           # Vite build output — go:embed'd by the parent Go server
 
 ## Backend
 
-This vendored copy is served by the `tempestwx-utilities` Go server
+This vendored copy is served by the `stormglass` Go server
 (`go:embed web/dist`), which also exposes the `/api/*` endpoints this UI
 consumes. See the parent repo's `CLAUDE.md` for the overall architecture.

@@ -72,7 +72,7 @@ web/dist
 **/node_modules
 
 # Local build artifact — `go build .` writes the binary to the repo root
-/tempestwx-utilities
+/stormglass
 
 # Agent scaffolding
 .superpowers/

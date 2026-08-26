@@ -8,7 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"tempestwx-utilities/internal/radar"
+	"github.com/jacaudi/stormglass/internal/radar"
 )
 
 // defaultRadarProduct is the WSR-88D product requested when the browser

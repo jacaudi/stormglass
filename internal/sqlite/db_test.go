@@ -71,7 +71,7 @@ func TestOpenReadOnly_ReadsWriterData(t *testing.T) {
 	})
 
 	// seed one observation row directly
-	_, err = wdb.ExecContext(ctx, `INSERT INTO tempest_observations
+	_, err = wdb.ExecContext(ctx, `INSERT INTO stormglass_observations
 		(id, serial_number, timestamp, temp_air) VALUES ('a','ST-1',100,21.5)`)
 	if err != nil {
 		t.Fatal(err)
@@ -88,7 +88,7 @@ func TestOpenReadOnly_ReadsWriterData(t *testing.T) {
 	})
 
 	var got float64
-	if err := rdb.QueryRowContext(ctx, `SELECT temp_air FROM tempest_observations WHERE id='a'`).Scan(&got); err != nil {
+	if err := rdb.QueryRowContext(ctx, `SELECT temp_air FROM stormglass_observations WHERE id='a'`).Scan(&got); err != nil {
 		t.Fatalf("read via read-only handle: %v", err)
 	}
 	if got != 21.5 {

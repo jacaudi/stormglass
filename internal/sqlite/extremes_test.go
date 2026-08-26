@@ -11,7 +11,7 @@ import (
 func seedTemp(t *testing.T, w *Writer, id string, ts int64, temp sql.NullFloat64) {
 	t.Helper()
 	_, err := w.db.ExecContext(t.Context(),
-		`INSERT INTO tempest_observations (id, serial_number, timestamp, temp_air) VALUES (?,?,?,?)`,
+		`INSERT INTO stormglass_observations (id, serial_number, timestamp, temp_air) VALUES (?,?,?,?)`,
 		id, "ST-1", ts, temp)
 	if err != nil {
 		t.Fatal(err)

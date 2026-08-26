@@ -10,7 +10,7 @@ package weather
 
 import "time"
 
-// Observation is one tempest_observations row in store-neutral form.
+// Observation is one stormglass_observations row in store-neutral form.
 //
 // Every measurement is a *float64 because the SQLite and Postgres DDL declare
 // every column except id/serial_number/timestamp as nullable, and the Tempest

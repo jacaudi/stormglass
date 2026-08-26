@@ -27,7 +27,7 @@ func TestGetDatabaseConfig_Components(t *testing.T) {
 	// Set individual components
 	t.Setenv("POSTGRES_HOST", "postgres")
 	t.Setenv("POSTGRES_PORT", "5433")
-	t.Setenv("POSTGRES_USERNAME", "tempest")
+	t.Setenv("POSTGRES_USERNAME", "stormglass")
 	t.Setenv("POSTGRES_PASSWORD", "secret")
 	t.Setenv("POSTGRES_NAME", "weather")
 	t.Setenv("POSTGRES_SSLMODE", "require")
@@ -37,7 +37,7 @@ func TestGetDatabaseConfig_Components(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	expected := "postgresql://tempest:secret@postgres:5433/weather?sslmode=require"
+	expected := "postgresql://stormglass:secret@postgres:5433/weather?sslmode=require"
 	if dsn != expected {
 		t.Errorf("got %q, want %q", dsn, expected)
 	}
@@ -68,7 +68,7 @@ func TestGetDatabaseConfig_EscapesCredentials(t *testing.T) {
 	const specialPassword = "p@ss:w/o?r#d&1"
 
 	t.Setenv("POSTGRES_HOST", "postgres")
-	t.Setenv("POSTGRES_USERNAME", "tempest")
+	t.Setenv("POSTGRES_USERNAME", "stormglass")
 	t.Setenv("POSTGRES_PASSWORD", specialPassword)
 	t.Setenv("POSTGRES_NAME", "weather")
 

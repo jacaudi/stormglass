@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"time"
 
-	"tempestwx-utilities/internal/astro"
-	"tempestwx-utilities/internal/config"
-	"tempestwx-utilities/internal/sqlite"
+	"github.com/jacaudi/stormglass/internal/astro"
+	"github.com/jacaudi/stormglass/internal/config"
+	"github.com/jacaudi/stormglass/internal/sqlite"
 )
 
 // tempRecord is one record column: an extreme and a human label for when it

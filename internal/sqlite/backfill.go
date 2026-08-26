@@ -7,8 +7,8 @@ import (
 	"math"
 	"time"
 
-	"tempestwx-utilities/internal/tempestudp"
-	"tempestwx-utilities/internal/weather"
+	"github.com/jacaudi/stormglass/internal/tempestudp"
+	"github.com/jacaudi/stormglass/internal/weather"
 
 	"github.com/google/uuid"
 )
@@ -40,7 +40,7 @@ const findObservationGapsSQL = `
 	  SELECT serial_number,
 	         LAG(timestamp) OVER (PARTITION BY serial_number ORDER BY timestamp) AS prev,
 	         timestamp
-	  FROM tempest_observations
+	  FROM stormglass_observations
 	  WHERE timestamp BETWEEN ? AND ?
 	) WHERE prev IS NOT NULL AND timestamp - prev > ?
 	ORDER BY serial_number, prev
@@ -80,7 +80,7 @@ func FindObservationGaps(ctx context.Context, db *sql.DB, from, to time.Time, mi
 
 const seriesBoundsSQL = `
 	SELECT serial_number, MIN(timestamp), MAX(timestamp)
-	FROM tempest_observations
+	FROM stormglass_observations
 	WHERE timestamp BETWEEN ? AND ?
 	GROUP BY serial_number
 	ORDER BY serial_number
@@ -123,7 +123,7 @@ func SeriesBounds(ctx context.Context, db *sql.DB, from, to time.Time) ([]weathe
 // from the store entirely and trip a false serial mismatch — breaking
 // `backfill --from X --to Y`, which is the tool's main repair path.
 func DistinctSerials(ctx context.Context, db *sql.DB) ([]string, error) {
-	rows, err := db.QueryContext(ctx, `SELECT DISTINCT serial_number FROM tempest_observations ORDER BY serial_number`)
+	rows, err := db.QueryContext(ctx, `SELECT DISTINCT serial_number FROM stormglass_observations ORDER BY serial_number`)
 	if err != nil {
 		return nil, fmt.Errorf("query distinct serials: %w", err)
 	}

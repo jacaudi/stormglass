@@ -12,11 +12,11 @@ exporters:
     endpoint: "0.0.0.0:9464"
     # Pin translation explicitly (do not rely on the default): dots->underscores,
     # monotonic counters get _total, unit suffixes appended -> reproduces the exact
-    # Contract B tempest_* names the WS4 dashboard PromQL depends on.
+    # Contract B stormglass_* names the WS4 dashboard PromQL depends on.
     translation_strategy: "UnderscoreEscapingWithSuffixes"
-    # OFF: keep the resource attr tempest.serial OUT of metric labels (the app already
+    # OFF: keep the resource attr stormglass.serial OUT of metric labels (the app already
     # sets a per-datapoint `serial` attribute -> label `serial`; enabling this would add
-    # a confusing near-duplicate label tempest_serial).
+    # a confusing near-duplicate label stormglass_serial).
     resource_to_telemetry_conversion:
       enabled: false
   debug:

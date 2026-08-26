@@ -1,6 +1,6 @@
-# Tempest Weather Station Utilities
+# Stormglass
 
-Multi-backend data utilities for [Tempest weather stations](https://weatherflow.com/tempest-home-weather-system/).
+Self-hosted appliance for [Tempest weather stations](https://weatherflow.com/tempest-home-weather-system/).
 
 This tool provides:
 - **UDP Mode**: Listens for [Tempest UDP broadcasts](https://weatherflow.github.io/Tempest/api/udp.html) and persists to a local **SQLite** database by default, with an optional Prometheus push gateway / scrape endpoint and/or PostgreSQL
@@ -9,18 +9,18 @@ This tool provides:
 ## Quickstart
 
 Container images are available at [GitHub
-Container Registry](https://github.com/jacaudi/tempestwx-utilities/pkgs/container/tempestwx-utilities).
+Container Registry](https://github.com/jacaudi/stormglass/pkgs/container/stormglass).
 
 ```bash
 $ docker run -it --rm --net=host \
-  -v tempest-data:/data \
-  ghcr.io/jacaudi/tempestwx-utilities
+  -v stormglass-data:/data \
+  ghcr.io/jacaudi/stormglass
 
 starting UDP listener mode
 listening on UDP :50222
 ```
 
-By default this persists observations to a local SQLite database at `/data/tempest.db`, so a writable `/data` is required (mounted above as a named volume). Prometheus and/or PostgreSQL outputs are opt-in — see [Exporter configuration](#exporter-configuration).
+By default this persists observations to a local SQLite database at `/data/stormglass.db`, so a writable `/data` is required (mounted above as a named volume). Prometheus and/or PostgreSQL outputs are opt-in — see [Exporter configuration](#exporter-configuration).
 
 Note that `--net=host` is used here because UDP broadcasts are link-local and therefore cannot be received from typical
 (routed) container networks.
@@ -33,7 +33,7 @@ Via environment variables. SQLite is the default store (below); Prometheus and P
 
 * `ENABLE_PROMETHEUS_PUSHGATEWAY`: set to `true`/`1` to push metrics to a [Pushgateway](https://github.com/prometheus/pushgateway) or [compatible service](https://docs.victoriametrics.com/?highlight=exposition#how-to-import-data-in-prometheus-exposition-format) (e.g. VictoriaMetrics)
 * `PROMETHEUS_PUSHGATEWAY_URL`: the Pushgateway URL (required when `ENABLE_PROMETHEUS_PUSHGATEWAY` is set)
-* `JOB_NAME`: the value for the `job` label (default: `"tempest"`)
+* `JOB_NAME`: the value for the `job` label (default: `"stormglass"`)
 * `ENABLE_PROMETHEUS_METRICS`: set to `true`/`1` to expose a `/metrics` scrape endpoint
 * `PROMETHEUS_METRICS_PORT`: scrape endpoint port (default: `9000`)
 
@@ -41,7 +41,7 @@ Via environment variables. SQLite is the default store (below); Prometheus and P
 
 In UDP mode the exporter persists observations to a local **SQLite** database by default (pure-Go `modernc.org/sqlite`, no CGO), in WAL mode suited to [Litestream](https://litestream.io/) streaming backup.
 
-* `SQLITE_PATH`: path to the database file (default: `/data/tempest.db`)
+* `SQLITE_PATH`: path to the database file (default: `/data/stormglass.db`)
 * Optional tuning: `SQLITE_BATCH_SIZE` (default `100`), `SQLITE_FLUSH_INTERVAL` (default `10s`), `SQLITE_BUSY_TIMEOUT` in ms (default `5000`)
 
 `/data` must be a writable mount — if the database cannot be opened, the process exits on startup. Set `ENABLE_POSTGRES=true` to use PostgreSQL instead; both can run together (fan-out). SQLite is not written in API-export mode. See `CLAUDE.md` for the full schema and a Litestream sidecar example.

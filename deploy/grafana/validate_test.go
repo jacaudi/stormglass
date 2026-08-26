@@ -1,5 +1,5 @@
 // Package grafana validates the provisioned "Weather Nerd" dashboard JSON
-// against Contract B (design §13 / the OTel writer's exact tempest_* metric
+// against Contract B (design §13 / the OTel writer's exact stormglass_* metric
 // names). It has no runtime dependency on the dashboard — it is a static
 // guard so the JSON can never silently drift from the metric names the
 // collector actually emits.
@@ -13,37 +13,37 @@ import (
 	"testing"
 )
 
-// contractBMetrics is the authoritative set of tempest_* metric names the
+// contractBMetrics is the authoritative set of stormglass_* metric names the
 // OTel writer emits (Contract B, right column; mirrors design §13 and
 // internal/otel/promnames_test.go from Task 4.1). Any token extracted from a
-// panel's PromQL expr that starts with "tempest_" and is not in this set is
+// panel's PromQL expr that starts with "stormglass_" and is not in this set is
 // a defect: the dashboard is referencing a metric name the exporter does not
 // produce.
 var contractBMetrics = []string{
-	"tempest_temperature_c",
-	"tempest_dewpoint_c",
-	"tempest_heat_index_c",
-	"tempest_wetbulb_c",
-	"tempest_humidity_percent",
-	"tempest_pressure_mb",
-	"tempest_wind_meters_per_second",
-	"tempest_wind_direction_degrees",
-	"tempest_uv_index",
-	"tempest_irradiance_w_m2",
-	"tempest_illuminance_lux",
-	"tempest_rain_rate_mm_min",
-	"tempest_rainfall_mm_total",
-	"tempest_lightning_distance_km",
-	"tempest_lightning_strike_count_total",
-	"tempest_battery_volts",
-	"tempest_rssi_dbm",
-	"tempest_uptime_seconds",
-	"tempest_reboots_total",
-	"tempest_bus_errors_total",
+	"stormglass_temperature_c",
+	"stormglass_dewpoint_c",
+	"stormglass_heat_index_c",
+	"stormglass_wetbulb_c",
+	"stormglass_humidity_percent",
+	"stormglass_pressure_mb",
+	"stormglass_wind_meters_per_second",
+	"stormglass_wind_direction_degrees",
+	"stormglass_uv_index",
+	"stormglass_irradiance_w_m2",
+	"stormglass_illuminance_lux",
+	"stormglass_rain_rate_mm_min",
+	"stormglass_rainfall_mm_total",
+	"stormglass_lightning_distance_km",
+	"stormglass_lightning_strike_count_total",
+	"stormglass_battery_volts",
+	"stormglass_rssi_dbm",
+	"stormglass_uptime_seconds",
+	"stormglass_reboots_total",
+	"stormglass_bus_errors_total",
 }
 
-// tempestTokenRE extracts every tempest_* identifier from a PromQL expr.
-var tempestTokenRE = regexp.MustCompile(`tempest_[a-z0-9_]+`)
+// stormglassTokenRE extracts every stormglass_* identifier from a PromQL expr.
+var stormglassTokenRE = regexp.MustCompile(`stormglass_[a-z0-9_]+`)
 
 // dashboard is a deliberately loose model of the Grafana dashboard JSON
 // schema: only the fields the validator needs to inspect.
@@ -101,7 +101,7 @@ func walkPanels(panels []panel, fn func(panel)) {
 }
 
 // TestDashboardExprsReferenceOnlyContractBMetrics walks every panel's
-// targets and asserts every tempest_* token extracted from expr is a member
+// targets and asserts every stormglass_* token extracted from expr is a member
 // of Contract B. A metric name outside the set means the dashboard queries a
 // series the exporter never produces.
 func TestDashboardExprsReferenceOnlyContractBMetrics(t *testing.T) {
@@ -113,7 +113,7 @@ func TestDashboardExprsReferenceOnlyContractBMetrics(t *testing.T) {
 			if tgt.Expr == "" {
 				continue
 			}
-			for _, tok := range tempestTokenRE.FindAllString(tgt.Expr, -1) {
+			for _, tok := range stormglassTokenRE.FindAllString(tgt.Expr, -1) {
 				found = true
 				if !slices.Contains(contractBMetrics, tok) {
 					t.Errorf("panel %q (target %s): expr references metric %q, which is not in Contract B\n  expr: %s",
@@ -124,7 +124,7 @@ func TestDashboardExprsReferenceOnlyContractBMetrics(t *testing.T) {
 	})
 
 	if !found {
-		t.Fatal("no tempest_* metric tokens found in any panel expr — dashboard has no queries")
+		t.Fatal("no stormglass_* metric tokens found in any panel expr — dashboard has no queries")
 	}
 }
 

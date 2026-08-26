@@ -15,7 +15,7 @@ variable "SOURCE_COMMIT" {
 }
 
 variable "APP" {
-  default = "tempestwx-utilities"
+  default = "stormglass"
 }
 
 variable "VERSION" {
@@ -23,7 +23,7 @@ variable "VERSION" {
 }
 
 variable "SOURCE" {
-  default = "https://github.com/jacaudi/tempestwx-utilities"
+  default = "https://github.com/jacaudi/stormglass"
 }
 
 group "default" {
@@ -40,7 +40,7 @@ target "image" {
     "org.opencontainers.image.created" = "${BUILD_DATE}"
     "org.opencontainers.image.version" = "${VERSION}"
     "org.opencontainers.image.title" = "${APP}" 
-    "org.opencontainers.image.description" = "Multi-backend utilities for Tempest weather station data (Prometheus, PostgreSQL)"
+    "org.opencontainers.image.description" = "Self-hosted appliance for WeatherFlow Tempest weather stations (dashboard, Prometheus, SQLite/PostgreSQL)"
     "org.opencontainers.image.licenses" = "MIT"
   }
 }
@@ -64,7 +64,7 @@ target "image-automated" {
     "index:org.opencontainers.image.created=${BUILD_DATE}",
     "index:org.opencontainers.image.version=${VERSION}",
     "index:org.opencontainers.image.title=${APP}",
-    "index:org.opencontainers.image.description=Multi-backend utilities for Tempest weather station data (Prometheus, PostgreSQL)",
+    "index:org.opencontainers.image.description=Self-hosted appliance for WeatherFlow Tempest weather stations (dashboard, Prometheus, SQLite/PostgreSQL)",
     "index:org.opencontainers.image.licenses=MIT"
   ]
 }

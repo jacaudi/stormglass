@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"tempestwx-utilities/internal/tempestapi"
-	"tempestwx-utilities/internal/weather"
+	"github.com/jacaudi/stormglass/internal/tempestapi"
+	"github.com/jacaudi/stormglass/internal/weather"
 )
 
 // TestMain silences slog for this package's test binary. Nearly every test

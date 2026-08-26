@@ -1,6 +1,6 @@
 // Package postgres is the PostgreSQL backend: schema management and
 // connection pooling (pool.go, schema.go), batched writes with retry logic
-// (writer.go), and gap detection/backfill for tempest_observations (this
+// (writer.go), and gap detection/backfill for stormglass_observations (this
 // file). It is one of two store implementations alongside internal/sqlite;
 // see the comment below for why the two are deliberately not unified behind
 // a shared abstraction.
@@ -12,8 +12,8 @@ import (
 	"math"
 	"time"
 
-	"tempestwx-utilities/internal/tempestudp"
-	"tempestwx-utilities/internal/weather"
+	"github.com/jacaudi/stormglass/internal/tempestudp"
+	"github.com/jacaudi/stormglass/internal/weather"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -42,7 +42,7 @@ const findObservationGapsSQL = `
 	  SELECT serial_number,
 	         LAG(timestamp) OVER (PARTITION BY serial_number ORDER BY timestamp) AS prev,
 	         timestamp AS ts
-	  FROM tempest_observations
+	  FROM stormglass_observations
 	  WHERE timestamp BETWEEN $1 AND $2
 	) q WHERE prev IS NOT NULL AND EXTRACT(EPOCH FROM (ts - prev)) > $3
 	ORDER BY serial_number, prev
@@ -80,7 +80,7 @@ func FindObservationGaps(ctx context.Context, pool *pgxpool.Pool, from, to time.
 
 const seriesBoundsSQL = `
 	SELECT serial_number, MIN(timestamp), MAX(timestamp)
-	FROM tempest_observations
+	FROM stormglass_observations
 	WHERE timestamp BETWEEN $1 AND $2
 	GROUP BY serial_number
 	ORDER BY serial_number
@@ -121,7 +121,7 @@ func SeriesBounds(ctx context.Context, pool *pgxpool.Pool, from, to time.Time) (
 // internal/sqlite/backfill.go. Merging this into SeriesBounds causes a false
 // serial mismatch for any station that was quiet during the queried window.
 func DistinctSerials(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
-	rows, err := pool.Query(ctx, `SELECT DISTINCT serial_number FROM tempest_observations ORDER BY serial_number`)
+	rows, err := pool.Query(ctx, `SELECT DISTINCT serial_number FROM stormglass_observations ORDER BY serial_number`)
 	if err != nil {
 		return nil, fmt.Errorf("query distinct serials: %w", err)
 	}

@@ -3,7 +3,7 @@ package otel
 import (
 	"testing"
 
-	"tempestwx-utilities/internal/tempestudp"
+	"github.com/jacaudi/stormglass/internal/tempestudp"
 
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
@@ -46,8 +46,8 @@ func TestWriter_WriteMetrics_TranslatesOldPrometheusMetrics(t *testing.T) {
 		instrument string
 		want       float64
 	}{
-		{"tempest.uptime.seconds", 999},
-		{"tempest.rssi.dbm", -70},
+		{"stormglass.uptime.seconds", 999},
+		{"stormglass.rssi.dbm", -70},
 	}
 	for _, tc := range gaugeCases {
 		m, ok := findMetric(rm, tc.instrument)
@@ -66,7 +66,7 @@ func TestWriter_WriteMetrics_TranslatesOldPrometheusMetrics(t *testing.T) {
 		}
 	}
 
-	// tempest.reboots and tempest.bus_errors are deliberately NOT asserted
+	// stormglass.reboots and stormglass.bus_errors are deliberately NOT asserted
 	// here: WriteMetrics no longer translates them (see writer.go's
 	// WriteMetrics — the case was removed as dead code, since API-export's
 	// client.go type switch only ever produces *TempestObservationReport,
@@ -74,7 +74,7 @@ func TestWriter_WriteMetrics_TranslatesOldPrometheusMetrics(t *testing.T) {
 	// metric in practice). They are also now ObservableCounters (C1's fix
 	// for the cumulative-counter inflation bug), fed only via
 	// handleHubStatusReport, which WriteMetrics does not call.
-	for _, instrument := range []string{"tempest.reboots", "tempest.bus_errors"} {
+	for _, instrument := range []string{"stormglass.reboots", "stormglass.bus_errors"} {
 		if _, ok := findMetric(rm, instrument); ok {
 			t.Errorf("instrument %q: unexpectedly found in WriteMetrics output — reboots/bus_errors are no longer translated by this path", instrument)
 		}

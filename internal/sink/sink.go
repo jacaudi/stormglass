@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"tempestwx-utilities/internal/tempestudp"
+	"github.com/jacaudi/stormglass/internal/tempestudp"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
