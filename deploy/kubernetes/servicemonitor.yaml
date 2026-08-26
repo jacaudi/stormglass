@@ -1,0 +1,43 @@
+# ServiceMonitor for the DEPRECATED Prometheus scrape path.
+#
+# ENABLE_PROMETHEUS_* is slated for removal in the next release and the app
+# logs a one-time WARN when it is used; ENABLE_OTEL is the replacement, and it
+# is what values.yaml/helmrelease.yaml configure. This file exists because the
+# scrape path still works and some setups still want it.
+#
+# It is NOT enough on its own. To use it you must also:
+#
+#   1. set ENABLE_PROMETHEUS_METRICS: "true" on the app container
+#   2. add the port to the service:
+#
+#        service:
+#          app:
+#            ports:
+#              http:
+#                port: 8080
+#              metrics:
+#                port: 9000
+#
+# Note also that the scrape path emits DIFFERENT metric names from the OTel
+# path (stormglass_wind_ms rather than stormglass_wind_meters_per_second, and
+# an `instance` label rather than `serial`), so the bundled Grafana dashboard
+# in deploy/grafana/ will NOT match what this scrapes. See the README.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: stormglass
+  namespace: default
+  labels:
+    app.kubernetes.io/name: stormglass
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: stormglass
+      app.kubernetes.io/instance: stormglass
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 60s
+      # Tempest stations report about once a minute, so a faster interval
+      # mostly re-scrapes the same sample.
+      scrapeTimeout: 10s

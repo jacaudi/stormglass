@@ -1,0 +1,49 @@
+# Flux wrapper for the deployment described by values.yaml in this directory.
+# Apply helmrepository.yaml alongside it, unless you already have a bjw-s-labs
+# HelmRepository in the cluster.
+#
+# This file deliberately does NOT restate the values. values.yaml is the single
+# source of truth, and two copies of the same config would drift. Flux reads it
+# from a ConfigMap, which you generate from the file itself — with Kustomize:
+#
+#   configMapGenerator:
+#     - name: stormglass-values
+#       files:
+#         - values.yaml=deploy/kubernetes/values.yaml
+#
+# or by hand:
+#
+#   kubectl create configmap stormglass-values \
+#     --from-file=values.yaml=deploy/kubernetes/values.yaml
+#
+# Not running Flux? Ignore this file entirely:
+#
+#   helm install stormglass bjw-s-labs/app-template \
+#     --version 5.1.0 -f deploy/kubernetes/values.yaml
+#
+# See README.md for the PVC, ConfigMap and Secret this expects to exist.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: stormglass
+  namespace: default
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: app-template
+      version: 5.1.0
+      sourceRef:
+        kind: HelmRepository
+        name: bjw-s-labs
+        namespace: flux-system
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  valuesFrom:
+    - kind: ConfigMap
+      name: stormglass-values
+      valuesKey: values.yaml
