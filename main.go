@@ -149,7 +149,7 @@ func selectStore(enablePostgres bool, sqlitePathEnv string) storeChoice {
 	c := storeChoice{postgres: enablePostgres}
 	if !enablePostgres || sqlitePathEnv != "" {
 		c.sqlite = true
-		c.sqlitePath = cmp.Or(sqlitePathEnv, "/data/tempest.db")
+		c.sqlitePath = cmp.Or(sqlitePathEnv, "/data/stormglass.db")
 	}
 	return c
 }
@@ -312,7 +312,7 @@ func configurePrometheusWriters(metricsSink *sink.MetricsSink) {
 		}
 		jobName := os.Getenv("JOB_NAME")
 		if jobName == "" {
-			jobName = "tempest"
+			jobName = "stormglass"
 		}
 		promWriter := prometheus.NewPrometheusWriter(pushURL, jobName)
 		metricsSink.AddWriter(promWriter)
@@ -402,7 +402,7 @@ func configureOTel(ctx context.Context, metricsSink *sink.MetricsSink) func(cont
 	otelCfg := otel.Config{
 		Endpoint:       endpoint,
 		ServiceVersion: version,
-		Serial:         os.Getenv("TEMPEST_SERIAL"),
+		Serial:         os.Getenv("STORMGLASS_SERIAL"),
 	}
 	shutdown, err := otel.Setup(ctx, otelCfg)
 	if err != nil {

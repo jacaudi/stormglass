@@ -107,7 +107,7 @@ func TestLitestreamRestore_FileReplica(t *testing.T) {
 
 	ctx := t.Context()
 
-	dbPath := filepath.Join(t.TempDir(), "tempest.db")
+	dbPath := filepath.Join(t.TempDir(), "stormglass.db")
 	db, err := Open(ctx, dbPath, Config{BusyTimeout: 5000 * time.Millisecond})
 	if err != nil {
 		t.Fatalf("Open: %v", err)

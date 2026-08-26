@@ -24,7 +24,7 @@ import (
 
 // meterName is the instrumentation scope name for all instruments this
 // writer registers.
-const meterName = "tempestwx"
+const meterName = "stormglass"
 
 // Contract B instrument names — the law WS4's PromQL depends on. A wrong
 // dot/underscore/suffix here breaks WS4, so these are defined once and

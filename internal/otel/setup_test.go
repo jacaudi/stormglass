@@ -50,7 +50,7 @@ func TestSetup_ReturnsShutdown(t *testing.T) {
 
 // TestResourceAttributes asserts the built Resource carries the required
 // identifying attributes: service.name, service.version, host.name, and
-// tempest.serial (Contract B's resource-attribute list).
+// stormglass.serial (Contract B's resource-attribute list).
 func TestResourceAttributes(t *testing.T) {
 	ctx := t.Context()
 
@@ -66,8 +66,8 @@ func TestResourceAttributes(t *testing.T) {
 	set := res.Set()
 
 	name, ok := set.Value(semconv.ServiceNameKey)
-	if !ok || name.AsString() != "tempestwx" {
-		t.Errorf("service.name = %v (ok=%v), want %q", name, ok, "tempestwx")
+	if !ok || name.AsString() != "stormglass" {
+		t.Errorf("service.name = %v (ok=%v), want %q", name, ok, "stormglass")
 	}
 
 	version, ok := set.Value(semconv.ServiceVersionKey)
@@ -75,9 +75,9 @@ func TestResourceAttributes(t *testing.T) {
 		t.Errorf("service.version = %v (ok=%v), want %q", version, ok, "v1.2.3")
 	}
 
-	serial, ok := set.Value("tempest.serial")
+	serial, ok := set.Value("stormglass.serial")
 	if !ok || serial.AsString() != "ST-00012345" {
-		t.Errorf("tempest.serial = %v (ok=%v), want %q", serial, ok, "ST-00012345")
+		t.Errorf("stormglass.serial = %v (ok=%v), want %q", serial, ok, "ST-00012345")
 	}
 
 	host, ok := set.Value(semconv.HostNameKey)

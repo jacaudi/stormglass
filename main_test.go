@@ -54,7 +54,7 @@ func TestSelectStore(t *testing.T) {
 		wantSQLite   bool
 		wantPath     string
 	}{
-		{"default sqlite", false, "", false, true, "/data/tempest.db"},
+		{"default sqlite", false, "", false, true, "/data/stormglass.db"},
 		{"postgres only", true, "", true, false, ""},
 		{"both fan-out", true, "/tmp/x.db", true, true, "/tmp/x.db"},
 	}
