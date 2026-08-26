@@ -71,7 +71,7 @@ web/dist
 # this repo's lives at web/node_modules.
 **/node_modules
 
-# Local build artifact — `go build .` writes the binary to the repo root
+# Local build artifact — `go build ./cmd/stormglass` writes the binary to the repo root
 /stormglass
 
 # Agent scaffolding

@@ -99,8 +99,9 @@ The application switches modes based on presence of `TOKEN` environment variable
 - **No TOKEN**: Runs `listenAndPush()` - UDP listener with push gateway
 - **With TOKEN**: Runs `export()` - Historical data export to gzipped files
 
-### Internal Package Structure
+### Package Structure
 
+- **`cmd/stormglass/`**: The `package main` entry point — mode selection, the UDP listener, and the `backfill`/`healthcheck` subcommands
 - **`internal/metrics/`**: Defines all Prometheus metric descriptors (`prometheus.Desc`)
 - **`internal/tempestudp/`**: Parses UDP broadcast messages into metrics, includes wet bulb temperature calculations
 - **`internal/tempestapi/`**: REST API client for fetching historical observations
@@ -331,13 +332,13 @@ fetches historical observation data via the REST API and writes it to
 PostgreSQL and/or compressed files, then exits.
 
 ```bash
-TOKEN=your_api_token ENABLE_POSTGRES=true POSTGRES_URL=postgresql://... go run .
+TOKEN=your_api_token ENABLE_POSTGRES=true POSTGRES_URL=postgresql://... go run ./cmd/stormglass
 ```
 
 Optionally keep .gz files:
 
 ```bash
-TOKEN=your_api_token ENABLE_POSTGRES=true POSTGRES_URL=postgresql://... KEEP_EXPORT_FILES=true go run .
+TOKEN=your_api_token ENABLE_POSTGRES=true POSTGRES_URL=postgresql://... KEEP_EXPORT_FILES=true go run ./cmd/stormglass
 ```
 
 ### Backfill Subcommand
@@ -400,7 +401,7 @@ Test files located alongside implementation:
 - `internal/weather/observation_test.go`: Store-neutral types
 - `internal/backfill/`: Window chunking, retry classification, gap assembly, and the `Run` core
 - `internal/sqlite/backfill_test.go`, `internal/postgres/backfill_test.go`: Gap detection and idempotent insert
-- `backfill_cmd_test.go`: Subcommand dispatch and flag parsing
+- `cmd/stormglass/backfill_cmd_test.go`: Subcommand dispatch and flag parsing
 
 Postgres tests that need a live database skip unless `POSTGRES_URL` is set:
 
