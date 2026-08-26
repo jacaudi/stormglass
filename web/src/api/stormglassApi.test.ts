@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { fetchCurrentObservation, fetchStationStatus, fetchRecordsSummary, fetchCapabilities } from './tempestApi';
-import tempestApiSource from './tempestApi.ts?raw';
+import { fetchCurrentObservation, fetchStationStatus, fetchRecordsSummary, fetchCapabilities } from './stormglassApi';
+import stormglassApiSource from './stormglassApi.ts?raw';
 import { PrecipitationType, PressureTrend } from '../types/weather';
 import type { CurrentObservation, RecordsSummary } from '../types/weather';
 
@@ -163,7 +163,7 @@ describe('fetchRecordsSummary', () => {
 
 describe('module hygiene', () => {
   it('does not import the deleted stub data module', () => {
-    expect(tempestApiSource).not.toMatch(/stubData/);
+    expect(stormglassApiSource).not.toMatch(/stubData/);
   });
 });
 

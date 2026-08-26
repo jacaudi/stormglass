@@ -17,7 +17,7 @@ import {
   fetchStationAlmanac,
   fetchRecordsSummary,
   fetchCapabilities,
-} from '../api/tempestApi';
+} from '../api/stormglassApi';
 
 // There is no WebSocket backend (Contract C is plain JSON, see design §11),
 // so live-ness comes from polling the core observation instead. 30s keeps
