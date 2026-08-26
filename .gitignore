@@ -73,7 +73,11 @@ yarn-error.log*
 # Project-specific
 .secrets
 chainguard-labels.*
+# The project instruction file is TRACKED at .claude/CLAUDE.md; the negation
+# below keeps it that way. A stray CLAUDE.md anywhere else is local agent
+# scratch and stays ignored.
 CLAUDE.md
+!.claude/CLAUDE.md
 .private-journal/
 deploy/.env
 
