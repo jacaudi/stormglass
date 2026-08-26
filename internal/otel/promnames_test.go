@@ -14,21 +14,21 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 )
 
-// contractBNames is Contract B's right column: the exact tempest_* Prometheus
+// contractBNames is Contract B's right column: the exact stormglass_* Prometheus
 // family names the OTel writer's instruments must translate to via the real
 // Collector (and, per this test, the real in-process otelprom exporter).
 // Both tests below share this literal — it's the same knowledge (the target
 // contract), so it lives in one place rather than two copies that could
 // drift apart.
 var contractBNames = []string{
-	"tempest_temperature_c", "tempest_dewpoint_c", "tempest_heat_index_c",
-	"tempest_wetbulb_c", "tempest_humidity_percent", "tempest_pressure_mb",
-	"tempest_wind_meters_per_second", "tempest_wind_direction_degrees",
-	"tempest_uv_index", "tempest_irradiance_w_m2", "tempest_illuminance_lux",
-	"tempest_rain_rate_mm_min", "tempest_rainfall_mm_total",
-	"tempest_lightning_distance_km", "tempest_lightning_strike_count_total",
-	"tempest_battery_volts", "tempest_rssi_dbm", "tempest_uptime_seconds",
-	"tempest_reboots_total", "tempest_bus_errors_total",
+	"stormglass_temperature_c", "stormglass_dewpoint_c", "stormglass_heat_index_c",
+	"stormglass_wetbulb_c", "stormglass_humidity_percent", "stormglass_pressure_mb",
+	"stormglass_wind_meters_per_second", "stormglass_wind_direction_degrees",
+	"stormglass_uv_index", "stormglass_irradiance_w_m2", "stormglass_illuminance_lux",
+	"stormglass_rain_rate_mm_min", "stormglass_rainfall_mm_total",
+	"stormglass_lightning_distance_km", "stormglass_lightning_strike_count_total",
+	"stormglass_battery_volts", "stormglass_rssi_dbm", "stormglass_uptime_seconds",
+	"stormglass_reboots_total", "stormglass_bus_errors_total",
 }
 
 // fullSampleReport returns a TempestObservationReport with physically valid
@@ -88,7 +88,7 @@ func TestPrometheusExporterEmitsContractBNames(t *testing.T) {
 	// defaults to UTF8Validation (the pinned github.com/prometheus/common
 	// version supports UTF-8 metric names and skips legacy sanitization by
 	// default). A production Collector's prometheusexporter must be run in
-	// legacy (underscore) naming mode to reproduce Contract B's tempest_*
+	// legacy (underscore) naming mode to reproduce Contract B's stormglass_*
 	// names, so this test forces that same mode to genuinely exercise the
 	// translation Contract B depends on, restoring the prior value after.
 	//nolint:staticcheck // SA1019: model.NameValidationScheme is deprecated but its own doc
@@ -142,7 +142,7 @@ func TestPrometheusExporterEmitsContractBNames(t *testing.T) {
 		}
 	}
 	// Negative guards: the OLD names must NOT appear (the intended breaks).
-	for _, old := range []string{"tempest_wind_ms", "tempest_uptime_seconds_total", "tempest_rainfall_total", "tempest_lightning_strike_count", "tempest_report_interval_minutes"} {
+	for _, old := range []string{"stormglass_wind_ms", "stormglass_uptime_seconds_total", "stormglass_rainfall_total", "stormglass_lightning_strike_count", "stormglass_report_interval_minutes"} {
 		if got[old] {
 			t.Errorf("stale metric name %q still emitted", old)
 		}
@@ -156,12 +156,12 @@ func TestPrometheusExporterEmitsContractBNames(t *testing.T) {
 // in TestMetricMigrationList below guards against this list silently going
 // stale if a descriptor is added to or removed from tempest.All.
 var oldNames = []string{
-	"tempest_uptime_seconds_total", "tempest_rssi_dbm", "tempest_reboots_total",
-	"tempest_bus_errors_total", "tempest_illuminance_lux", "tempest_uv_index",
-	"tempest_rain_rate_mm_min", "tempest_wind_ms", "tempest_wind_direction_degrees",
-	"tempest_battery_volts", "tempest_report_interval_minutes", "tempest_irradiance_w_m2",
-	"tempest_rainfall_total", "tempest_pressure_mb", "tempest_temperature_c",
-	"tempest_humidity_percent", "tempest_lightning_distance_km", "tempest_lightning_strike_count",
+	"stormglass_uptime_seconds_total", "stormglass_rssi_dbm", "stormglass_reboots_total",
+	"stormglass_bus_errors_total", "stormglass_illuminance_lux", "stormglass_uv_index",
+	"stormglass_rain_rate_mm_min", "stormglass_wind_ms", "stormglass_wind_direction_degrees",
+	"stormglass_battery_volts", "stormglass_report_interval_minutes", "stormglass_irradiance_w_m2",
+	"stormglass_rainfall_total", "stormglass_pressure_mb", "stormglass_temperature_c",
+	"stormglass_humidity_percent", "stormglass_lightning_distance_km", "stormglass_lightning_strike_count",
 }
 
 // TestMetricMigrationList diffs Contract B's right column (contractBNames)
@@ -181,18 +181,18 @@ func TestMetricMigrationList(t *testing.T) {
 	}
 
 	renamed := map[string]string{
-		"tempest_wind_ms":                "tempest_wind_meters_per_second",
-		"tempest_uptime_seconds_total":   "tempest_uptime_seconds",
-		"tempest_rainfall_total":         "tempest_rainfall_mm_total",
-		"tempest_lightning_strike_count": "tempest_lightning_strike_count_total",
+		"stormglass_wind_ms":                "stormglass_wind_meters_per_second",
+		"stormglass_uptime_seconds_total":   "stormglass_uptime_seconds",
+		"stormglass_rainfall_total":         "stormglass_rainfall_mm_total",
+		"stormglass_lightning_strike_count": "stormglass_lightning_strike_count_total",
 	}
 	dropped := map[string]bool{
-		"tempest_report_interval_minutes": true,
+		"stormglass_report_interval_minutes": true,
 	}
 	added := map[string]bool{
-		"tempest_dewpoint_c":   true,
-		"tempest_heat_index_c": true,
-		"tempest_wetbulb_c":    true,
+		"stormglass_dewpoint_c":   true,
+		"stormglass_heat_index_c": true,
+		"stormglass_wetbulb_c":    true,
 	}
 
 	oldSet := map[string]bool{}

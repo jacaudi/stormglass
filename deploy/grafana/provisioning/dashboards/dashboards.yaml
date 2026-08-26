@@ -1,9 +1,9 @@
 apiVersion: 1
 
 providers:
-  - name: tempest
+  - name: stormglass
     orgId: 1
-    folder: Tempest
+    folder: Stormglass
     type: file
     disableDeletion: false
     updateIntervalSeconds: 30

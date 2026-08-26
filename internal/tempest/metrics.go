@@ -41,25 +41,25 @@ var (
 var All []*prometheus.Desc
 
 func init() {
-	Uptime = prometheus.NewDesc("tempest_uptime_seconds_total", "The uptime of the device", []string{"instance"}, nil)
-	Rssi = prometheus.NewDesc("tempest_rssi_dbm", "A measurement of wireless signal strength", []string{"instance"}, nil)
-	Reboots = prometheus.NewDesc("tempest_reboots_total", "The number of times the device has rebooted", []string{"instance"}, nil)
-	BusErrors = prometheus.NewDesc("tempest_bus_errors_total", "The number of I2C bus errors experienced by the device", []string{"instance"}, nil)
+	Uptime = prometheus.NewDesc("stormglass_uptime_seconds_total", "The uptime of the device", []string{"instance"}, nil)
+	Rssi = prometheus.NewDesc("stormglass_rssi_dbm", "A measurement of wireless signal strength", []string{"instance"}, nil)
+	Reboots = prometheus.NewDesc("stormglass_reboots_total", "The number of times the device has rebooted", []string{"instance"}, nil)
+	BusErrors = prometheus.NewDesc("stormglass_bus_errors_total", "The number of I2C bus errors experienced by the device", []string{"instance"}, nil)
 
-	Illuminance = prometheus.NewDesc("tempest_illuminance_lux", "A measurement of luminous flux per unit area", []string{"instance"}, nil)
-	UV = prometheus.NewDesc("tempest_uv_index", "A measurement of ultraviolet light intensity", []string{"instance"}, nil)
-	RainRate = prometheus.NewDesc("tempest_rain_rate_mm_min", "The amount of rain which fell on the sensor in the previous minute", []string{"instance"}, nil)
-	Wind = prometheus.NewDesc("tempest_wind_ms", "A wind speed measurement", []string{"instance", "kind"}, nil)
-	WindDirection = prometheus.NewDesc("tempest_wind_direction_degrees", "The direction from which the wind is blowing", []string{"instance"}, nil)
-	Battery = prometheus.NewDesc("tempest_battery_volts", "The electric potential of the battery", []string{"instance"}, nil)
-	ReportInterval = prometheus.NewDesc("tempest_report_interval_minutes", "Report interval in minutes", []string{"instance"}, nil)
-	Irradiance = prometheus.NewDesc("tempest_irradiance_w_m2", "The total solar irradiance, expressed in watts per square meter", []string{"instance"}, nil)
-	RainTotal = prometheus.NewDesc("tempest_rainfall_total", "The amount of accumulated rain", []string{"instance"}, nil)
-	Pressure = prometheus.NewDesc("tempest_pressure_mb", "Station pressure in millibars", []string{"instance"}, nil)
-	Temperature = prometheus.NewDesc("tempest_temperature_c", "A temperature measurement", []string{"instance", "kind"}, nil)
-	Humidity = prometheus.NewDesc("tempest_humidity_percent", "A relative humidity measurement", []string{"instance"}, nil)
-	LightningDistance = prometheus.NewDesc("tempest_lightning_distance_km", "Average distance of lightning strikes detected in the last minute", []string{"instance"}, nil)
-	LightningStrikeCount = prometheus.NewDesc("tempest_lightning_strike_count", "Number of lightning strikes detected in the last minute", []string{"instance"}, nil)
+	Illuminance = prometheus.NewDesc("stormglass_illuminance_lux", "A measurement of luminous flux per unit area", []string{"instance"}, nil)
+	UV = prometheus.NewDesc("stormglass_uv_index", "A measurement of ultraviolet light intensity", []string{"instance"}, nil)
+	RainRate = prometheus.NewDesc("stormglass_rain_rate_mm_min", "The amount of rain which fell on the sensor in the previous minute", []string{"instance"}, nil)
+	Wind = prometheus.NewDesc("stormglass_wind_ms", "A wind speed measurement", []string{"instance", "kind"}, nil)
+	WindDirection = prometheus.NewDesc("stormglass_wind_direction_degrees", "The direction from which the wind is blowing", []string{"instance"}, nil)
+	Battery = prometheus.NewDesc("stormglass_battery_volts", "The electric potential of the battery", []string{"instance"}, nil)
+	ReportInterval = prometheus.NewDesc("stormglass_report_interval_minutes", "Report interval in minutes", []string{"instance"}, nil)
+	Irradiance = prometheus.NewDesc("stormglass_irradiance_w_m2", "The total solar irradiance, expressed in watts per square meter", []string{"instance"}, nil)
+	RainTotal = prometheus.NewDesc("stormglass_rainfall_total", "The amount of accumulated rain", []string{"instance"}, nil)
+	Pressure = prometheus.NewDesc("stormglass_pressure_mb", "Station pressure in millibars", []string{"instance"}, nil)
+	Temperature = prometheus.NewDesc("stormglass_temperature_c", "A temperature measurement", []string{"instance", "kind"}, nil)
+	Humidity = prometheus.NewDesc("stormglass_humidity_percent", "A relative humidity measurement", []string{"instance"}, nil)
+	LightningDistance = prometheus.NewDesc("stormglass_lightning_distance_km", "Average distance of lightning strikes detected in the last minute", []string{"instance"}, nil)
+	LightningStrikeCount = prometheus.NewDesc("stormglass_lightning_strike_count", "Number of lightning strikes detected in the last minute", []string{"instance"}, nil)
 
 	All = []*prometheus.Desc{
 		Uptime,

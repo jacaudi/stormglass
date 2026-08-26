@@ -940,7 +940,7 @@ func exportWithSink(ctx context.Context, token string, metricsSink *sink.Metrics
 
 		// Optionally write to .gz files
 		if keepFiles {
-			filename := fmt.Sprintf("tempest_%03d.txt.gz", fileNum)
+			filename := fmt.Sprintf("stormglass_%03d.txt.gz", fileNum)
 			if err := writeMetricsToFile(filename, metrics); err != nil {
 				log.Fatalf("error writing file: %v", err)
 			}

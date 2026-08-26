@@ -138,8 +138,8 @@ func TestMetricsServer_MetricsEndpoint(t *testing.T) {
 	}
 
 	body, _ := io.ReadAll(resp.Body)
-	if !strings.Contains(string(body), "tempest_temperature_c") {
-		t.Error("expected metrics response to contain tempest_temperature_c")
+	if !strings.Contains(string(body), "stormglass_temperature_c") {
+		t.Error("expected metrics response to contain stormglass_temperature_c")
 	}
 }
 

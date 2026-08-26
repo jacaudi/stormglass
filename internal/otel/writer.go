@@ -2,7 +2,7 @@
 // implements sink.MetricsWriter by recording each Tempest weather field onto
 // a pre-registered OTel instrument. The instrument names are Contract B:
 // chosen so the Collector's OTLP→Prometheus translation reproduces the exact
-// existing tempest_* metric names that WS4's PromQL depends on. See the
+// existing stormglass_* metric names that WS4's PromQL depends on. See the
 // instrument-name constants below for the full table.
 package otel
 
@@ -32,26 +32,26 @@ const meterName = "tempestwx"
 // pointer-identity switch in WriteMetrics) at the old-Prometheus-descriptor
 // mapping site.
 const (
-	instTemperatureC         = "tempest.temperature.c"
-	instDewPointC            = "tempest.dewpoint.c"
-	instHeatIndexC           = "tempest.heat_index.c"
-	instWetBulbC             = "tempest.wetbulb.c"
-	instHumidityPercent      = "tempest.humidity.percent"
-	instPressureMb           = "tempest.pressure.mb"
-	instWindMetersPerSecond  = "tempest.wind.meters_per_second"
-	instWindDirectionDegrees = "tempest.wind.direction.degrees"
-	instUVIndex              = "tempest.uv.index"
-	instIrradianceWM2        = "tempest.irradiance.w_m2"
-	instIlluminanceLux       = "tempest.illuminance.lux"
-	instRainRateMmMin        = "tempest.rain_rate.mm_min"
-	instRainfallMm           = "tempest.rainfall.mm"
-	instLightningDistanceKm  = "tempest.lightning.distance.km"
-	instLightningStrikeCount = "tempest.lightning.strike_count"
-	instBatteryVolts         = "tempest.battery.volts"
-	instRssiDbm              = "tempest.rssi.dbm"
-	instUptimeSeconds        = "tempest.uptime.seconds"
-	instReboots              = "tempest.reboots"
-	instBusErrors            = "tempest.bus_errors"
+	instTemperatureC         = "stormglass.temperature.c"
+	instDewPointC            = "stormglass.dewpoint.c"
+	instHeatIndexC           = "stormglass.heat_index.c"
+	instWetBulbC             = "stormglass.wetbulb.c"
+	instHumidityPercent      = "stormglass.humidity.percent"
+	instPressureMb           = "stormglass.pressure.mb"
+	instWindMetersPerSecond  = "stormglass.wind.meters_per_second"
+	instWindDirectionDegrees = "stormglass.wind.direction.degrees"
+	instUVIndex              = "stormglass.uv.index"
+	instIrradianceWM2        = "stormglass.irradiance.w_m2"
+	instIlluminanceLux       = "stormglass.illuminance.lux"
+	instRainRateMmMin        = "stormglass.rain_rate.mm_min"
+	instRainfallMm           = "stormglass.rainfall.mm"
+	instLightningDistanceKm  = "stormglass.lightning.distance.km"
+	instLightningStrikeCount = "stormglass.lightning.strike_count"
+	instBatteryVolts         = "stormglass.battery.volts"
+	instRssiDbm              = "stormglass.rssi.dbm"
+	instUptimeSeconds        = "stormglass.uptime.seconds"
+	instReboots              = "stormglass.reboots"
+	instBusErrors            = "stormglass.bus_errors"
 )
 
 // Writer implements sink.MetricsWriter, recording each Tempest report field

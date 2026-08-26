@@ -22,9 +22,9 @@ import (
 // eventual Postgres write — sendObservationBatch only enqueues onto
 // w.obsBatch, a buffered channel with no consumer required here.
 //
-// tempest_pressure_pa and tempest_report_interval_s
+// stormglass_pressure_pa and stormglass_report_interval_s
 // (observationFieldMappers, writer.go) do not match the real descriptor
-// names tempest_pressure_mb / tempest_report_interval_minutes
+// names stormglass_pressure_mb / stormglass_report_interval_minutes
 // (internal/tempest/metrics.go) — a pre-existing defect (present in HEAD
 // before the lint-debt refactor this test package covers) that silently
 // drops both fields on every WriteMetrics call. pressure and reportInterval
@@ -145,10 +145,10 @@ func TestPostgresWriter_WriteMetrics_MapsEachFieldToItsColumn(t *testing.T) {
 // TestPostgresWriter_WriteMetrics_PressureAndReportIntervalNotDispatched_KnownBug
 // locks in a pre-existing defect discovered while writing the test above:
 // observationFieldMappers (writer.go) matches metric descriptors by
-// substring, and its entries for pressure ("tempest_pressure_pa") and
-// report interval ("tempest_report_interval_s") do not match the real
-// descriptor names — tempest_pressure_mb and
-// tempest_report_interval_minutes (internal/tempest/metrics.go) — so
+// substring, and its entries for pressure ("stormglass_pressure_pa") and
+// report interval ("stormglass_report_interval_s") do not match the real
+// descriptor names — stormglass_pressure_mb and
+// stormglass_report_interval_minutes (internal/tempest/metrics.go) — so
 // WriteMetrics silently never populates observationRow.pressure or
 // .reportInterval from Prometheus metrics. Confirmed present in HEAD before
 // the uncommitted lint-debt refactor (git show HEAD:internal/postgres/writer.go),

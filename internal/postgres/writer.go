@@ -732,7 +732,7 @@ type observationFieldMapper struct {
 }
 
 var observationFieldMappers = []observationFieldMapper{
-	{"tempest_wind_ms", func(obs *observationRow, value float64, kind string) {
+	{"stormglass_wind_ms", func(obs *observationRow, value float64, kind string) {
 		switch kind {
 		case "lull":
 			obs.windLull = value
@@ -742,13 +742,13 @@ var observationFieldMappers = []observationFieldMapper{
 			obs.windGust = value
 		}
 	}},
-	{"tempest_wind_direction_degrees", func(obs *observationRow, value float64, _ string) {
+	{"stormglass_wind_direction_degrees", func(obs *observationRow, value float64, _ string) {
 		obs.windDirection = value
 	}},
-	{"tempest_pressure_pa", func(obs *observationRow, value float64, _ string) {
+	{"stormglass_pressure_pa", func(obs *observationRow, value float64, _ string) {
 		obs.pressure = value
 	}},
-	{"tempest_temperature_c", func(obs *observationRow, value float64, kind string) {
+	{"stormglass_temperature_c", func(obs *observationRow, value float64, kind string) {
 		switch kind {
 		case "air":
 			obs.tempAir = value
@@ -756,31 +756,31 @@ var observationFieldMappers = []observationFieldMapper{
 			obs.tempWetbulb = &value
 		}
 	}},
-	{"tempest_humidity_percent", func(obs *observationRow, value float64, _ string) {
+	{"stormglass_humidity_percent", func(obs *observationRow, value float64, _ string) {
 		obs.humidity = value
 	}},
-	{"tempest_illuminance_lux", func(obs *observationRow, value float64, _ string) {
+	{"stormglass_illuminance_lux", func(obs *observationRow, value float64, _ string) {
 		obs.illuminance = value
 	}},
-	{"tempest_uv_index", func(obs *observationRow, value float64, _ string) {
+	{"stormglass_uv_index", func(obs *observationRow, value float64, _ string) {
 		obs.uvIndex = value
 	}},
-	{"tempest_irradiance_w_m2", func(obs *observationRow, value float64, _ string) {
+	{"stormglass_irradiance_w_m2", func(obs *observationRow, value float64, _ string) {
 		obs.irradiance = value
 	}},
-	{"tempest_rain_rate_mm_min", func(obs *observationRow, value float64, _ string) {
+	{"stormglass_rain_rate_mm_min", func(obs *observationRow, value float64, _ string) {
 		obs.rainRate = value
 	}},
-	{"tempest_lightning_distance_km", func(obs *observationRow, value float64, _ string) {
+	{"stormglass_lightning_distance_km", func(obs *observationRow, value float64, _ string) {
 		obs.lightningDistance = &value
 	}},
-	{"tempest_lightning_strike_count", func(obs *observationRow, value float64, _ string) {
+	{"stormglass_lightning_strike_count", func(obs *observationRow, value float64, _ string) {
 		obs.lightningStrikeCount = &value
 	}},
-	{"tempest_battery_volts", func(obs *observationRow, value float64, _ string) {
+	{"stormglass_battery_volts", func(obs *observationRow, value float64, _ string) {
 		obs.battery = &value
 	}},
-	{"tempest_report_interval_s", func(obs *observationRow, value float64, _ string) {
+	{"stormglass_report_interval_s", func(obs *observationRow, value float64, _ string) {
 		obs.reportInterval = &value
 	}},
 }
