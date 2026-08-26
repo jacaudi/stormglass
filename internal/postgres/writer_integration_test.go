@@ -73,7 +73,7 @@ func TestPostgresWriter_DrainOnClose_Integration(t *testing.T) {
 
 	var got int
 	err = verifyPool.QueryRow(context.Background(),
-		`SELECT COUNT(*) FROM tempest_observations WHERE serial_number = $1`, serial).Scan(&got)
+		`SELECT COUNT(*) FROM stormglass_observations WHERE serial_number = $1`, serial).Scan(&got)
 	if err != nil {
 		t.Fatalf("verify persisted count: %v", err)
 	}

@@ -16,7 +16,7 @@ func seedObs(t *testing.T, db *sql.DB, serial string, epochs ...int64) {
 	t.Helper()
 	for _, e := range epochs {
 		_, err := db.ExecContext(t.Context(),
-			`INSERT INTO tempest_observations (id, serial_number, timestamp) VALUES (?, ?, ?)`,
+			`INSERT INTO stormglass_observations (id, serial_number, timestamp) VALUES (?, ?, ?)`,
 			uuid.Must(uuid.NewV7()).String(), serial, e)
 		if err != nil {
 			t.Fatalf("seed %s@%d: %v", serial, e, err)
@@ -162,7 +162,7 @@ func TestInsertObservationsIsIdempotent(t *testing.T) {
 	}
 
 	var count int
-	if err := db.QueryRowContext(t.Context(), `SELECT COUNT(*) FROM tempest_observations`).Scan(&count); err != nil {
+	if err := db.QueryRowContext(t.Context(), `SELECT COUNT(*) FROM stormglass_observations`).Scan(&count); err != nil {
 		t.Fatalf("count: %v", err)
 	}
 	if count != 2 {
@@ -180,7 +180,7 @@ func TestInsertObservationsPreservesNull(t *testing.T) {
 		t.Fatalf("insert: %v", err)
 	}
 	var pressure sql.NullFloat64
-	if err := db.QueryRowContext(t.Context(), `SELECT pressure FROM tempest_observations`).Scan(&pressure); err != nil {
+	if err := db.QueryRowContext(t.Context(), `SELECT pressure FROM stormglass_observations`).Scan(&pressure); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if pressure.Valid {
@@ -197,7 +197,7 @@ func TestInsertObservationsDerivesWetBulb(t *testing.T) {
 		t.Fatalf("insert: %v", err)
 	}
 	var wb sql.NullFloat64
-	if err := db.QueryRowContext(t.Context(), `SELECT temp_wetbulb FROM tempest_observations`).Scan(&wb); err != nil {
+	if err := db.QueryRowContext(t.Context(), `SELECT temp_wetbulb FROM stormglass_observations`).Scan(&wb); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if !wb.Valid {
@@ -219,7 +219,7 @@ func TestInsertObservationsWetBulbNullWhenInputsMissing(t *testing.T) {
 		t.Fatalf("insert: %v", err)
 	}
 	var wb sql.NullFloat64
-	if err := db.QueryRowContext(t.Context(), `SELECT temp_wetbulb FROM tempest_observations`).Scan(&wb); err != nil {
+	if err := db.QueryRowContext(t.Context(), `SELECT temp_wetbulb FROM stormglass_observations`).Scan(&wb); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if wb.Valid {
@@ -291,7 +291,7 @@ func TestInsertObservationsRoundTripsAllColumns(t *testing.T) {
 		       illuminance, uv_index, irradiance, rain_rate, precip_type,
 		       lightning_distance, lightning_strike_count,
 		       battery, report_interval
-		FROM tempest_observations WHERE serial_number = ? AND timestamp = ?`,
+		FROM stormglass_observations WHERE serial_number = ? AND timestamp = ?`,
 		o.SerialNumber, o.Timestamp.Unix())
 	if err := row.Scan(
 		&windLull, &windAvg, &windGust, &windDirection, &windSampleInterval,
@@ -374,7 +374,7 @@ func TestInsertObservationsPreservesFractionalMeasurements(t *testing.T) {
 	var precipType sql.NullInt64
 	row := db.QueryRowContext(t.Context(), `
 		SELECT wind_sample_interval, precip_type, lightning_strike_count, report_interval
-		FROM tempest_observations WHERE serial_number = ? AND timestamp = ?`,
+		FROM stormglass_observations WHERE serial_number = ? AND timestamp = ?`,
 		"ST-A", ts(1000).Unix())
 	if err := row.Scan(&windSampleInterval, &precipType, &lightningStrikeCount, &reportInterval); err != nil {
 		t.Fatalf("scan: %v", err)

@@ -21,11 +21,11 @@ const selectAllObservationsSQL = `
 		illuminance, uv_index, irradiance, rain_rate, precip_type,
 		lightning_distance, lightning_strike_count,
 		battery, report_interval
-	FROM tempest_observations
+	FROM stormglass_observations
 	ORDER BY timestamp
 `
 
-// queryAllObservations returns every tempest_observations row in db, ordered
+// queryAllObservations returns every stormglass_observations row in db, ordered
 // by timestamp, as Observation values — writer.go's own exported read type —
 // rather than a second, parallel row type: the column layout and NULL
 // handling are the same knowledge LatestObservation already encodes, so this
@@ -35,7 +35,7 @@ func queryAllObservations(t *testing.T, db *sql.DB) []Observation {
 	t.Helper()
 	rows, err := db.QueryContext(t.Context(), selectAllObservationsSQL)
 	if err != nil {
-		t.Fatalf("query tempest_observations: %v", err)
+		t.Fatalf("query stormglass_observations: %v", err)
 	}
 	defer func() {
 		_ = rows.Close()

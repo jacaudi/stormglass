@@ -22,7 +22,7 @@ func TestSummarizeObservations(t *testing.T) {
 	ctx := t.Context()
 
 	seed := func(id string, ts int64, temp, hum, pres, wavg, wgust, rain float64, ls sql.NullFloat64) {
-		_, err := db.ExecContext(ctx, `INSERT INTO tempest_observations
+		_, err := db.ExecContext(ctx, `INSERT INTO stormglass_observations
 			(id, serial_number, timestamp, temp_air, humidity, pressure, wind_avg, wind_gust, rain_rate, lightning_strike_count)
 			VALUES (?,?,?,?,?,?,?,?,?,?)`,
 			id, "ST-1", ts, temp, hum, pres, wavg, wgust, rain, ls)
@@ -78,7 +78,7 @@ func TestSummarizeObservationsPreservesFractionalLightningTotal(t *testing.T) {
 
 	for i, v := range []float64{2.5, 3} {
 		_, err := w.db.ExecContext(ctx, `
-			INSERT INTO tempest_observations (id, serial_number, timestamp, lightning_strike_count)
+			INSERT INTO stormglass_observations (id, serial_number, timestamp, lightning_strike_count)
 			VALUES (?, ?, ?, ?)`,
 			uuid.Must(uuid.NewV7()).String(), "ST-A", int64(100+i), v)
 		if err != nil {

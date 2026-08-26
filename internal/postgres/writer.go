@@ -239,18 +239,18 @@ func closeBatchResults(br pgx.BatchResults) {
 func (w *PostgresWriter) flushObservations(ctx context.Context, batch []observationRow) {
 	w.flushWithRetry(ctx, func() error {
 		return w.obsInserter.insertObservations(ctx, batch)
-	}, "tempest_observations", len(batch))
+	}, "stormglass_observations", len(batch))
 }
 
 // insertObservationSQL is the single source of truth for the
-// tempest_observations INSERT shape — the live daemon write path
+// stormglass_observations INSERT shape — the live daemon write path
 // (insertObservations below) and the backfill path
 // (InsertObservations in backfill.go) both bind against this constant.
 // Add a column here and both write paths pick it up together; a second,
 // independently-maintained copy is exactly how backfilled and live rows
 // would silently diverge.
 const insertObservationSQL = `
-	INSERT INTO tempest_observations (
+	INSERT INTO stormglass_observations (
 		id, serial_number, timestamp,
 		wind_lull, wind_avg, wind_gust, wind_direction, wind_sample_interval,
 		pressure, temp_air, temp_wetbulb, humidity,
@@ -336,7 +336,7 @@ func (w *PostgresWriter) batchRapidWind() {
 func (w *PostgresWriter) flushRapidWind(ctx context.Context, batch []rapidWindRow) {
 	w.flushWithRetry(ctx, func() error {
 		return w.windInserter.insertRapidWind(ctx, batch)
-	}, "tempest_rapid_wind", len(batch))
+	}, "stormglass_rapid_wind", len(batch))
 }
 
 func (w *PostgresWriter) insertRapidWind(ctx context.Context, batch []rapidWindRow) error {
@@ -351,7 +351,7 @@ func (w *PostgresWriter) insertRapidWind(ctx context.Context, batch []rapidWindR
 
 	for _, row := range batch {
 		b.Queue(`
-			INSERT INTO tempest_rapid_wind (
+			INSERT INTO stormglass_rapid_wind (
 				id, serial_number, timestamp, wind_speed, wind_direction
 			) VALUES ($1, $2, $3, $4, $5)
 			ON CONFLICT (serial_number, timestamp) DO NOTHING
@@ -409,7 +409,7 @@ func (w *PostgresWriter) batchHubStatus() {
 func (w *PostgresWriter) flushHubStatus(ctx context.Context, batch []hubStatusRow) {
 	w.flushWithRetry(ctx, func() error {
 		return w.insertHubStatus(ctx, batch)
-	}, "tempest_hub_status", len(batch))
+	}, "stormglass_hub_status", len(batch))
 }
 
 func (w *PostgresWriter) insertHubStatus(ctx context.Context, batch []hubStatusRow) error {
@@ -424,7 +424,7 @@ func (w *PostgresWriter) insertHubStatus(ctx context.Context, batch []hubStatusR
 
 	for _, row := range batch {
 		b.Queue(`
-			INSERT INTO tempest_hub_status (
+			INSERT INTO stormglass_hub_status (
 				id, serial_number, timestamp, uptime, rssi, reboot_count, bus_errors
 			) VALUES ($1, $2, $3, $4, $5, $6, $7)
 			ON CONFLICT (serial_number, timestamp) DO NOTHING
@@ -464,7 +464,7 @@ func (w *PostgresWriter) batchEvents() {
 func (w *PostgresWriter) flushEvents(ctx context.Context, batch []eventRow) {
 	w.flushWithRetry(ctx, func() error {
 		return w.insertEvents(ctx, batch)
-	}, "tempest_events", len(batch))
+	}, "stormglass_events", len(batch))
 }
 
 func (w *PostgresWriter) insertEvents(ctx context.Context, batch []eventRow) error {
@@ -479,7 +479,7 @@ func (w *PostgresWriter) insertEvents(ctx context.Context, batch []eventRow) err
 
 	for _, row := range batch {
 		b.Queue(`
-			INSERT INTO tempest_events (
+			INSERT INTO stormglass_events (
 				id, serial_number, timestamp, event_type, distance_km, energy
 			) VALUES ($1, $2, $3, $4, $5, $6)
 			ON CONFLICT (serial_number, timestamp, event_type) DO NOTHING

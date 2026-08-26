@@ -84,7 +84,7 @@ type rowEnvelope struct {
 	payload any
 }
 
-// observationRow mirrors tempest_observations. Nullable columns (the "if
+// observationRow mirrors stormglass_observations. Nullable columns (the "if
 // len(ob) >= N" fields in the UDP report) use pointers so a nil is stored as
 // SQL NULL rather than a zero value — see internal/postgres/writer.go's
 // observationRow, which this mirrors field-for-field except that
@@ -643,7 +643,7 @@ func execBatch[T any](ctx context.Context, db *sql.DB, query string, batch []T, 
 }
 
 const insertObservationSQL = `
-	INSERT INTO tempest_observations (
+	INSERT INTO stormglass_observations (
 		id, serial_number, timestamp,
 		wind_lull, wind_avg, wind_gust, wind_direction, wind_sample_interval,
 		pressure, temp_air, temp_wetbulb, humidity,
@@ -671,7 +671,7 @@ func (w *Writer) insertObservations(ctx context.Context, batch []observationRow)
 }
 
 const insertRapidWindSQL = `
-	INSERT INTO tempest_rapid_wind (
+	INSERT INTO stormglass_rapid_wind (
 		id, serial_number, timestamp, wind_speed, wind_direction
 	) VALUES (?, ?, ?, ?, ?)
 	ON CONFLICT (serial_number, timestamp) DO NOTHING
@@ -688,7 +688,7 @@ func (w *Writer) insertRapidWind(ctx context.Context, batch []rapidWindRow) {
 }
 
 const insertHubStatusSQL = `
-	INSERT INTO tempest_hub_status (
+	INSERT INTO stormglass_hub_status (
 		id, serial_number, timestamp, uptime, rssi, reboot_count, bus_errors
 	) VALUES (?, ?, ?, ?, ?, ?, ?)
 	ON CONFLICT (serial_number, timestamp) DO NOTHING
@@ -705,7 +705,7 @@ func (w *Writer) insertHubStatus(ctx context.Context, batch []hubStatusRow) {
 }
 
 const insertEventSQL = `
-	INSERT INTO tempest_events (
+	INSERT INTO stormglass_events (
 		id, serial_number, timestamp, event_type, distance_km, energy
 	) VALUES (?, ?, ?, ?, ?, ?)
 	ON CONFLICT (serial_number, timestamp, event_type) DO NOTHING
@@ -722,10 +722,10 @@ func (w *Writer) insertEvents(ctx context.Context, batch []eventRow) {
 }
 
 // ErrObservationNotFound is returned by LatestObservation when serial has no
-// rows in tempest_observations.
+// rows in stormglass_observations.
 var ErrObservationNotFound = errors.New("sqlite: no observation found for serial")
 
-// Observation is a single tempest_observations row exactly as stored: raw SI
+// Observation is a single stormglass_observations row exactly as stored: raw SI
 // values, no derived fields. Contract C's GET /api/observations/current is
 // fed by this struct, but computing feelsLike/dewPoint/wetBulbTemperature/
 // heatIndex/windChill/pressureTrend from it is WS1's job (analytics), not
@@ -763,13 +763,13 @@ const selectLatestObservationSQL = `
 		illuminance, uv_index, irradiance, rain_rate, precip_type,
 		lightning_distance, lightning_strike_count,
 		battery, report_interval
-	FROM tempest_observations
+	FROM stormglass_observations
 	WHERE serial_number = ?
 	ORDER BY timestamp DESC
 	LIMIT 1
 `
 
-// scanObservation scans a single tempest_observations row (the exact column
+// scanObservation scans a single stormglass_observations row (the exact column
 // list both selectLatestObservationSQL and selectLatestObservationAnySQL
 // select, in the same order) into an Observation, converting SQL NULL
 // columns to nil pointers. This is the one place that column-order <->
@@ -822,7 +822,7 @@ func scanObservation(row *sql.Row) (Observation, error) {
 	return obs, nil
 }
 
-// LatestObservation returns the newest tempest_observations row for serial
+// LatestObservation returns the newest stormglass_observations row for serial
 // (ORDER BY timestamp DESC LIMIT 1). Returns ErrObservationNotFound,
 // checkable via errors.Is, when serial has no rows.
 func (w *Writer) LatestObservation(ctx context.Context, serial string) (Observation, error) {
@@ -844,12 +844,12 @@ const selectLatestObservationAnySQL = `
 		illuminance, uv_index, irradiance, rain_rate, precip_type,
 		lightning_distance, lightning_strike_count,
 		battery, report_interval
-	FROM tempest_observations
+	FROM stormglass_observations
 	ORDER BY timestamp DESC
 	LIMIT 1
 `
 
-// LatestObservationAny returns the newest tempest_observations row across ALL
+// LatestObservationAny returns the newest stormglass_observations row across ALL
 // serials (identical to LatestObservation but without the WHERE
 // serial_number clause). GET /api/observations/current is a single-station
 // appliance endpoint with no serial to scope by, so "newest observation
@@ -869,7 +869,7 @@ func (w *Writer) LatestObservationAny(ctx context.Context) (Observation, error) 
 }
 
 // historyFieldColumns is the allowlist mapping an API-level history field
-// name to its tempest_observations column, covering the numeric columns the
+// name to its stormglass_observations column, covering the numeric columns the
 // UI charts. HistoryPoints looks field up here BEFORE building any query --
 // an unknown field returns an error and no query ever runs. The resolved
 // column value (never the raw field argument) is the only thing formatted
@@ -900,7 +900,7 @@ type Point struct {
 	V float64 `json:"v"`
 }
 
-// HistoryPoints returns every tempest_observations sample for field with a
+// HistoryPoints returns every stormglass_observations sample for field with a
 // timestamp in [from, to], ordered by timestamp ascending, capped at
 // maxHistoryPoints (an unbounded or wide range is truncated rather than
 // returning the whole table -- SGE review I1). field must be a key of
@@ -915,7 +915,7 @@ func (w *Writer) HistoryPoints(ctx context.Context, field string, from, to int64
 	}
 
 	query := fmt.Sprintf(
-		`SELECT timestamp, %s FROM tempest_observations WHERE timestamp BETWEEN ? AND ? ORDER BY timestamp LIMIT %d`,
+		`SELECT timestamp, %s FROM stormglass_observations WHERE timestamp BETWEEN ? AND ? ORDER BY timestamp LIMIT %d`,
 		column, maxHistoryPoints,
 	)
 
@@ -949,7 +949,7 @@ func (w *Writer) HistoryPoints(ctx context.Context, field string, from, to int64
 	return points, nil
 }
 
-// Summary is the windowed aggregate over tempest_observations in [from, to].
+// Summary is the windowed aggregate over stormglass_observations in [from, to].
 // Every aggregate is nullable: MIN/MAX/SUM over zero rows (or an all-NULL
 // column) return SQL NULL, not 0, so each is scanned into a sql.Null* rather
 // than silently reporting a misleading zero value. Count == 0 is the
@@ -981,11 +981,11 @@ const summarizeObservationsSQL = `
 	  MAX(wind_avg),  MAX(wind_gust),
 	  SUM(rain_rate),                 -- rain_rate = obs_st[12], per-interval mm accumulation -> SUM = total mm
 	  SUM(lightning_strike_count)
-	FROM tempest_observations
+	FROM stormglass_observations
 	WHERE timestamp BETWEEN ? AND ?
 `
 
-// SummarizeObservations aggregates the tempest_observations rows in [from,
+// SummarizeObservations aggregates the stormglass_observations rows in [from,
 // to] into one Summary. Aggregates over 0 rows (or all-NULL columns) are SQL
 // NULL, surfaced via sql.Null*; Count == 0 signals an empty window. Runs on
 // the read-only handle (w.readDB) so a wide scan never queues behind the
@@ -1033,13 +1033,13 @@ type TempExtremes struct {
 // the bare column as arbitrary among ties (sqlite.org/lang_select §2.5).
 const (
 	temperatureMaxSQL = `
-	SELECT temp_air, timestamp FROM tempest_observations
+	SELECT temp_air, timestamp FROM stormglass_observations
 	 WHERE timestamp BETWEEN ? AND ? AND temp_air IS NOT NULL
 	 ORDER BY temp_air DESC, timestamp ASC
 	 LIMIT 1
 `
 	temperatureMinSQL = `
-	SELECT temp_air, timestamp FROM tempest_observations
+	SELECT temp_air, timestamp FROM stormglass_observations
 	 WHERE timestamp BETWEEN ? AND ? AND temp_air IS NOT NULL
 	 ORDER BY temp_air ASC, timestamp ASC
 	 LIMIT 1

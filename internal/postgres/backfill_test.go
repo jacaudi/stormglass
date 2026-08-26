@@ -108,10 +108,10 @@ func TestBackfillPostgresIntegration(t *testing.T) {
 	serialD := "ST-ITEST-D" // isolated: exercises the full 18-column bind order, one distinct value per field
 	t.Cleanup(func() {
 		_, _ = pool.Exec(context.Background(),
-			`DELETE FROM tempest_observations WHERE serial_number IN ($1, $2, $3, $4)`, serialA, serialB, serialC, serialD)
+			`DELETE FROM stormglass_observations WHERE serial_number IN ($1, $2, $3, $4)`, serialA, serialB, serialC, serialD)
 	})
 	if _, err := pool.Exec(ctx,
-		`DELETE FROM tempest_observations WHERE serial_number IN ($1, $2, $3, $4)`, serialA, serialB, serialC, serialD); err != nil {
+		`DELETE FROM stormglass_observations WHERE serial_number IN ($1, $2, $3, $4)`, serialA, serialB, serialC, serialD); err != nil {
 		t.Fatalf("pre-clean: %v", err)
 	}
 
@@ -257,7 +257,7 @@ func TestBackfillPostgresIntegration(t *testing.T) {
 	if err := pool.QueryRow(ctx,
 		`SELECT precip_type, wind_sample_interval, lightning_strike_count, report_interval,
 		        temp_air, pressure, temp_wetbulb
-		 FROM tempest_observations WHERE serial_number = $1 AND timestamp = $2`,
+		 FROM stormglass_observations WHERE serial_number = $1 AND timestamp = $2`,
 		serialA, base).Scan(&precip, &interval, &strikes, &report, &tempAir, &pressure, &tempWetbulb); err != nil {
 		t.Fatalf("read back observation columns: %v", err)
 	}
@@ -297,7 +297,7 @@ func TestBackfillPostgresIntegration(t *testing.T) {
 	// InsertObservations ever writes a non-NULL temp_wetbulb.
 	var wetbulbC *float64
 	if err := pool.QueryRow(ctx,
-		`SELECT temp_wetbulb FROM tempest_observations WHERE serial_number = $1 AND timestamp = $2`,
+		`SELECT temp_wetbulb FROM stormglass_observations WHERE serial_number = $1 AND timestamp = $2`,
 		serialC, base).Scan(&wetbulbC); err != nil {
 		t.Fatalf("read back %s temp_wetbulb: %v", serialC, err)
 	}
@@ -330,7 +330,7 @@ func TestBackfillPostgresIntegration(t *testing.T) {
 		        pressure, temp_air, temp_wetbulb, humidity,
 		        illuminance, uv_index, irradiance, rain_rate, precip_type,
 		        lightning_distance, lightning_strike_count, battery, report_interval
-		 FROM tempest_observations WHERE serial_number = $1 AND timestamp = $2`,
+		 FROM stormglass_observations WHERE serial_number = $1 AND timestamp = $2`,
 		serialD, base).Scan(
 		&windLull, &windAvg, &windGust, &windDirection, &windSampleInterval,
 		&pressureD, &tempAirD, &tempWetbulbD, &humidityD,
@@ -440,10 +440,10 @@ func TestInsertObservationsPreservesFractionalMeasurements(t *testing.T) {
 	stamp := time.Unix(1_900_000_000, 0).UTC()
 	t.Cleanup(func() {
 		_, _ = pool.Exec(context.Background(),
-			`DELETE FROM tempest_observations WHERE serial_number = $1`, serial)
+			`DELETE FROM stormglass_observations WHERE serial_number = $1`, serial)
 	})
 	if _, err := pool.Exec(ctx,
-		`DELETE FROM tempest_observations WHERE serial_number = $1`, serial); err != nil {
+		`DELETE FROM stormglass_observations WHERE serial_number = $1`, serial); err != nil {
 		t.Fatalf("clean: %v", err)
 	}
 
@@ -463,7 +463,7 @@ func TestInsertObservationsPreservesFractionalMeasurements(t *testing.T) {
 	var precipType int
 	err = pool.QueryRow(ctx, `
 		SELECT wind_sample_interval, precip_type, lightning_strike_count, report_interval
-		FROM tempest_observations WHERE serial_number = $1 AND timestamp = $2`,
+		FROM stormglass_observations WHERE serial_number = $1 AND timestamp = $2`,
 		serial, stamp,
 	).Scan(&windSampleInterval, &precipType, &lightningStrikeCount, &reportInterval)
 	if err != nil {

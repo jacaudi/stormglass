@@ -46,7 +46,7 @@ const heatIndexMinTempC = 26.7
 // defined at the consumer site per go-standards §12: production wires
 // *sqlite.Writer (which satisfies it), tests use fakeObservationReader.
 type ObservationReader interface {
-	// LatestObservationAny returns the newest tempest_observations row across
+	// LatestObservationAny returns the newest stormglass_observations row across
 	// all serials, or sqlite.ErrObservationNotFound if the table is empty.
 	LatestObservationAny(ctx context.Context) (sqlite.Observation, error)
 	// HistoryPoints returns the allowlisted field's samples in [from, to];
