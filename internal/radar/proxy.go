@@ -16,8 +16,18 @@ import (
 const (
 	// radarCacheMaxEntries bounds the LRU. ~160 sites but any one deployment
 	// tracks 1 station → a handful of sites × 2 products (N0B/N0Q) × the last
-	// few scan times; 64 is generous headroom and a hard memory bound.
-	radarCacheMaxEntries = 64
+	// few scan times; 8 is still generous for that sizing, and it keeps the
+	// "hard memory bound" honest now that radarSidecarMaxBody is 64 MiB:
+	// the worst case was 64 × 10 MiB = 640 MiB and is now 8 × 64 MiB =
+	// 512 MiB, so raising the per-payload cap LOWERS the total bound.
+	radarCacheMaxEntries = 8
+	// radarSidecarMaxBody caps a single sidecar response. A real N0B scan
+	// measured 19,471,933 bytes (site ATX, storm conditions) and ~10.7 MB on
+	// a quiet day, so the previous 10 MiB limit truncated live traffic. This
+	// is 3.45× the largest measured payload (64 MiB ÷ 19,471,933) and remains
+	// a hard bound: a body over it is rejected explicitly, never truncated
+	// and handed to the JSON decoder (issue #185).
+	radarSidecarMaxBody = 64 << 20
 	// radarCacheTTL ≈ one WSR-88D volume-scan cycle (VCP ~4–6 min); 5 min keeps
 	// a scan cached for its useful life without serving stale reflectivity.
 	radarCacheTTL = 5 * time.Minute
@@ -181,9 +191,16 @@ func (p *Proxy) fetch(ctx context.Context, site, product string) (json.RawMessag
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
+	// +1 so a body at exactly the cap is complete while one byte over is
+	// detectable. Truncating at the limit and parsing the fragment is the
+	// bug: it surfaced as "unexpected end of JSON input" behind a 502, with
+	// nothing pointing at a size limit (#185).
+	body, err := io.ReadAll(io.LimitReader(resp.Body, radarSidecarMaxBody+1))
 	if err != nil {
 		return nil, Metadata{}, fmt.Errorf("read radar sidecar response: %w", err)
+	}
+	if len(body) > radarSidecarMaxBody {
+		return nil, Metadata{}, fmt.Errorf("%w: radar sidecar payload exceeds %d bytes", ErrInternal, radarSidecarMaxBody)
 	}
 
 	if resp.StatusCode != http.StatusOK {
