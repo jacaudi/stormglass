@@ -11,19 +11,12 @@ tasks:
       - task: helm
 
   actions:
-    desc: Lint GitHub Actions workflows (only when they changed)
+    desc: Lint GitHub Actions workflows (always — see #212)
     cmds:
       - task: actions:local-refs
       - |
         set -eu
         [ -d .github/workflows ] || { echo "no workflows — skipping actionlint"; exit 0; }
-        base="${BASE_REF:-HEAD~1}"
-        if git rev-parse --verify --quiet "${base}" >/dev/null; then
-          if [ -z "$(git diff --name-only "${base}" HEAD -- .github/workflows)" ]; then
-            echo "no workflow changes since ${base} — skipping actionlint"
-            exit 0
-          fi
-        fi
         command -v actionlint >/dev/null \
           || { echo "actionlint not installed: go install github.com/rhysd/actionlint/cmd/actionlint@latest" >&2; exit 1; }
         actionlint
