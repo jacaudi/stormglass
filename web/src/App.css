@@ -1598,6 +1598,21 @@
     grid-column: span 1;
   }
 
+  /* #182: at one-column widths the hero card rendered SHORTER than the WIND
+     card directly beneath it, so the most important reading on the page no
+     longer read as the most important. #194 fixed the 174px collapse this
+     issue was filed for -- .hero-content clears its 180px floor comfortably
+     -- but the CARD itself still lost to WIND (274 vs 302 at 504px), because
+     WIND's compass + readout + lull/gust row simply stack taller than the
+     hero's content.
+
+     A floor rather than larger type: scaling .hero-temp was measured and
+     REJECTED -- clamp() resolved BELOW the existing size at these widths and
+     made the card smaller still (274 -> 272 at 504). 310px clears the WIND
+     card at every one-column width with 8-14px of margin.
+     hero-dominates-when-narrow asserts it. */
+  .glass-card.hero-card { min-height: 310px; }
+
   /* Header at phone widths (in no filed issue; found by the probe). Shrink the
      competing parts -- do NOT truncate and do NOT hide anything. Every
      information-removing alternative was measured and rejected; see design
