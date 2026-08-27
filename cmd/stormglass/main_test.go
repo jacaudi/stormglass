@@ -293,6 +293,20 @@ func TestDecideUI(t *testing.T) {
 			wantReasons: []string{"ENABLE_ALMANAC", "observation store"},
 		},
 		{
+			// #174: decideUI's almanac block used a single-select switch, so a
+			// deployment missing BOTH preconditions was told only about the
+			// first. The radar block next door already reports every one.
+			name:        "almanac_without_coordinates_or_a_store",
+			flags:       uiFlags{Almanac: true},
+			station:     config.StationConfig{},
+			hasStore:    false,
+			wantAlmanac: false,
+			wantReasons: []string{
+				"STATION_LATITUDE", "STATION_LONGITUDE", // the coordinates reason
+				"observation store", // AND the store reason
+			},
+		},
+		{
 			name:        "radar_without_a_site",
 			flags:       uiFlags{Radar: true},
 			station:     locatedNoSite,

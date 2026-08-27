@@ -544,18 +544,30 @@ func decideUI(flags uiFlags, station config.StationConfig, hasStore bool) uiDeci
 	}
 
 	if flags.Almanac {
-		switch {
-		case !hasCoords:
+		// Sequential checks, not a switch: an operator missing BOTH
+		// coordinates and a store must learn both from one startup. A switch
+		// selects exactly one arm, costing that operator two restarts to
+		// learn two things (issue #174). This mirrors the radar block below,
+		// and extends TestDecideUI_ReportsEveryUnmetPrecondition's property
+		// -- asserted across the three flags -- to hold within this one too.
+		almanacOK := true
+		if !hasCoords {
+			almanacOK = false
 			d.Reasons = append(d.Reasons,
 				"ENABLE_ALMANAC is true but STATION_LATITUDE and STATION_LONGITUDE are not both set, "+
 					"so sunrise and sunset cannot be computed. The almanac card will not be mounted.")
-		case !hasStore:
+		}
+		if !hasStore {
+			almanacOK = false
 			d.Reasons = append(d.Reasons,
 				"ENABLE_ALMANAC is true but no observation store is configured, so the temperature "+
 					"records have no source. SQLite is the default store; this is the Postgres-only "+
 					"configuration. The almanac card will not be mounted.")
-		default:
+		}
+		if almanacOK {
 			d.Almanac = true
+			// Gated on the card actually mounting: a WARN about how times
+			// will render is noise when nothing renders at all.
 			if !station.TimezoneConfigured {
 				d.Warnings = append(d.Warnings,
 					"ENABLE_ALMANAC is true and coordinates are set, but STATION_TIMEZONE "+
