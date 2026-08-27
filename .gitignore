@@ -73,7 +73,11 @@ yarn-error.log*
 # Project-specific
 .secrets
 chainguard-labels.*
+# The project instruction file is TRACKED at .claude/CLAUDE.md; the negation
+# below keeps it that way. A stray CLAUDE.md anywhere else is local agent
+# scratch and stays ignored.
 CLAUDE.md
+!.claude/CLAUDE.md
 .private-journal/
 deploy/.env
 
@@ -90,9 +94,8 @@ docs/plans/
 docs/screenshots/
 
 # Built binaries (this repo's, by name — the managed block's bin/ does not cover
-# a binary written to the repo root, which `go build .` does by default)
-tempestwx-utilities
-tempestwx-exporter
+# a binary written to the repo root, which `go build ./cmd/stormglass` does by default)
+stormglass
 
 # Go build cache and coverage formats the managed block does not carry
 .cache/

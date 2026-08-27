@@ -1,14 +1,14 @@
-# Litestream continuously streams the SQLite WAL for /data/tempest.db to an
+# Litestream continuously streams the SQLite WAL for /data/stormglass.db to an
 # S3-compatible replica (MinIO here). Litestream owns WAL checkpointing --
 # per CLAUDE.md's SQLite contract, the app intentionally does not set an
 # aggressive wal_autocheckpoint, so do not add one anywhere in this stack.
 dbs:
-  - path: /data/tempest.db
+  - path: /data/stormglass.db
     replicas:
       - type: s3
         endpoint: http://minio:9000       # bridge DNS; minio is on the default compose network
         bucket: ${LITESTREAM_BUCKET}
-        path: tempest
+        path: stormglass
         access-key-id: ${LITESTREAM_ACCESS_KEY_ID}
         secret-access-key: ${LITESTREAM_SECRET_ACCESS_KEY}
         force-path-style: true            # required for MinIO (not a real AWS S3 endpoint)

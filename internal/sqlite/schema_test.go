@@ -26,10 +26,10 @@ func TestMigrate_CreatesTablesAndVersion(t *testing.T) {
 	}
 
 	wantTables := []string{
-		"tempest_observations",
-		"tempest_rapid_wind",
-		"tempest_hub_status",
-		"tempest_events",
+		"stormglass_observations",
+		"stormglass_rapid_wind",
+		"stormglass_hub_status",
+		"stormglass_events",
 	}
 	for _, table := range wantTables {
 		assertTableExists(t, db, table)
@@ -70,7 +70,7 @@ func TestMigrateDeclaresMeasurementColumnsAsREAL(t *testing.T) {
 	for column, wantType := range want {
 		var got string
 		err := db.QueryRowContext(ctx,
-			`SELECT type FROM pragma_table_info('tempest_observations') WHERE name = ?`,
+			`SELECT type FROM pragma_table_info('stormglass_observations') WHERE name = ?`,
 			column,
 		).Scan(&got)
 		if err != nil {

@@ -1,5 +1,5 @@
 // Package httpserver builds the HTTP server that serves the embedded React
-// UI (from tempestwx-utilities/web) alongside the tokenless JSON API:
+// UI (from github.com/jacaudi/stormglass/web) alongside the tokenless JSON API:
 // observations and the station almanac from the local SQLite store, station
 // identity from configuration, and the radar sidecar proxy — see Deps. No
 // handler here makes an outbound WeatherFlow call; in UDP mode the process
@@ -17,7 +17,7 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/trace"
 
-	"tempestwx-utilities/internal/config"
+	"github.com/jacaudi/stormglass/internal/config"
 )
 
 const (

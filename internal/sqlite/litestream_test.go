@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"tempestwx-utilities/internal/tempestudp"
+	"github.com/jacaudi/stormglass/internal/tempestudp"
 )
 
 // selectAllObservationsSQL mirrors selectLatestObservationSQL's column list
@@ -21,11 +21,11 @@ const selectAllObservationsSQL = `
 		illuminance, uv_index, irradiance, rain_rate, precip_type,
 		lightning_distance, lightning_strike_count,
 		battery, report_interval
-	FROM tempest_observations
+	FROM stormglass_observations
 	ORDER BY timestamp
 `
 
-// queryAllObservations returns every tempest_observations row in db, ordered
+// queryAllObservations returns every stormglass_observations row in db, ordered
 // by timestamp, as Observation values — writer.go's own exported read type —
 // rather than a second, parallel row type: the column layout and NULL
 // handling are the same knowledge LatestObservation already encodes, so this
@@ -35,7 +35,7 @@ func queryAllObservations(t *testing.T, db *sql.DB) []Observation {
 	t.Helper()
 	rows, err := db.QueryContext(t.Context(), selectAllObservationsSQL)
 	if err != nil {
-		t.Fatalf("query tempest_observations: %v", err)
+		t.Fatalf("query stormglass_observations: %v", err)
 	}
 	defer func() {
 		_ = rows.Close()
@@ -107,7 +107,7 @@ func TestLitestreamRestore_FileReplica(t *testing.T) {
 
 	ctx := t.Context()
 
-	dbPath := filepath.Join(t.TempDir(), "tempest.db")
+	dbPath := filepath.Join(t.TempDir(), "stormglass.db")
 	db, err := Open(ctx, dbPath, Config{BusyTimeout: 5000 * time.Millisecond})
 	if err != nil {
 		t.Fatalf("Open: %v", err)

@@ -19,9 +19,9 @@ import (
 	"testing"
 	"time"
 
-	"tempestwx-utilities/internal/config"
-	"tempestwx-utilities/internal/otel"
-	"tempestwx-utilities/internal/sqlite"
+	"github.com/jacaudi/stormglass/internal/config"
+	"github.com/jacaudi/stormglass/internal/otel"
+	"github.com/jacaudi/stormglass/internal/sqlite"
 
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 )
@@ -54,7 +54,7 @@ func TestSelectStore(t *testing.T) {
 		wantSQLite   bool
 		wantPath     string
 	}{
-		{"default sqlite", false, "", false, true, "/data/tempest.db"},
+		{"default sqlite", false, "", false, true, "/data/stormglass.db"},
 		{"postgres only", true, "", true, false, ""},
 		{"both fan-out", true, "/tmp/x.db", true, true, "/tmp/x.db"},
 	}
@@ -134,7 +134,7 @@ func TestTeeHandler_FansOutToAllHandlers(t *testing.T) {
 // real listening server answering 200 on /healthz yields exit code 0. Uses
 // httptest.NewServer (a real net.Listener + http.Server) rather than a mock,
 // per the docker HEALTHCHECK contract: the binary is exec'd as
-// `tempestwx-utilities healthcheck` inside the same container as the running
+// `stormglass healthcheck` inside the same container as the running
 // server, so it must actually dial the loopback address.
 func TestRunHealthcheck_HealthyServer(t *testing.T) {
 	mux := http.NewServeMux()

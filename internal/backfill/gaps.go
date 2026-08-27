@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"tempestwx-utilities/internal/weather"
+	"github.com/jacaudi/stormglass/internal/weather"
 )
 
 // assembleGaps builds the full detection domain from what SQL can and cannot

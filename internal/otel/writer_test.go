@@ -5,7 +5,7 @@ import (
 	"sync"
 	"testing"
 
-	"tempestwx-utilities/internal/tempestudp"
+	"github.com/jacaudi/stormglass/internal/tempestudp"
 
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
@@ -202,28 +202,28 @@ func TestWriter_RecordsInstruments(t *testing.T) {
 		want       float64
 		kind       string // "" means no kind attribute asserted
 	}{
-		{"tempest.temperature.c", 25, "air"},
-		{"tempest.dewpoint.c", dewPointWant, ""},
-		{"tempest.heat_index.c", heatIndexWant, ""},
-		{"tempest.wetbulb.c", wetBulbWant, ""},
-		{"tempest.humidity.percent", 50, ""},
-		{"tempest.pressure.mb", 1013.25, ""},
-		// tempest.wind.direction.degrees carries no "kind" attribute in
+		{"stormglass.temperature.c", 25, "air"},
+		{"stormglass.dewpoint.c", dewPointWant, ""},
+		{"stormglass.heat_index.c", heatIndexWant, ""},
+		{"stormglass.wetbulb.c", wetBulbWant, ""},
+		{"stormglass.humidity.percent", 50, ""},
+		{"stormglass.pressure.mb", 1013.25, ""},
+		// stormglass.wind.direction.degrees carries no "kind" attribute in
 		// Contract B, so the observation report's value (180) and the
 		// later rapid-wind report's value (90) share the same {serial}
 		// attribute set — the Gauge's last recorded value (90, from the
 		// rapid-wind report written after the observation report above)
 		// wins, which is the correct "current direction" semantics for a
 		// Gauge fed by two sources.
-		{"tempest.wind.direction.degrees", 90, ""},
-		{"tempest.uv.index", 5, ""},
-		{"tempest.irradiance.w_m2", 400, ""},
-		{"tempest.illuminance.lux", 1000, ""},
-		{"tempest.rain_rate.mm_min", 0.2, ""},
-		{"tempest.lightning.distance.km", 2.0, ""},
-		{"tempest.battery.volts", 2.75, ""},
-		{"tempest.rssi.dbm", -60, ""},
-		{"tempest.uptime.seconds", 12345, ""},
+		{"stormglass.wind.direction.degrees", 90, ""},
+		{"stormglass.uv.index", 5, ""},
+		{"stormglass.irradiance.w_m2", 400, ""},
+		{"stormglass.illuminance.lux", 1000, ""},
+		{"stormglass.rain_rate.mm_min", 0.2, ""},
+		{"stormglass.lightning.distance.km", 2.0, ""},
+		{"stormglass.battery.volts", 2.75, ""},
+		{"stormglass.rssi.dbm", -60, ""},
+		{"stormglass.uptime.seconds", 12345, ""},
 	}
 	for _, tc := range gaugeCases {
 		t.Run("gauge/"+tc.instrument, func(t *testing.T) {
@@ -252,15 +252,15 @@ func TestWriter_RecordsInstruments(t *testing.T) {
 
 	// Wind is recorded three times for the observation report (lull, avg,
 	// gust) and once more for the rapid-wind report (rapid) — all under the
-	// single tempest.wind.meters_per_second instrument, disambiguated by kind.
-	t.Run("gauge/tempest.wind.meters_per_second", func(t *testing.T) {
-		m, ok := findMetric(rm, "tempest.wind.meters_per_second")
+	// single stormglass.wind.meters_per_second instrument, disambiguated by kind.
+	t.Run("gauge/stormglass.wind.meters_per_second", func(t *testing.T) {
+		m, ok := findMetric(rm, "stormglass.wind.meters_per_second")
 		if !ok {
-			t.Fatal("instrument tempest.wind.meters_per_second not found")
+			t.Fatal("instrument stormglass.wind.meters_per_second not found")
 		}
 		g, ok := m.Data.(metricdata.Gauge[float64])
 		if !ok {
-			t.Fatalf("tempest.wind.meters_per_second: data is %T, want Gauge[float64]", m.Data)
+			t.Fatalf("stormglass.wind.meters_per_second: data is %T, want Gauge[float64]", m.Data)
 		}
 		want := map[string]float64{"lull": 1.5, "avg": 2.5, "gust": 3.5, "rapid": 4.2}
 		got := map[string]float64{}
@@ -286,8 +286,8 @@ func TestWriter_RecordsInstruments(t *testing.T) {
 		instrument string
 		want       float64
 	}{
-		{"tempest.rainfall.mm", 0.2},
-		{"tempest.lightning.strike_count", 3},
+		{"stormglass.rainfall.mm", 0.2},
+		{"stormglass.lightning.strike_count", 3},
 	}
 	for _, tc := range counterCases {
 		t.Run("counter/"+tc.instrument, func(t *testing.T) {
@@ -313,8 +313,8 @@ func TestWriter_RecordsInstruments(t *testing.T) {
 		instrument string
 		want       int64
 	}{
-		{"tempest.reboots", 4},
-		{"tempest.bus_errors", 2},
+		{"stormglass.reboots", 4},
+		{"stormglass.bus_errors", 2},
 	}
 	for _, tc := range observableCounterCases {
 		t.Run("counter/"+tc.instrument, func(t *testing.T) {
@@ -333,40 +333,40 @@ func TestWriter_RecordsInstruments(t *testing.T) {
 	}
 
 	t.Run("wetbulb NaN input is skipped", func(t *testing.T) {
-		m, ok := findMetric(rm, "tempest.wetbulb.c")
+		m, ok := findMetric(rm, "stormglass.wetbulb.c")
 		if !ok {
-			t.Fatal("instrument tempest.wetbulb.c not found")
+			t.Fatal("instrument stormglass.wetbulb.c not found")
 		}
 		if _, ok := gaugePointFor(t, m, nanSerial); ok {
-			t.Errorf("tempest.wetbulb.c: expected no data point for serial=%q (NaN wetbulb), but found one", nanSerial)
+			t.Errorf("stormglass.wetbulb.c: expected no data point for serial=%q (NaN wetbulb), but found one", nanSerial)
 		}
 	})
 
 	t.Run("dewpoint NaN input is skipped", func(t *testing.T) {
-		m, ok := findMetric(rm, "tempest.dewpoint.c")
+		m, ok := findMetric(rm, "stormglass.dewpoint.c")
 		if !ok {
-			t.Fatal("instrument tempest.dewpoint.c not found")
+			t.Fatal("instrument stormglass.dewpoint.c not found")
 		}
 		if _, ok := gaugePointFor(t, m, nanSerial); ok {
-			t.Errorf("tempest.dewpoint.c: expected no data point for serial=%q (NaN dewpoint, humidity=-500), but found one", nanSerial)
+			t.Errorf("stormglass.dewpoint.c: expected no data point for serial=%q (NaN dewpoint, humidity=-500), but found one", nanSerial)
 		}
 	})
 
 	t.Run("dewpoint and heat_index NaN-temperature input is skipped", func(t *testing.T) {
-		dp, ok := findMetric(rm, "tempest.dewpoint.c")
+		dp, ok := findMetric(rm, "stormglass.dewpoint.c")
 		if !ok {
-			t.Fatal("instrument tempest.dewpoint.c not found")
+			t.Fatal("instrument stormglass.dewpoint.c not found")
 		}
 		if _, ok := gaugePointFor(t, dp, nanTempSerial); ok {
-			t.Errorf("tempest.dewpoint.c: expected no data point for serial=%q (NaN temperature), but found one", nanTempSerial)
+			t.Errorf("stormglass.dewpoint.c: expected no data point for serial=%q (NaN temperature), but found one", nanTempSerial)
 		}
 
-		hi, ok := findMetric(rm, "tempest.heat_index.c")
+		hi, ok := findMetric(rm, "stormglass.heat_index.c")
 		if !ok {
-			t.Fatal("instrument tempest.heat_index.c not found")
+			t.Fatal("instrument stormglass.heat_index.c not found")
 		}
 		if _, ok := gaugePointFor(t, hi, nanTempSerial); ok {
-			t.Errorf("tempest.heat_index.c: expected no data point for serial=%q (NaN temperature), but found one", nanTempSerial)
+			t.Errorf("stormglass.heat_index.c: expected no data point for serial=%q (NaN temperature), but found one", nanTempSerial)
 		}
 	})
 }
@@ -427,11 +427,11 @@ func TestWriter_CumulativeCountersDoNotInflate(t *testing.T) {
 		t.Fatalf("WriteReport(hub, 2nd) returned unexpected error: %v", err)
 	}
 
-	if dp := collectObservableSum(t, reader, "tempest.reboots", serial); dp.Value != 4 {
-		t.Errorf("tempest.reboots after 2 identical broadcasts = %v, want 4 (not 8 — must not inflate)", dp.Value)
+	if dp := collectObservableSum(t, reader, "stormglass.reboots", serial); dp.Value != 4 {
+		t.Errorf("stormglass.reboots after 2 identical broadcasts = %v, want 4 (not 8 — must not inflate)", dp.Value)
 	}
-	if dp := collectObservableSum(t, reader, "tempest.bus_errors", serial); dp.Value != 7 {
-		t.Errorf("tempest.bus_errors after 2 identical broadcasts = %v, want 7 (not 14 — must not inflate)", dp.Value)
+	if dp := collectObservableSum(t, reader, "stormglass.bus_errors", serial); dp.Value != 7 {
+		t.Errorf("stormglass.bus_errors after 2 identical broadcasts = %v, want 7 (not 14 — must not inflate)", dp.Value)
 	}
 
 	// A genuine change in the device's lifetime count (e.g. it actually
@@ -446,8 +446,8 @@ func TestWriter_CumulativeCountersDoNotInflate(t *testing.T) {
 	if err := w.WriteReport(ctx, hub2); err != nil {
 		t.Fatalf("WriteReport(hub2) returned unexpected error: %v", err)
 	}
-	if dp := collectObservableSum(t, reader, "tempest.reboots", serial); dp.Value != 5 {
-		t.Errorf("tempest.reboots after reboot count changed to 5 = %v, want 5", dp.Value)
+	if dp := collectObservableSum(t, reader, "stormglass.reboots", serial); dp.Value != 5 {
+		t.Errorf("stormglass.reboots after reboot count changed to 5 = %v, want 5", dp.Value)
 	}
 }
 

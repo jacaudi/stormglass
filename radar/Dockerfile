@@ -2,7 +2,20 @@
 # must be compiled against GEOS/PROJ. Build in one stage with the toolchain,
 # then copy just the venv into a clean runtime stage so the final image
 # doesn't carry gcc/g++/dev headers.
-FROM python:3.14-slim AS builder
+#
+# PINNED TO 3.12 — do not bump without checking cartopy's wheels first (#186).
+# cartopy 0.25.0 publishes manylinux wheels for cp310-cp313 and none for cp314.
+# On 3.14 pip therefore builds cartopy from source, and the resulting extension
+# records no DT_NEEDED for libstdc++ while requiring a C++ symbol from it, so
+# the import fails at runtime:
+#
+#   ImportError: cartopy/trace.cpython-314-...so: undefined symbol:
+#   _ZTINSt8ios_base7failureB5cxx11E
+#
+# The image still BUILDS green in that state — ci-radar.yml builds without
+# running it — so a passing pipeline is not evidence this works. Verify by
+# booting the image, not by building it.
+FROM python:3.12-slim AS builder
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -21,7 +34,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt \
     && pip uninstall -y --no-input pytest
 
-FROM python:3.14-slim
+FROM python:3.12-slim
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \

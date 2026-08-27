@@ -10,8 +10,8 @@ import (
 	"testing/fstest"
 	"time"
 
-	"tempestwx-utilities/internal/config"
-	"tempestwx-utilities/internal/sqlite"
+	"github.com/jacaudi/stormglass/internal/config"
+	"github.com/jacaudi/stormglass/internal/sqlite"
 )
 
 // errFakeStore simulates a store-layer failure for

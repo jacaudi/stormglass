@@ -8,7 +8,7 @@ import (
 	"testing/fstest"
 	"time"
 
-	"tempestwx-utilities/internal/config"
+	"github.com/jacaudi/stormglass/internal/config"
 )
 
 func testDepsWithStation(station config.StationConfig) Deps {

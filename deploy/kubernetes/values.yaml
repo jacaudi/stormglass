@@ -1,0 +1,166 @@
+# Stormglass on bjw-s app-template. See README.md in this directory.
+#
+#   helm install stormglass bjw-s-labs/app-template \
+#     --version 5.1.0 -f deploy/kubernetes/values.yaml
+#
+# This file is the single source of truth for the deployment config;
+# helmrelease.yaml wraps it for Flux rather than restating it.
+#
+# Change before use: station coordinates, RADAR_SITE, image tags, and the
+# OTLP endpoint.
+controllers:
+  stormglass:
+    # StatefulSet, not Deployment: /data holds one SQLite database with a WAL
+    # that Litestream is streaming, and a rolling Deployment update would
+    # briefly run two pods with two writers on one file.
+    type: statefulset
+    pod:
+      # REQUIRED for UDP ingestion. Tempest stations broadcast to :50222 as
+      # link-local traffic, which does not cross the CNI pod network. Without
+      # this the pod starts, passes its probes, serves the dashboard — and
+      # receives no observations at all.
+      hostNetwork: true
+      # Must accompany hostNetwork. Without it the pod inherits the node's
+      # resolv.conf and loses cluster DNS, so in-cluster service names (the
+      # OTel collector below, Postgres) stop resolving. The default
+      # ClusterFirst is silently wrong here rather than an error.
+      dnsPolicy: ClusterFirstWithHostNet
+      securityContext:
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        fsGroupChangePolicy: OnRootMismatch
+    containers:
+      app:
+        image:
+          repository: ghcr.io/jacaudi/stormglass
+          tag: v1.0.0
+        env:
+          HTTP_ADDR: ":8080"
+          SQLITE_PATH: /data/stormglass.db
+          ENABLE_OTEL: "true"
+          OTEL_EXPORTER_OTLP_ENDPOINT: opentelemetry-collector.observability:4317
+          ENABLE_ALMANAC: "true"
+          ENABLE_RADAR: "true"
+          RADAR_SITE: ATX
+          STATION_NAME: Backyard Station
+          STATION_LATITUDE: "47.6"
+          STATION_LONGITUDE: "-122.3"
+          STATION_ELEVATION: "150"
+          STATION_TIMEZONE: America/Los_Angeles
+        probes:
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /healthz
+                port: 8080
+              initialDelaySeconds: 5
+              periodSeconds: 30
+          readiness:
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /healthz
+                port: 8080
+              initialDelaySeconds: 5
+              periodSeconds: 10
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        resources:
+          requests:
+            cpu: 10m
+            memory: 64Mi
+          limits:
+            memory: 256Mi
+
+      # Optional; drop this container if ENABLE_RADAR is false. With
+      # hostNetwork the app reaches it on localhost:8081, no service needed.
+      radar:
+        image:
+          repository: ghcr.io/jacaudi/stormglass-radar
+          tag: v1.0.0
+        probes:
+          liveness:
+            enabled: true
+            custom: true
+            spec:
+              httpGet:
+                path: /healthz
+                port: 8081
+              initialDelaySeconds: 15
+              periodSeconds: 30
+        resources:
+          requests:
+            cpu: 50m
+            # Not padding: decoding a NEXRAD volume scan loads the whole scan
+            # into memory, and one tile response can be several MB of GeoJSON.
+            memory: 512Mi
+          limits:
+            memory: 2Gi
+
+      # Optional; streams the SQLite WAL off-node. Shares /data with the app
+      # and OWNS checkpointing, which is why Stormglass does not configure
+      # wal_autocheckpoint itself. Drop its two volumes below with it.
+      # Needs a Secret `stormglass-litestream` with access-key-id and
+      # secret-access-key.
+      litestream:
+        image:
+          repository: litestream/litestream
+          tag: "0.5.16"
+        args: ["replicate"]
+        env:
+          LITESTREAM_ACCESS_KEY_ID:
+            valueFrom:
+              secretKeyRef:
+                name: stormglass-litestream
+                key: access-key-id
+          LITESTREAM_SECRET_ACCESS_KEY:
+            valueFrom:
+              secretKeyRef:
+                name: stormglass-litestream
+                key: secret-access-key
+
+service:
+  app:
+    controller: stormglass
+    # For the deprecated scrape path, add a `metrics: {port: 9000}` entry
+    # below and set ENABLE_PROMETHEUS_METRICS. See servicemonitor.yaml.
+    ports:
+      http:
+        port: 8080
+
+persistence:
+  # Needs a PVC named stormglass-data. ReadWriteOnce is fine — hostNetwork
+  # pins the pod to a node anyway.
+  data:
+    existingClaim: stormglass-data
+    advancedMounts:
+      stormglass:
+        app:
+          - path: /data
+        litestream:
+          - path: /data
+  # ConfigMap holding litestream.yml; use deploy/litestream.yml as the
+  # content, with the db path /data/stormglass.db.
+  litestream-config:
+    type: configMap
+    name: stormglass-litestream
+    advancedMounts:
+      stormglass:
+        litestream:
+          - path: /etc/litestream.yml
+            subPath: litestream.yml
+            readOnly: true
+  # readOnlyRootFilesystem is on, so the app needs somewhere writable.
+  tmp:
+    type: emptyDir
+    advancedMounts:
+      stormglass:
+        app:
+          - path: /tmp

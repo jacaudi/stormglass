@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { useWeatherData, POLL_INTERVAL_MS, CAPABILITIES_TIMEOUT_MS } from './useWeatherData';
-import * as api from '../api/tempestApi';
+import * as api from '../api/stormglassApi';
 import { PrecipitationType, PressureTrend } from '../types/weather';
 import type {
   CurrentObservation,
@@ -13,7 +13,7 @@ import type {
   Capabilities,
 } from '../types/weather';
 
-vi.mock('../api/tempestApi', () => ({
+vi.mock('../api/stormglassApi', () => ({
   fetchCurrentObservation: vi.fn(),
   fetchStationMeta: vi.fn(),
   fetchForecast: vi.fn(),

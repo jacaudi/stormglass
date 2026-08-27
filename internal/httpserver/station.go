@@ -3,7 +3,7 @@ package httpserver
 import (
 	"net/http"
 
-	"tempestwx-utilities/internal/config"
+	"github.com/jacaudi/stormglass/internal/config"
 )
 
 // stationResponse is the wire shape for GET /api/station -- Contract C's

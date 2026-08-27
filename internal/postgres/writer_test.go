@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"tempestwx-utilities/internal/tempestudp"
+	"github.com/jacaudi/stormglass/internal/tempestudp"
 
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -394,7 +394,7 @@ func TestPostgresWriter_RetryOutlivesWriterCtxCancel(t *testing.T) {
 
 // TestHandleObservationReport_NaNWetbulbYieldsNull proves a non-convergent
 // (physically impossible) observation stores SQL NULL for temp_wetbulb
-// rather than IEEE NaN. tempest_observations.temp_wetbulb is a nullable
+// rather than IEEE NaN. stormglass_observations.temp_wetbulb is a nullable
 // DOUBLE PRECISION column; unlike internal/tempestudp/report.go's Prometheus
 // path (which skips emitting the wetbulb metric on NaN), the Postgres path
 // had no such guard before this fix.

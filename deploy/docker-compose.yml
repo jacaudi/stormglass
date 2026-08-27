@@ -1,4 +1,4 @@
-# tempestwx-utilities — full-stack example deployment (design §15a)
+# stormglass — full-stack example deployment (design §15a)
 #
 # Brings up: the app (UDP ingest + JSON API + UI), the OTel Collector,
 # Prometheus, Grafana (with the "Weather Nerd" dashboard + wind-rose panel
@@ -12,7 +12,7 @@
 #   docker compose --profile radar up -d   # also start the radar sidecar
 #
 # --- IMPORTANT: network_mode: host <-> service-DNS resolution --------------
-# `tempestwx` MUST run with `network_mode: host` — Tempest UDP broadcasts are
+# `stormglass` MUST run with `network_mode: host` — Tempest UDP broadcasts are
 # link-local, and a container reached only via a published UDP port never
 # receives them (see CLAUDE.md's "UDP broadcasts are link-local" note). But a
 # host-networked container does NOT get Compose's per-project bridge network,
@@ -21,9 +21,9 @@
 #
 # The fix: every OTHER service stays on Compose's default bridge network and
 # talks to its peers via service-name DNS as usual (prometheus->otel-collector,
-# grafana->prometheus, litestream->minio). The two services `tempestwx` needs
+# grafana->prometheus, litestream->minio). The two services `stormglass` needs
 # to reach — otel-collector and radar-sidecar — additionally PUBLISH their
-# ports to the host, and `tempestwx` is configured to call them via
+# ports to the host, and `stormglass` is configured to call them via
 # `localhost:<port>` instead of `<service-name>:<port>`. That is why
 # OTEL_EXPORTER_OTLP_ENDPOINT below is `localhost:4317` (NOT
 # `otel-collector:4317`) and RADAR_SIDECAR_URL is `http://localhost:8081`
@@ -32,7 +32,7 @@
 # -----------------------------------------------------------------------------
 
 services:
-  tempestwx:
+  stormglass:
     build:
       # deploy/docker-compose.yml lives one level below the repo root, where
       # the Dockerfile and its build context (go.mod, web/, etc.) actually are.
@@ -40,14 +40,14 @@ services:
       dockerfile: Dockerfile
     network_mode: host
     volumes:
-      - tempest-data:/data
+      - stormglass-data:/data
     depends_on:
-      tempest-data-init:
+      stormglass-data-init:
         condition: service_completed_successfully
     environment:
       ENABLE_OTEL: "true"
       OTEL_EXPORTER_OTLP_ENDPOINT: localhost:4317 # see host-networking note above
-      SQLITE_PATH: /data/tempest.db
+      SQLITE_PATH: /data/stormglass.db
       HTTP_ADDR: ":8080"
       ENABLE_RADAR: ${ENABLE_RADAR:-false}
       RADAR_SIDECAR_URL: http://localhost:8081 # see host-networking note above
@@ -71,21 +71,21 @@ services:
       STATION_ELEVATION: ${STATION_ELEVATION:-}
       STATION_TIMEZONE: ${STATION_TIMEZONE:-}
       TOKEN: ${TOKEN:-}
-      TEMPEST_SERIAL: ${TEMPEST_SERIAL:-}
+      STORMGLASS_SERIAL: ${STORMGLASS_SERIAL:-}
     restart: unless-stopped
 
   # One-shot init: the app image runs as non-root USER 65532:65532 (see
   # Dockerfile), but a fresh named volume mounts /data owned root:root 0755 —
   # nothing in the base image seeds ownership for it. SQLite is the default
-  # store and the app exits on startup if it can't open /data/tempest.db, so
-  # without this chown a fresh `docker compose up` crash-loops `tempestwx`.
+  # store and the app exits on startup if it can't open /data/stormglass.db, so
+  # without this chown a fresh `docker compose up` crash-loops `stormglass`.
   # litestream runs as root and can read the resulting 65532-owned DB fine,
-  # so only `tempestwx` needs to wait on this.
-  tempest-data-init:
+  # so only `stormglass` needs to wait on this.
+  stormglass-data-init:
     image: busybox:1.38.0@sha256:dc2d74b28e4cf8984fa52af1f39bc7c3d9c73760b41a74d629f5d11b1ab28616
     command: ["sh", "-c", "chown -R 65532:65532 /data"]
     volumes:
-      - tempest-data:/data
+      - stormglass-data:/data
     restart: "no"
 
   litestream:
@@ -93,10 +93,10 @@ services:
     command: ["replicate", "-config", "/etc/litestream.yml"]
     volumes:
       - ./litestream.yml:/etc/litestream.yml:ro
-      - tempest-data:/data # same volume as tempestwx — replicates /data/tempest.db
+      - stormglass-data:/data # same volume as stormglass — replicates /data/stormglass.db
     environment:
-      LITESTREAM_BUCKET: ${LITESTREAM_BUCKET:-tempest-backups}
-      LITESTREAM_ACCESS_KEY_ID: ${LITESTREAM_ACCESS_KEY_ID:-tempest}
+      LITESTREAM_BUCKET: ${LITESTREAM_BUCKET:-stormglass-backups}
+      LITESTREAM_ACCESS_KEY_ID: ${LITESTREAM_ACCESS_KEY_ID:-stormglass}
       LITESTREAM_SECRET_ACCESS_KEY: ${LITESTREAM_SECRET_ACCESS_KEY:-changeme12345}
     depends_on:
       minio-init:
@@ -152,7 +152,7 @@ services:
   # --- Radar sidecar (opt-in) ---------------------------------------------
   # Off by default. Enable with: docker compose --profile radar up -d
   # and set ENABLE_RADAR=true, RADAR_SITE, and STATION_LATITUDE/
-  # STATION_LONGITUDE on tempestwx — all three are required for the card.
+  # STATION_LONGITUDE on stormglass — all three are required for the card.
   radar-sidecar:
     build:
       context: ../radar
@@ -166,7 +166,7 @@ services:
     image: minio/minio:RELEASE.2024-10-13T13-34-11Z@sha256:9535594ad4122b7a78c6632788a989b96d9199b483d3bd71a5ceae73a922cdfa
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-tempest}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-stormglass}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-changeme12345}
     volumes:
       - minio-data:/data
@@ -188,9 +188,9 @@ services:
       minio:
         condition: service_healthy
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-tempest}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-stormglass}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-changeme12345}
-      LITESTREAM_BUCKET: ${LITESTREAM_BUCKET:-tempest-backups}
+      LITESTREAM_BUCKET: ${LITESTREAM_BUCKET:-stormglass-backups}
     entrypoint: >
       /bin/sh -c "
       mc alias set localminio http://minio:9000 \"$$MINIO_ROOT_USER\" \"$$MINIO_ROOT_PASSWORD\" &&
@@ -219,7 +219,7 @@ services:
   #     - loki-data:/loki
 
 volumes:
-  tempest-data:
+  stormglass-data:
   grafana-data:
   prometheus-data:
   minio-data:

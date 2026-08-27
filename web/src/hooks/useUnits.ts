@@ -20,14 +20,14 @@ const DEFAULT_PREFS: UserPreferences = {
 
 function loadPrefs(): UserPreferences {
   try {
-    const stored = localStorage.getItem('tempest-prefs');
+    const stored = localStorage.getItem('stormglass-prefs');
     if (stored) return { ...DEFAULT_PREFS, ...JSON.parse(stored) };
   } catch { /* ignore */ }
   return DEFAULT_PREFS;
 }
 
 function savePrefs(prefs: UserPreferences) {
-  localStorage.setItem('tempest-prefs', JSON.stringify(prefs));
+  localStorage.setItem('stormglass-prefs', JSON.stringify(prefs));
 }
 
 // --- Conversion helpers ---

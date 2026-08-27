@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"time"
 
-	"tempestwx-utilities/internal/weather"
+	"github.com/jacaudi/stormglass/internal/weather"
 )
 
 // observationSet mirrors the Tempest ObservationSet response schema.
@@ -30,7 +30,7 @@ type observationSet struct {
 // obs_st tuple indices. Indices 0-17 match the UDP layout exactly, so the
 // same field semantics apply. The REST array carries 22 elements; 18-21
 // (local-day rain accumulation, Nearcast accumulations, precip analysis type)
-// map to no column in tempest_observations and are ignored deliberately.
+// map to no column in stormglass_observations and are ignored deliberately.
 const (
 	obsTimestamp = iota
 	obsWindLull

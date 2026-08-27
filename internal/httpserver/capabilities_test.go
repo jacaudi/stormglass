@@ -9,7 +9,7 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"tempestwx-utilities/internal/radar"
+	"github.com/jacaudi/stormglass/internal/radar"
 )
 
 // testDepsForCapabilities returns Deps with only the static filesystem set,

@@ -1,5 +1,5 @@
 /**
- * Tempest data client -- Contract C (design §11).
+ * Stormglass data client -- Contract C (design §11).
  *
  * Every fetch below hits this server's own tokenless, same-origin JSON API
  * (never WeatherFlow directly; the browser never holds a token). Two

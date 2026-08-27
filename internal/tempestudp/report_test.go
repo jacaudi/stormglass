@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"tempestwx-utilities/internal/tempest"
+	"github.com/jacaudi/stormglass/internal/metrics"
 
 	"github.com/prometheus/client_golang/prometheus"
 	io_prometheus_client "github.com/prometheus/client_model/go"
@@ -20,12 +20,12 @@ func Test_rapidWindReport_Metrics(t *testing.T) {
 			"ST-00019709", 1688668572,
 			[]simpleMetric{
 				{
-					desc:   tempest.Wind,
+					desc:   metrics.Wind,
 					value:  0.85,
 					labels: map[string]string{"kind": "rapid"},
 				},
 				{
-					desc:  tempest.WindDirection,
+					desc:  metrics.WindDirection,
 					value: 113,
 				},
 			},
@@ -41,72 +41,72 @@ func Test_tempestObservationReport_Metrics(t *testing.T) {
 			"ST-00019709", 1688668741,
 			[]simpleMetric{
 				{
-					desc:   tempest.Wind,
+					desc:   metrics.Wind,
 					value:  0,
 					labels: map[string]string{"kind": "lull"},
 				},
 				{
-					desc:   tempest.Wind,
+					desc:   metrics.Wind,
 					value:  0.49,
 					labels: map[string]string{"kind": "avg"},
 				},
 				{
-					desc:   tempest.Wind,
+					desc:   metrics.Wind,
 					value:  1.44,
 					labels: map[string]string{"kind": "gust"},
 				},
 				{
-					desc:  tempest.WindDirection,
+					desc:  metrics.WindDirection,
 					value: 163,
 				},
 				{
-					desc:  tempest.Pressure,
+					desc:  metrics.Pressure,
 					value: 987.81,
 				},
 				{
-					desc:   tempest.Temperature,
+					desc:   metrics.Temperature,
 					value:  19.0,
 					labels: map[string]string{"kind": "air"},
 				},
 				{
-					desc:   tempest.Temperature,
+					desc:   metrics.Temperature,
 					value:  15.26,
 					labels: map[string]string{"kind": "wetbulb"},
 				},
 				{
-					desc:  tempest.Humidity,
+					desc:  metrics.Humidity,
 					value: 67.63,
 				},
 				{
-					desc:  tempest.Illuminance,
+					desc:  metrics.Illuminance,
 					value: 57687,
 				},
 				{
-					desc:  tempest.UV,
+					desc:  metrics.UV,
 					value: 4.38,
 				},
 				{
-					desc:  tempest.Irradiance,
+					desc:  metrics.Irradiance,
 					value: 480,
 				},
 				{
-					desc:  tempest.RainRate,
+					desc:  metrics.RainRate,
 					value: 0,
 				},
 				{
-					desc:  tempest.LightningDistance,
+					desc:  metrics.LightningDistance,
 					value: 0,
 				},
 				{
-					desc:  tempest.LightningStrikeCount,
+					desc:  metrics.LightningStrikeCount,
 					value: 0,
 				},
 				{
-					desc:  tempest.Battery,
+					desc:  metrics.Battery,
 					value: 2.792,
 				},
 				{
-					desc:  tempest.ReportInterval,
+					desc:  metrics.ReportInterval,
 					value: 1, // minutes
 				},
 			},
@@ -122,19 +122,19 @@ func Test_hubStatusReport_Metrics(t *testing.T) {
 			"HB-00031344", 1688666650,
 			[]simpleMetric{
 				{
-					desc:  tempest.Uptime,
+					desc:  metrics.Uptime,
 					value: 64275,
 				},
 				{
-					desc:  tempest.Rssi,
+					desc:  metrics.Rssi,
 					value: -44,
 				},
 				{
-					desc:  tempest.Reboots,
+					desc:  metrics.Reboots,
 					value: 1,
 				},
 				{
-					desc:  tempest.BusErrors,
+					desc:  metrics.BusErrors,
 					value: 0,
 				},
 			},
@@ -150,11 +150,11 @@ func TestHubStatusReport_ShortRadioStats(t *testing.T) {
 			"HB-00031344", 1688666650,
 			[]simpleMetric{
 				{
-					desc:  tempest.Uptime,
+					desc:  metrics.Uptime,
 					value: 64275,
 				},
 				{
-					desc:  tempest.Rssi,
+					desc:  metrics.Rssi,
 					value: -44,
 				},
 			},
@@ -165,11 +165,11 @@ func TestHubStatusReport_ShortRadioStats(t *testing.T) {
 			"HB-00031344", 1688666650,
 			[]simpleMetric{
 				{
-					desc:  tempest.Uptime,
+					desc:  metrics.Uptime,
 					value: 64275,
 				},
 				{
-					desc:  tempest.Rssi,
+					desc:  metrics.Rssi,
 					value: -44,
 				},
 			},
@@ -180,11 +180,11 @@ func TestHubStatusReport_ShortRadioStats(t *testing.T) {
 			"HB-00031344", 1688666650,
 			[]simpleMetric{
 				{
-					desc:  tempest.Uptime,
+					desc:  metrics.Uptime,
 					value: 64275,
 				},
 				{
-					desc:  tempest.Rssi,
+					desc:  metrics.Rssi,
 					value: -44,
 				},
 			},

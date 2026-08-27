@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"tempestwx-utilities/internal/tempestudp"
+	"github.com/jacaudi/stormglass/internal/tempestudp"
 )
 
 // newTestPushGateway starts a local HTTP server that accepts any push

@@ -13,7 +13,7 @@ import (
 	"context"
 	"fmt"
 
-	"tempestwx-utilities/internal/tempestudp"
+	"github.com/jacaudi/stormglass/internal/tempestudp"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/codes"
@@ -21,10 +21,10 @@ import (
 )
 
 // tracerName is the instrumentation scope name for every span this package
-// starts. It intentionally mirrors meterName/serviceName's value ("tempestwx")
+// starts. It intentionally mirrors meterName/serviceName's value ("stormglass")
 // as this package's identity, but is declared separately per each file's
 // existing pattern of naming its own scope constant.
-const tracerName = "tempestwx"
+const tracerName = "stormglass"
 
 // Span name constants — exact names asserted by tracing_test.go and expected
 // by the trace backend.
