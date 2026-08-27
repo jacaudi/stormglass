@@ -24,10 +24,14 @@ jobs:
       - name: Set up Buildx
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
 
-      # Build only — deliberately never pushed. The radar sidecar is opt-in
-      # (deploy/docker-compose.yml's `radar` profile), so nothing consumes a
-      # published radar image today; the requirement in #137 is that the
-      # Dockerfile is *compiled*, not that it is distributed.
+      # Built and BOOTED, but deliberately never pushed. The radar sidecar is
+      # opt-in (deploy/docker-compose.yml's `radar` profile), so nothing
+      # consumes a published radar image today. #137 required the Dockerfile
+      # be *compiled*; #186 showed that is not enough -- the image built
+      # cleanly for weeks while being unbootable, because the python 3.14 bump
+      # broke the native extensions at import time and nothing ever started
+      # the container. So the image is loaded into the runner's daemon and
+      # smoke-tested below; it is still not distributed.
       #
       # This is also why it is NOT a second ci-build.yml call: that stage
       # hardcodes `push: true` and defaults its image name to
@@ -46,6 +50,11 @@ jobs:
           context: radar
           file: radar/Dockerfile
           push: false
+          # load + tags together: without `load:` the buildx result never
+          # reaches the runner's daemon, and without `tags:` the loaded image
+          # is unnamed and the smoke step has nothing to reference.
+          load: true
+          tags: stormglass-radar:ci
           # Restores the compiled scientific-Python layers when radar/ is
           # unchanged, so this stage costs seconds on the pushes that do not
           # touch it. That is what makes running on every push affordable, and
@@ -54,3 +63,18 @@ jobs:
           # silent-green hole #137 exists to close.
           cache-from: type=gha
           cache-to: type=gha,mode=min
+
+      # Task is needed only to run radar-smoke; lint-tools: false keeps a
+      # radar-only job from installing the full linter set.
+      - name: Set up toolchains
+        uses: ./.github/actions/setup
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          lint-tools: false
+
+      # The gate #186 was missing. `task radar-smoke` imports decode (the
+      # module whose native extensions broke) and then boots the container and
+      # waits for /healthz on 8081. An unbootable image now fails here instead
+      # of shipping green.
+      - name: Smoke test radar image
+        run: IMAGE=stormglass-radar:ci task radar-smoke
