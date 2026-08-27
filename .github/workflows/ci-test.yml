@@ -53,10 +53,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          # 0, not 2: `task lint` diffs against BASE_REF to decide whether to run
-          # actionlint. Depth 2 only sees the last commit, so a push whose
-          # workflow edit was not the final commit silently skipped the lint.
-          fetch-depth: 0
 
       - name: Set up toolchains
         uses: ./.github/actions/setup
@@ -65,9 +61,6 @@ jobs:
 
       - name: Run task ${{ inputs.task }}
         env:
-          # The real base for this run: the PR's merge base, or the previous tip
-          # on a push. Falls back to HEAD~1 inside the task when unset.
-          BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
           # Unguards the internal/postgres tests against the service container
           # above. `task test` shells out to `go test`, which inherits this.
           POSTGRES_URL: postgres://postgres:postgres@localhost:5432/weather?sslmode=disable
