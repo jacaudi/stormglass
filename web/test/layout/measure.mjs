@@ -561,6 +561,30 @@ CHECKS.push({
   pass: (m) => [504, 430, 390, 360, 320].every((w) => m.widths[w].hero.height >= 180),
 });
 
+// Sits BESIDE hero-grows-when-narrow, never replacing it. The two measure
+// different elements and #182 needs both: `hero` above is `.hero-content`,
+// the inner block, which #194 already fixed (it clears 180 comfortably).
+// This one measures the CARD, `.glass-card.hero-card`, against the WIND card
+// directly beneath it -- the issue's own falsifier was "the hero is SHORTER
+// than the WIND card". Relative and same-render, so it cannot be broken by
+// the platform font-metric differences that have bitten absolute thresholds
+// in this suite before.
+const heroCardHeight = (m, w) =>
+  m.widths[w].cards.find((c) => c.className.includes('hero-card'))?.height ?? NaN;
+const windCardHeight = (m, w) =>
+  m.widths[w].cards.find((c) => c.className.includes('wind-card'))?.height ?? NaN;
+
+CHECKS.push({
+  id: 'hero-dominates-when-narrow',
+  section: '§6.6 / #182',
+  describe: (m) =>
+    [504, 430, 390, 360, 320]
+      .map((w) => `${w}:${heroCardHeight(m, w).toFixed(0)}/${windCardHeight(m, w).toFixed(0)}`)
+      .join(' '),
+  pass: (m) =>
+    [504, 430, 390, 360, 320].every((w) => heroCardHeight(m, w) >= windCardHeight(m, w)),
+});
+
 // --- Task 7 / design §6.6a --------------------------------------------------
 // RELATIVE, because the height depends on the station name. m.headerRevert is
 // the same fixture measured with §6.6a's declarations reverted to their
