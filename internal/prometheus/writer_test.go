@@ -9,6 +9,9 @@ import (
 	"time"
 
 	"github.com/jacaudi/stormglass/internal/tempestudp"
+
+	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 )
 
 // newTestPushGateway starts a local HTTP server that accepts any push
@@ -148,4 +151,91 @@ func TestPrometheusWriteDuringClose_NoPanic(t *testing.T) {
 	}
 
 	producers.Wait()
+}
+
+// gatherPushCollector runs the push path's collector through a real registry
+// the same way push.Pusher does (push/push.go calls Gatherers.Gather() BEFORE
+// any HTTP request), so these tests see exactly what the gateway would --
+// including a Gather() error, which is how #187's naive fix fails.
+func gatherPushCollector(t *testing.T, outbox chan prometheus.Metric) []*dto.MetricFamily {
+	t.Helper()
+	reg := prometheus.NewRegistry()
+	if err := reg.Register(newPushCollector(outbox)); err != nil {
+		t.Fatalf("register push collector: %v", err)
+	}
+	mfs, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("Gather() failed -- this is the failure Pusher.push hits before any HTTP request: %v", err)
+	}
+	return mfs
+}
+
+func testMetric(value float64, ts time.Time, serial string) prometheus.Metric {
+	desc := prometheus.NewDesc("stormglass_test_metric", "test", []string{"serial"}, nil)
+	m := prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, value, serial)
+	return prometheus.NewMetricWithTimestamp(ts, m)
+}
+
+// TestPushPath_StripsTimestamps is #187 (a). A real Pushgateway rejects any
+// pushed sample carrying a timestamp with 400 "pushed metrics must not have
+// timestamps", so every push from this path failed.
+func TestPushPath_StripsTimestamps(t *testing.T) {
+	outbox := make(chan prometheus.Metric, 4)
+	outbox <- testMetric(1.0, time.Unix(1700000000, 0), "ST-0001")
+
+	mfs := gatherPushCollector(t, outbox)
+	if len(mfs) != 1 {
+		t.Fatalf("got %d metric families, want 1", len(mfs))
+	}
+	for _, m := range mfs[0].Metric {
+		if m.TimestampMs != nil {
+			t.Errorf("pushed sample carries TimestampMs=%d; a Pushgateway 400s on that", m.GetTimestampMs())
+		}
+	}
+}
+
+// TestPushPath_DrainTwoSamplesOfOneSeries is #187 (b), and it is the reason
+// the naive fix is not enough. client_golang's checkMetricConsistency hashes
+// the TIMESTAMP into its uniqueness key (registry.go:983-986), so today two
+// samples of one series hash apart and no error fires. Strip the timestamps
+// and they collide: Gather() aborts with "was collected before with the same
+// name and label values" and the push dies locally, before any HTTP request.
+// outboxCollector drains the whole channel per push, so two obs_st broadcasts
+// between pushes make this the common case, not an edge.
+//
+// Values differ (1.0 then 2.0) deliberately: once timestamps are stripped,
+// distinct values are the ONLY way to tell first-wins from last-wins.
+func TestPushPath_DrainTwoSamplesOfOneSeries(t *testing.T) {
+	outbox := make(chan prometheus.Metric, 4)
+	outbox <- testMetric(1.0, time.Unix(1700000000, 0), "ST-0001")
+	outbox <- testMetric(2.0, time.Unix(1700000060, 0), "ST-0001")
+
+	mfs := gatherPushCollector(t, outbox)
+	if len(mfs) != 1 {
+		t.Fatalf("got %d metric families, want 1", len(mfs))
+	}
+	if got := len(mfs[0].Metric); got != 1 {
+		t.Fatalf("got %d samples for one series, want exactly 1 (deduped)", got)
+	}
+	if got := mfs[0].Metric[0].GetGauge().GetValue(); got != 2.0 {
+		t.Errorf("surviving sample value = %v, want 2 (last-queued wins; the outbox is FIFO so last = newest)", got)
+	}
+}
+
+// TestPushPath_DedupeKeepsDistinctSeriesApart guards the identity choice.
+// m.Desc().String() carries label NAMES but not VALUES, so deduping on it
+// would collapse two stations' serial-labelled series into one -- real
+// cross-device data loss. metricKey includes the values.
+func TestPushPath_DedupeKeepsDistinctSeriesApart(t *testing.T) {
+	outbox := make(chan prometheus.Metric, 4)
+	outbox <- testMetric(1.0, time.Unix(1700000000, 0), "ST-0001")
+	outbox <- testMetric(2.0, time.Unix(1700000000, 0), "ST-0002")
+
+	mfs := gatherPushCollector(t, outbox)
+	if len(mfs) != 1 {
+		t.Fatalf("got %d metric families, want 1", len(mfs))
+	}
+	if got := len(mfs[0].Metric); got != 2 {
+		t.Errorf("got %d samples, want 2 -- two stations must not collapse into one series", got)
+	}
 }

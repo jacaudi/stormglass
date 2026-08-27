@@ -260,3 +260,41 @@ func TestMetricsServer_Flush(t *testing.T) {
 		t.Errorf("expected nil error from Flush, got %v", err)
 	}
 }
+
+// TestScrapePath_StillCarriesTimestamps is the companion regression to
+// #187's push-path fix. Stripping timestamps is correct for a Pushgateway
+// and WRONG for the scrape endpoint, where the explicit timestamp is how a
+// sporadic UDP broadcast keeps its real observation time. The fix is scoped
+// to the push collector; this asserts the scrape path was not caught in it.
+func TestScrapePath_StillCarriesTimestamps(t *testing.T) {
+	desc := prometheus.NewDesc("stormglass_scrape_ts_probe", "probe", []string{"serial"}, nil)
+	base := prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, 1, "ST-0001")
+	ts := time.Unix(1700000000, 0)
+
+	c := &latestMetricsCollector{metrics: make(map[string]prometheus.Metric)}
+	c.Update([]prometheus.Metric{prometheus.NewMetricWithTimestamp(ts, base)})
+
+	reg := prometheus.NewRegistry()
+	if err := reg.Register(c); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	mfs, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("gather: %v", err)
+	}
+	for _, mf := range mfs {
+		if mf.GetName() != "stormglass_scrape_ts_probe" {
+			continue
+		}
+		for _, m := range mf.Metric {
+			if m.TimestampMs == nil {
+				t.Fatal("scrape path lost its timestamp -- the push-path strip must not reach it")
+			}
+			if got := m.GetTimestampMs(); got != ts.UnixMilli() {
+				t.Errorf("TimestampMs = %d, want %d", got, ts.UnixMilli())
+			}
+		}
+		return
+	}
+	t.Fatal("probe metric not gathered")
+}

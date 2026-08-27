@@ -11,6 +11,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/push"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 )
 
@@ -49,7 +50,7 @@ func NewPrometheusWriter(pushURL, jobName string) *PrometheusWriter {
 	more := make(chan bool, 1)
 
 	// Create collector that drains outbox
-	collector := &outboxCollector{outbox: outbox}
+	collector := newPushCollector(outbox)
 
 	// Create pusher
 	pusher := push.New(pushURL, jobName).
@@ -143,22 +144,77 @@ func (w *PrometheusWriter) pushWorker() {
 	}
 }
 
-// outboxCollector drains the outbox channel non-blockingly.
-type outboxCollector struct {
+// newPushCollector builds the collector the pusher gathers from.
+// newPushCollector builds the collector the pusher gathers from.
+//
+// The push path needs two things the scrape path does not (issue #187):
+//
+//  1. No timestamps. A real Pushgateway rejects any pushed sample carrying
+//     one -- 400 "pushed metrics must not have timestamps" -- so every push
+//     from this path failed. report.go wraps each metric with
+//     NewMetricWithTimestamp for the scrape path, which is correct there and
+//     fatal here.
+//
+//  2. Dedupe by series. Stripping alone would trade a 400 for a worse
+//     failure: client_golang hashes the timestamp into its uniqueness key
+//     (registry.go), so today two samples of one series hash apart. Remove
+//     the timestamps and they collide, and Gather() aborts the whole push
+//     locally -- before any HTTP request -- with "was collected before with
+//     the same name and label values". outboxCollector drains the entire
+//     channel per push, so two obs_st broadcasts between pushes make that
+//     the common case, not an edge.
+//
+// Last-queued wins, which is both correct and lossless in the only sense
+// that matters here: the Pushgateway retains just the last pushed state per
+// series, so intermediate samples in a single push could not be represented
+// even if sent -- and the scrape path's latestMetricsCollector already keeps
+// latest-per-series, so this gives the push path parity. The outbox is FIFO,
+// so last-queued is the newest broadcast.
+func newPushCollector(outbox <-chan prometheus.Metric) prometheus.Collector {
+	return &pushCollector{outbox: outbox}
+}
+
+type pushCollector struct {
 	outbox <-chan prometheus.Metric
 }
 
-func (c *outboxCollector) Describe(descs chan<- *prometheus.Desc) {
-	// Don't need to describe - metrics are already created
+func (c *pushCollector) Describe(chan<- *prometheus.Desc) {
+	// Unchecked collector: the metrics are already fully described.
 }
 
-func (c *outboxCollector) Collect(metrics chan<- prometheus.Metric) {
-	for {
+func (c *pushCollector) Collect(metrics chan<- prometheus.Metric) {
+	// Ordered so the emitted batch stays FIFO; the map holds the winner.
+	var order []string
+	latest := make(map[string]prometheus.Metric)
+
+	for drained := false; !drained; {
 		select {
 		case m := <-c.outbox:
-			metrics <- m
+			// metricKey (server.go) is desc + label NAMES AND VALUES. Keying
+			// on Desc().String() alone would carry names but not values, so
+			// two stations' serial-labelled series would collapse into one.
+			k := metricKey(m)
+			if _, seen := latest[k]; !seen {
+				order = append(order, k)
+			}
+			latest[k] = m
 		default:
-			return
+			drained = true
 		}
 	}
+
+	for _, k := range order {
+		metrics <- &timestampStrippingMetric{Metric: latest[k]}
+	}
+}
+
+// timestampStrippingMetric delegates Write, then clears TimestampMs.
+type timestampStrippingMetric struct{ prometheus.Metric }
+
+func (m *timestampStrippingMetric) Write(out *dto.Metric) error {
+	if err := m.Metric.Write(out); err != nil {
+		return err
+	}
+	out.TimestampMs = nil
+	return nil
 }
