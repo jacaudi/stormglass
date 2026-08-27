@@ -12,6 +12,13 @@
       "matchUpdateTypes": ["minor", "patch", "digest", "pin"],
       "matchPackageNames": ["**", "!golang"],
       "groupName": "docker-images"
+    },
+    {
+      "description": "The radar sidecar's python base is pinned to 3.12 and must not be bumped automatically. cartopy 0.25.0 publishes manylinux wheels for cp310-cp313 and none for cp314, so on 3.14 pip builds cartopy from source and the resulting extension fails to link libstdc++ at import time (#186). The image still BUILDS green in that state -- ci-radar.yml builds it without ever running it -- so no CI signal catches the regression. Note this bump is a MINOR update to renovate (3.12 -> 3.14 keeps major 3), so the grouping rule above does not hold it back: PR #139 carried exactly this revert inside a routine docker-images group. Bumping the base is a deliberate decision that requires checking cartopy's wheels and booting the image first; see the comment at the top of radar/Dockerfile.",
+      "matchFileNames": ["radar/Dockerfile"],
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["python"],
+      "enabled": false
     }
   ]
 }
