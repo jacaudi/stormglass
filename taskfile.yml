@@ -107,6 +107,34 @@ tasks:
     cmds:
       - docker build -f radar/Dockerfile -t stormglass-radar:local radar/
 
+  radar-smoke:
+    desc: Boot the built radar sidecar image and assert it serves
+    requires:
+      vars: [IMAGE]
+    # Same reason as `smoke`: accepts BOTH `IMAGE=… task radar-smoke` and
+    # `task radar-smoke IMAGE=…`.
+    env:
+      IMAGE: '{{.IMAGE}}'
+    cmds:
+      - |
+        set -eu
+        echo "smoke testing radar sidecar ${IMAGE}"
+        # The issue's own minimal check first, so an import-time failure names
+        # itself instead of surfacing as "never served /healthz". app.py:15
+        # does `import decode` at module top, and decode.py pulls the
+        # pyart/matplotlib/cartopy chain -- which is exactly how #186 failed:
+        # the native extensions did not load, so uvicorn never started.
+        docker run --rm --entrypoint python "${IMAGE}" -c "import decode"
+        echo "ok: decode imports"
+        docker run -d --name radar-smoke -p 8081:8081 "${IMAGE}"
+        trap 'docker logs radar-smoke || true; docker rm -f radar-smoke >/dev/null 2>&1 || true' EXIT
+        for i in $(seq 1 30); do
+          curl -sf http://localhost:8081/healthz >/dev/null && break
+          [ "$i" = "30" ] && { echo "::error::radar sidecar never served /healthz on :8081"; exit 1; }
+          sleep 2
+        done
+        echo "ok: radar sidecar serves /healthz"
+
   # Retained from the pre-migration taskfile: the local image build is not part
   # of the CI contract but is the documented way to build by hand (CLAUDE.md).
   build-local:
