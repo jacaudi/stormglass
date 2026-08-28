@@ -18,7 +18,16 @@ import {
   fetchStationAlmanac,
   fetchRecordsSummary,
   fetchCapabilities,
+  ApiError,
 } from '../api/stormglassApi';
+
+// An empty observation store answers /api/observations/current with 404. That
+// is the normal state of a fresh deployment -- the station has not broadcast
+// yet -- and must be told apart from a fault, because App blanks the dashboard
+// for the Connection Error screen whenever `error && !current` (#218).
+function isEmptyStore(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 404;
+}
 
 // There is no WebSocket backend (Contract C is plain JSON, see design §11),
 // so live-ness comes from polling the core observation instead. 30s keeps
@@ -55,6 +64,10 @@ export interface WeatherData {
   // successful fetch (§14 P1.6). False immediately after a successful
   // refresh.
   isStale: boolean;
+  // True when the core observation endpoint reports an empty store: the
+  // deployment is healthy and simply has no observation yet. Distinct from
+  // `error`, which means the fetch genuinely failed.
+  awaitingData: boolean;
   // Which optional cards the server has enabled. `null` means unknown --
   // either not yet fetched or the fetch failed -- and is treated exactly like
   // all-false, so a card is never mounted on a guess (issue #145).
@@ -94,6 +107,7 @@ export function useWeatherData(
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [isStale, setIsStale] = useState(false);
+  const [awaitingData, setAwaitingData] = useState(false);
   const [capabilities, setCapabilities] = useState<Capabilities | null>(null);
   const [capsSettled, setCapsSettled] = useState(false);
   // Bumped by refresh() to re-run the records-summary effect below. The
@@ -215,9 +229,14 @@ export function useWeatherData(
       setCurrent(obsResult.value);
       setIsStale(false);
       setError(null);
+      setAwaitingData(false);
       setLastUpdated(new Date());
+    } else if (isEmptyStore(obsResult.reason)) {
+      setAwaitingData(true);
+      setError(null);
     } else {
       setIsStale(true);
+      setAwaitingData(false);
       setError(describeError(obsResult));
     }
   }, [stationId, forecastEnabled, almanacEnabled]);
@@ -249,10 +268,17 @@ export function useWeatherData(
       setStatus(stationStatusFrom(obs));
       setIsStale(false);
       setError(null);
+      setAwaitingData(false);
       setLastUpdated(new Date());
     } catch (err) {
       if (signal.aborted) return; // superseded/unmounted, not a real failure
+      if (isEmptyStore(err)) {
+        setAwaitingData(true);
+        setError(null);
+        return;
+      }
       setIsStale(true);
+      setAwaitingData(false);
       setError(err instanceof Error ? err.message : 'Failed to load weather data');
     }
   }, [stationId]);
@@ -341,6 +367,7 @@ export function useWeatherData(
     error,
     lastUpdated,
     isStale,
+    awaitingData,
     capabilities,
     refresh,
   };

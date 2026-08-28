@@ -23,7 +23,7 @@ import './App.css';
 
 function App() {
   const { prefs, setPrefs } = useUnits();
-  const { station, current, forecast, status, almanac, isLoading, error, lastUpdated, isStale, refresh, summary, capabilities } =
+  const { station, current, forecast, status, almanac, isLoading, error, lastUpdated, isStale, awaitingData, refresh, summary, capabilities } =
     useWeatherData(undefined, prefs.recordsWindowDays);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -40,6 +40,32 @@ function App() {
       <div className="loading-screen">
         <div className="loading-spinner" />
         <p>Connecting to station...</p>
+      </div>
+    );
+  }
+
+  // An empty store is a healthy appliance that has not heard from the station
+  // yet, not a failure — every fresh deployment passes through this state for
+  // up to a minute, and stays in it indefinitely if the broadcasts never
+  // arrive. Rendering the Connection Error screen here told a correctly
+  // configured operator their deployment was broken, and gave a misconfigured
+  // one nothing to act on (#218).
+  if (awaitingData && !current) {
+    return (
+      <div className="empty-screen">
+        <div className="loading-spinner" />
+        <h2>Waiting for the first observation</h2>
+        <p>
+          Stormglass is running and its store is empty. A Tempest station
+          broadcasts about once a minute, so this usually clears on its own.
+        </p>
+        <p className="empty-screen-hint">
+          If it does not, the broadcasts are not reaching this container. Check
+          that it runs with <code>--net=host</code> and that UDP port{' '}
+          <code>50222</code> is open on the path between the station and this
+          host. Setting <code>LOG_UDP=true</code> logs every packet received.
+        </p>
+        <button className="glass-btn" onClick={refresh}>Check now</button>
       </div>
     );
   }
