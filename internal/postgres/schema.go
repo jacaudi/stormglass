@@ -15,10 +15,12 @@ func CreateSchema(ctx context.Context, pool *pgxpool.Pool) error {
 		createRapidWindTable,
 		createHubStatusTable,
 		createEventsTable,
+		createDeviceStatusTable,
 		createObservationsIndexes,
 		createRapidWindIndexes,
 		createHubStatusIndexes,
 		createEventsIndexes,
+		createDeviceStatusIndexes,
 	}
 
 	for _, schema := range schemas {
@@ -119,4 +121,37 @@ CREATE INDEX IF NOT EXISTS idx_hub_time ON stormglass_hub_status(timestamp DESC)
 
 const createEventsIndexes = `
 CREATE INDEX IF NOT EXISTS idx_events_time ON stormglass_events(timestamp DESC);
+`
+
+// createDeviceStatusTable stores the SENSOR's own health (#196) -- distinct
+// from stormglass_hub_status, which covers the hub. Its own table rather than
+// columns on stormglass_observations because a device_status broadcast has no
+// observation row to attach to: it is its own report type on its own cadence.
+//
+// Column types follow the Go source types in DeviceStatusReport
+// (report.go:242-246, 260), where every field but voltage is an int --
+// HubStatusReport's float64s are a different report. sensor_status is a
+// bitfield, so INTEGER rather than a float.
+const createDeviceStatusTable = `
+CREATE TABLE IF NOT EXISTS stormglass_device_status (
+    id                UUID PRIMARY KEY,
+    serial_number     TEXT NOT NULL,
+    timestamp         TIMESTAMPTZ NOT NULL,
+    uptime            BIGINT,
+    voltage           DOUBLE PRECISION,
+    firmware_revision TEXT,
+    rssi              INTEGER,
+    hub_rssi          INTEGER,
+    sensor_status     INTEGER,
+
+    UNIQUE(serial_number, timestamp)
+);
+`
+
+// Serial-leading to match the only reader's shape (WHERE serial_number = ?
+// ORDER BY timestamp DESC LIMIT 1). Postgres has no reader for this table
+// today -- the HTTP API reads SQLite -- but the index costs little and keeps
+// the two stores' schemas honest about the intended access pattern.
+const createDeviceStatusIndexes = `
+CREATE INDEX IF NOT EXISTS idx_device_status_serial_time ON stormglass_device_status(serial_number, timestamp DESC);
 `
