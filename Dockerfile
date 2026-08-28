@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # --- UI stage: build the React app with Vite -------------------------------
-FROM node:24-alpine@sha256:d32cdf619f63fe0471182d08996dd516c6275bb5fd31ae06e55a570bd9e1ad43 AS ui
+FROM node:24-alpine@sha256:e67514e5d0f6c46656005e1b693b2ec9d52e80b641307de684d4a015ba7a4eaf AS ui
 
 WORKDIR /app/web
 
@@ -44,7 +44,7 @@ RUN CGO_ENABLED=0 \
 RUN mkdir -p /seed/data
 
 # --- Final stage: non-root static image -------------------------------------
-FROM cgr.dev/chainguard/static:latest@sha256:f68e3a8244c7d0f4cd56635aaff8e6a533cf6cc3850d8fb339567a5782d6a0b0
+FROM cgr.dev/chainguard/static:latest@sha256:96d02f455d5a73b817c0602910748609cf8471b1cc9522f78c75cedb1f67d072
 
 COPY --from=builder /stormglass /stormglass
 COPY --from=builder --chown=65532:65532 /seed/data /data
