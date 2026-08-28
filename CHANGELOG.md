@@ -1,5 +1,38 @@
 # Changelog
 
+## [1.0.2](https://github.com/jacaudi/stormglass/compare/v1.0.1...v1.0.2) (2026-08-28)
+
+
+### Bug Fixes
+
+* **api:** serve device signal and firmware on the station status path ([8a30e3b](https://github.com/jacaudi/stormglass/commit/8a30e3b9fbeb371ec60ef721fba334c44191b1e0)), closes [#196](https://github.com/jacaudi/stormglass/issues/196)
+* **ci:** always run actionlint instead of change-detecting against a possibly-null base ([#221](https://github.com/jacaudi/stormglass/issues/221)) ([2e80c9d](https://github.com/jacaudi/stormglass/commit/2e80c9d7df44ef2cbe4d8b84fe2b5e9104abf880))
+* **ci:** boot the radar image in CI so an unbootable build cannot go green ([#222](https://github.com/jacaudi/stormglass/issues/222)) ([2660798](https://github.com/jacaudi/stormglass/commit/26607988077f8c716ca42adaa7015a5fea7a03a8))
+* own /data in the image so the documented quickstart starts ([#227](https://github.com/jacaudi/stormglass/issues/227)) ([64ef5ac](https://github.com/jacaudi/stormglass/commit/64ef5acbe6734fd599c95ab9ba73a59f24844444))
+* plumb device signal and firmware from device_status to the UI ([65a78eb](https://github.com/jacaudi/stormglass/commit/65a78eb4c8742e4b5f63c4b9203bfbafecbdbd9f))
+* **prometheus:** strip explicit timestamps on the push path so a real Pushgateway accepts pushes ([#223](https://github.com/jacaudi/stormglass/issues/223)) ([9f9be3f](https://github.com/jacaudi/stormglass/commit/9f9be3f3c804548c6b3006f8ae68e6a79f608c70))
+* **radar:** raise the sidecar payload cap to 64 MiB and fail loud on overflow ([#220](https://github.com/jacaudi/stormglass/issues/220)) ([fb45fdd](https://github.com/jacaudi/stormglass/commit/fb45fdd4be36ce351cb77477d9b0b28ae9ca947d))
+* refactor README into a quickstart and move advanced docs under docs/ ([652656e](https://github.com/jacaudi/stormglass/commit/652656e6d895a9be15d0e9971ed235452a0c80a7))
+* render an awaiting-data state when the observation store is empty ([#230](https://github.com/jacaudi/stormglass/issues/230)) ([48a52c4](https://github.com/jacaudi/stormglass/commit/48a52c4e7f2e5e22e2dfd7e655591679be12fc69))
+* **renovate:** stop proposing the radar sidecar's python base bump ([#215](https://github.com/jacaudi/stormglass/issues/215)) ([fd9bb61](https://github.com/jacaudi/stormglass/commit/fd9bb618d7f115edcbfb32df587f336b14214b9d))
+* report every unmet almanac precondition in one startup ([#219](https://github.com/jacaudi/stormglass/issues/219)) ([c6a2a50](https://github.com/jacaudi/stormglass/commit/c6a2a50e6e71912ad5a4c81e3267b7f9e6edbad9))
+* **store:** add device signal and firmware storage to both stores ([bb1ce17](https://github.com/jacaudi/stormglass/commit/bb1ce17302ec5da5a403e5d9e8ac313a3ebae7a0)), closes [#196](https://github.com/jacaudi/stormglass/issues/196)
+* **store:** persist device_status signal and firmware instead of dropping the report ([0acddc1](https://github.com/jacaudi/stormglass/commit/0acddc1caebc3663fe1581713f244a83a51b002a)), closes [#196](https://github.com/jacaudi/stormglass/issues/196)
+* **web:** keep the hero card dominant at one-column widths ([28f0591](https://github.com/jacaudi/stormglass/commit/28f0591061364dbddd5018fe5a5b1c15f4ec5c6f))
+* **web:** keep the hero card dominant at one-column widths ([8d84c50](https://github.com/jacaudi/stormglass/commit/8d84c50d189b0c55ea17e6dcddd8754062fcba6f)), closes [#182](https://github.com/jacaudi/stormglass/issues/182)
+* **web:** render real signal (dBm) and firmware in StationHealth ([921c2f8](https://github.com/jacaudi/stormglass/commit/921c2f8fa27ea02c3fd1756753fa80c7541c8726)), closes [#196](https://github.com/jacaudi/stormglass/issues/196)
+
+
+### Miscellaneous Chores
+
+* **deps:** Update dependency @testing-library/react to v16.3.3 ([#142](https://github.com/jacaudi/stormglass/issues/142)) ([a2913a4](https://github.com/jacaudi/stormglass/commit/a2913a47cef2da0372c3974b4c56d8ed0574f4d0))
+* **deps:** Update dependency @vitejs/plugin-react to v6.1.1 ([#193](https://github.com/jacaudi/stormglass/issues/193)) ([cc24726](https://github.com/jacaudi/stormglass/commit/cc24726738d61423e3269ed4dbb294773feaea28))
+* **deps:** Update dependency eslint-plugin-react-refresh to v0.5.5 ([#143](https://github.com/jacaudi/stormglass/issues/143)) ([81d1b54](https://github.com/jacaudi/stormglass/commit/81d1b5435120d0d4a651480a9a6ad8d29b115f14))
+* **deps:** Update docker-images ([#139](https://github.com/jacaudi/stormglass/issues/139)) ([af715aa](https://github.com/jacaudi/stormglass/commit/af715aa39b7d09a65febff30c8261d468afdee2a))
+* **deps:** Update opentelemetry-go monorepo ([#204](https://github.com/jacaudi/stormglass/issues/204)) ([8f9ab33](https://github.com/jacaudi/stormglass/commit/8f9ab334b92d4003bd9b8be0f00498163cfbd648))
+* **deps:** Update opentelemetry-go-contrib monorepo ([#211](https://github.com/jacaudi/stormglass/issues/211)) ([6332438](https://github.com/jacaudi/stormglass/commit/633243869aa78edac33b55d8d071cbf673280405))
+* untrack docs/designs, docs/plans and docs/review ([ca229a6](https://github.com/jacaudi/stormglass/commit/ca229a646e9778b1b3c718d78e8416fb8d99a559))
+
 ## [1.0.1](https://github.com/jacaudi/stormglass/compare/v1.0.0...v1.0.1) (2026-08-26)
 
 
