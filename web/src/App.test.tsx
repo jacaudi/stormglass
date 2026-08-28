@@ -119,6 +119,8 @@ const mockCurrent: CurrentObservation = {
   heatIndex: 21.5,
   windChill: 21.5,
   pressureTrend: PressureTrend.Steady,
+  signalDbm: null,
+  firmwareVersion: null,
 };
 
 const mockForecast: ForecastDay[] = [

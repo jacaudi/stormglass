@@ -94,12 +94,13 @@ export async function fetchForecast(
 // Station status / health -- Contract C has no dedicated status endpoint
 // (design §11), so this derives a best-effort StationStatus from the latest
 // CurrentObservation rather than inventing a server route out of scope for
-// this task. signalStrength and firmwareVersion have no source in Contract C
-// and are reported as null -- NOT as 0 / empty string, which the card rendered
-// as "SIGNAL 0/4" and a blank FIRMWARE, i.e. absent data presented as a
-// reading. "0/4" states no signal on a healthy station, which is worse than
-// stating nothing. 0 is also a valid signal value, so it cannot double as the
-// unknown sentinel. A failure here
+// this task. As of #196 signalDbm and firmwareVersion DO have a source: the
+// server serves them on the current-observation response, sourced from the
+// newest device_status row for this station's serial. They stay nullable --
+// the server sends null when there is no row, when the newest is stale, or
+// when its query failed -- because 0 dBm is a valid reading and cannot double
+// as the unknown sentinel, and a blank FIRMWARE is absent data presented as a
+// reading. A failure here
 // REJECTS like every other fetch* in this file (M5): the underlying
 // observation fetch is the one slice useWeatherData's allSettled can retain
 // the prior value for on failure, and swallowing the error into a fake
@@ -109,14 +110,27 @@ export async function fetchStationStatus(
   _deviceId?: number,
   signal?: AbortSignal
 ): Promise<StationStatus> {
-  const obs = await fetchCurrentObservation(undefined, signal);
+  return stationStatusFrom(await fetchCurrentObservation(undefined, signal));
+}
+
+// stationStatusFrom is the pure derivation, exported so the 30-second poll can
+// refresh status from the observation it ALREADY fetched instead of issuing a
+// second request -- or worse, not refreshing status at all. Before #196 the
+// poll updated `current` and never touched `status`, so anything derived here
+// was frozen at page load for the lifetime of the tab. That is the same defect
+// #89 fixed for the Records card.
+export function stationStatusFrom(obs: CurrentObservation): StationStatus {
   const ageSeconds = Date.now() / 1000 - obs.timestamp;
   return {
     isOnline: ageSeconds <= STATION_ONLINE_THRESHOLD_SECONDS,
     lastReport: obs.timestamp,
     batteryLevel: obs.battery,
-    signalStrength: null,
-    firmwareVersion: null,
+    // #196: these now come from device_status via the current-observation
+    // response. Still nullable, and still null-honest -- the server sends
+    // null when there is no row, when it is stale, or when its query failed,
+    // and 0 dBm is a real reading that must not collapse into that.
+    signalDbm: obs.signalDbm,
+    firmwareVersion: obs.firmwareVersion,
   };
 }
 

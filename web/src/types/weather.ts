@@ -55,6 +55,11 @@ export interface CurrentObservation {
   heatIndex: number;       // °C (calculated)
   windChill: number;       // °C (calculated)
   pressureTrend: PressureTrend;
+  // Latest known DEVICE health, from device_status -- a different report type
+  // on a different cadence than this observation (#196). null when there is
+  // no row yet, when the newest is stale, or when its query failed.
+  signalDbm: number | null;
+  firmwareVersion: string | null;
 }
 
 export const PrecipitationType = {
@@ -103,17 +108,21 @@ export interface StationStatus {
   isOnline: boolean;
   lastReport: number;
   batteryLevel: number;
-  // null means NOT REPORTED, which is the state today: neither field has a
-  // source in Contract C. They are carried over UDP -- device_status has rssi
-  // and firmware_revision, hub_status has rssi -- but device_status is dropped
-  // by the store and no firmware column exists, so nothing reaches the API.
+  // Both are plumbed through from device_status as of #196: the store now
+  // persists the report, and GET /api/observations/current serves the newest
+  // row for this station's serial.
   //
-  // null rather than 0/'' on purpose. 0 is a VALID signal reading, so using it
-  // to mean "unknown" is a sentinel that collides with real data -- the same
-  // defect class this branch fixed eleven times in its own probes. The card
-  // renders an em-dash for null and a real value for anything else, so the
-  // follow-up that plumbs the data needs no further UI change.
-  signalStrength: number | null; // 0-4, or null when not reported
+  // null still means NOT REPORTED, and still matters. The server serves null
+  // when there is no device_status row yet, when the newest one is stale, or
+  // when its query failed -- and 0 dBm is a VALID reading, so it can never
+  // double as the unknown sentinel. The card renders an em-dash for null and
+  // a real value for anything else.
+  //
+  // signalDbm, not signalStrength: this was 0-4 bars until #196. WeatherFlow
+  // publishes no dBm-to-bars mapping, so bucketing would mean inventing
+  // thresholds; the raw reading is served instead and the field was renamed
+  // so the units change breaks at the type level rather than silently.
+  signalDbm: number | null; // raw dBm (negative), or null when not reported
   firmwareVersion: string | null;
 }
 

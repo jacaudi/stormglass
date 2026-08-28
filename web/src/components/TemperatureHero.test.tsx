@@ -39,6 +39,8 @@ const baseCurrent: CurrentObservation = {
   heatIndex: 75,
   windChill: 68,
   pressureTrend: PressureTrend.Steady,
+  signalDbm: null,
+  firmwareVersion: null,
 };
 
 describe('TemperatureHero converted readouts (design §6.5/§6.6, Task 21)', () => {

@@ -1244,33 +1244,6 @@
   color: var(--text-secondary);
 }
 
-.signal-display {
-  display: flex;
-  align-items: flex-end;
-  gap: 0.5rem;
-}
-
-.signal-bars {
-  display: flex;
-  align-items: flex-end;
-  gap: 2px;
-}
-
-.signal-bar {
-  width: 5px;
-  background: var(--bg-secondary);
-  border-radius: 1px;
-}
-
-.signal-bar.active {
-  background: var(--success-color);
-}
-
-.signal-text {
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-}
-
 /* --- Loading screen -------------------------------------------- */
 .loading-screen {
   display: flex;

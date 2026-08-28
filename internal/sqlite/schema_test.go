@@ -30,6 +30,8 @@ func TestMigrate_CreatesTablesAndVersion(t *testing.T) {
 		"stormglass_rapid_wind",
 		"stormglass_hub_status",
 		"stormglass_events",
+		// #196: device_status carries the sensor's own radio and firmware.
+		"stormglass_device_status",
 	}
 	for _, table := range wantTables {
 		assertTableExists(t, db, table)
@@ -41,14 +43,14 @@ func TestMigrate_CreatesTablesAndVersion(t *testing.T) {
 	// instead of a full table scan + sort -- idx_obs_serial_time can't serve
 	// either query since it leads with serial_number (SGE review I1).
 	assertIndexExists(t, db, "idx_obs_time")
-	assertSchemaVersion(t, db, 2)
+	assertSchemaVersion(t, db, 3)
 
 	// Idempotent: running Migrate again must not fail and must leave the
 	// schema at the same version.
 	if err := Migrate(ctx, db); err != nil {
 		t.Fatalf("second Migrate() error = %v", err)
 	}
-	assertSchemaVersion(t, db, 2)
+	assertSchemaVersion(t, db, 3)
 }
 
 func TestMigrateDeclaresMeasurementColumnsAsREAL(t *testing.T) {
@@ -139,5 +141,54 @@ func assertSchemaVersion(t *testing.T, db *sql.DB, want int) {
 	}
 	if got != want {
 		t.Errorf("schema_version = %d, want %d", got, want)
+	}
+}
+
+// TestMigrateTypesDeviceStatusColumnsFromSourceTypes pins #196's column
+// affinities to the Go types they come from, not to hub_status's. Every field
+// but voltage is an int in DeviceStatusReport (report.go:242-246, 260) where
+// HubStatusReport uses float64, and sensor_status is a BITFIELD -- the repo's
+// own precedent for a categorical is `precip_type INTEGER, -- categorical
+// enum ... not a measurement` (0002_init.sql).
+func TestMigrateTypesDeviceStatusColumnsFromSourceTypes(t *testing.T) {
+	ctx := t.Context()
+	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatalf("open database: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	if err := Migrate(ctx, db); err != nil {
+		t.Fatalf("Migrate() error = %v", err)
+	}
+
+	want := map[string]string{
+		"uptime":            "INTEGER",
+		"voltage":           "REAL", // the one genuine measurement
+		"firmware_revision": "TEXT", // vendor forms are mixed; string is lossless
+		"rssi":              "INTEGER",
+		"hub_rssi":          "INTEGER",
+		"sensor_status":     "INTEGER", // bitfield, not a measurement
+	}
+	rows, err := db.QueryContext(ctx, `SELECT name, type FROM pragma_table_info('stormglass_device_status')`)
+	if err != nil {
+		t.Fatalf("pragma_table_info: %v", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	got := map[string]string{}
+	for rows.Next() {
+		var name, typ string
+		if err := rows.Scan(&name, &typ); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		got[name] = typ
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("rows: %v", err)
+	}
+	for col, wantType := range want {
+		if got[col] != wantType {
+			t.Errorf("stormglass_device_status.%s = %q, want %q", col, got[col], wantType)
+		}
 	}
 }

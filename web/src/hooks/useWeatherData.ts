@@ -14,6 +14,7 @@ import {
   fetchStationMeta,
   fetchForecast,
   fetchStationStatus,
+  stationStatusFrom,
   fetchStationAlmanac,
   fetchRecordsSummary,
   fetchCapabilities,
@@ -239,6 +240,13 @@ export function useWeatherData(
       // keeps the same object reference so React.memo on the current-
       // consuming cards can skip re-rendering on ticks with no new data.
       setCurrent((prev) => (prev && prev.timestamp === obs.timestamp ? prev : obs));
+      // Refresh status from the SAME response (#196). Without this the poll
+      // updated `current` and left `status` at its page-load value, so signal,
+      // firmware, battery and "last report" froze for the lifetime of a tab
+      // that "may stay open for weeks" -- exactly the defect #89 fixed for the
+      // Records card. Costs no extra request: the fields ride on the
+      // observation already in hand.
+      setStatus(stationStatusFrom(obs));
       setIsStale(false);
       setError(null);
       setLastUpdated(new Date());

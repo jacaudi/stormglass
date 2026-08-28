@@ -29,6 +29,8 @@ const baseCurrent: CurrentObservation = {
   heatIndex: 20,
   windChill: 20,
   pressureTrend: PressureTrend.Steady,
+  signalDbm: null,
+  firmwareVersion: null,
 };
 
 // The card gained a window range row because the taller humidity ring stretched
