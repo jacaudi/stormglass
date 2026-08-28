@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"github.com/jacaudi/stormglass/internal/sqlite"
 )
@@ -29,6 +30,17 @@ type fakeObservationReader struct {
 	// -- simulating the real writer's allowlist rejecting an unknown field
 	// before running any query.
 	historyErr error
+
+	// deviceStatus and deviceStatusErr back LatestDeviceStatus (#196).
+	// The zero value means "no row", so a test that says nothing about
+	// device status gets ErrDeviceStatusNotFound and null wire fields --
+	// which is the correct default for a store that has never seen one.
+	deviceStatus    sqlite.DeviceStatus
+	deviceStatusErr error
+	// deviceStatusSerial records the serial LatestDeviceStatus was called
+	// with, so a test can assert the read is SCOPED to the observation's
+	// serial rather than unscoped.
+	deviceStatusSerial string
 
 	// summary and summaryErr back SummarizeObservations for
 	// TestHandleSummary_*.
@@ -474,5 +486,128 @@ func TestHandleSummary_NilReader(t *testing.T) {
 
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("GET /api/observations/summary?days=7 = %d, want 503", rec.Code)
+	}
+}
+
+func (f *fakeObservationReader) LatestDeviceStatus(_ context.Context, serial string) (sqlite.DeviceStatus, error) {
+	f.deviceStatusSerial = serial
+	if f.deviceStatusErr != nil {
+		return sqlite.DeviceStatus{}, f.deviceStatusErr
+	}
+	if f.deviceStatus.SerialNumber == "" {
+		return sqlite.DeviceStatus{}, sqlite.ErrDeviceStatusNotFound
+	}
+	return f.deviceStatus, nil
+}
+
+// currentBody issues GET /api/observations/current against reader and decodes
+// the response, failing the test on any non-200.
+func currentBody(t *testing.T, reader *fakeObservationReader) map[string]any {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	handleCurrentObservation(rec, httptest.NewRequest(http.MethodGet, "/api/observations/current", nil), reader)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	return body
+}
+
+func freshObs(serial string) sqlite.Observation {
+	return sqlite.Observation{SerialNumber: serial, Timestamp: time.Now().Unix()}
+}
+
+// TestCurrentObservation_ServesDeviceStatus is #196's API half: the fields the
+// UI hardcoded to null now carry real values.
+func TestCurrentObservation_ServesDeviceStatus(t *testing.T) {
+	rssi := int64(-61)
+	fw := "156"
+	reader := &fakeObservationReader{
+		obs: freshObs("ST-API"),
+		deviceStatus: sqlite.DeviceStatus{
+			SerialNumber: "ST-API", Timestamp: time.Now().Unix(), Rssi: &rssi, Firmware: &fw,
+		},
+	}
+
+	body := currentBody(t, reader)
+	if got := body["signalDbm"]; got != float64(-61) {
+		t.Errorf("signalDbm = %v, want -61", got)
+	}
+	if got := body["firmwareVersion"]; got != "156" {
+		t.Errorf("firmwareVersion = %v, want \"156\"", got)
+	}
+	// SCOPED, not unscoped: device_status is not Tempest-only, so an
+	// unscoped read could return another device's radio.
+	if reader.deviceStatusSerial != "ST-API" {
+		t.Errorf("LatestDeviceStatus called with %q, want the observation's serial %q",
+			reader.deviceStatusSerial, "ST-API")
+	}
+}
+
+// TestCurrentObservation_DeviceStatusNullWhenAbsent: no row must serve null,
+// not a zero. 0 dBm is a valid reading and cannot double as "unknown".
+func TestCurrentObservation_DeviceStatusNullWhenAbsent(t *testing.T) {
+	body := currentBody(t, &fakeObservationReader{obs: freshObs("ST-NONE")})
+
+	for _, field := range []string{"signalDbm", "firmwareVersion"} {
+		v, present := body[field]
+		if !present {
+			t.Errorf("%s missing from the response entirely; want an explicit null", field)
+		}
+		if v != nil {
+			t.Errorf("%s = %v, want null", field, v)
+		}
+	}
+}
+
+// TestCurrentObservation_DeviceStatusZeroSurvives is the other half of null
+// honesty: a reported 0 dBm is a reading and must not collapse to null.
+func TestCurrentObservation_DeviceStatusZeroSurvives(t *testing.T) {
+	zero := int64(0)
+	body := currentBody(t, &fakeObservationReader{
+		obs: freshObs("ST-ZERO"),
+		deviceStatus: sqlite.DeviceStatus{
+			SerialNumber: "ST-ZERO", Timestamp: time.Now().Unix(), Rssi: &zero,
+		},
+	})
+	if got, ok := body["signalDbm"]; !ok || got != float64(0) {
+		t.Errorf("signalDbm = %v (present=%v), want 0 -- 0 dBm is a real reading", got, ok)
+	}
+}
+
+// TestCurrentObservation_DeviceStatusStaleServesNull: obs_st and device_status
+// have different cadences, so a fresh observation can sit beside an ancient
+// radio reading. Past deviceStatusMaxAge the server says nothing rather than
+// presenting a frozen value as live.
+func TestCurrentObservation_DeviceStatusStaleServesNull(t *testing.T) {
+	rssi := int64(-61)
+	stale := time.Now().Add(-deviceStatusMaxAge - time.Minute).Unix()
+	body := currentBody(t, &fakeObservationReader{
+		obs: freshObs("ST-STALE"),
+		deviceStatus: sqlite.DeviceStatus{
+			SerialNumber: "ST-STALE", Timestamp: stale, Rssi: &rssi,
+		},
+	})
+	if got := body["signalDbm"]; got != nil {
+		t.Errorf("signalDbm = %v, want null for a device_status older than %v", got, deviceStatusMaxAge)
+	}
+}
+
+// TestCurrentObservation_DeviceStatusErrorDegrades: a radio reading must never
+// 500 the dashboard. Mirrors the pressure-trend degrade in the same handler.
+func TestCurrentObservation_DeviceStatusErrorDegrades(t *testing.T) {
+	body := currentBody(t, &fakeObservationReader{
+		obs:             freshObs("ST-ERR"),
+		deviceStatusErr: errors.New("database is locked"),
+	})
+	if got := body["signalDbm"]; got != nil {
+		t.Errorf("signalDbm = %v, want null after a query error", got)
+	}
+	// The rest of the response must still be intact.
+	if _, ok := body["airTemperature"]; !ok {
+		t.Error("airTemperature missing -- a device-status error degraded the whole response")
 	}
 }

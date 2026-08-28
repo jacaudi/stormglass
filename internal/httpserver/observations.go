@@ -22,6 +22,19 @@ import (
 // authoritative source; see the task report for the rationale.
 const pressureTrendWindow = 3 * time.Hour
 
+// deviceStatusMaxAge bounds how old a device_status row may be before its
+// readings are served as null.
+//
+// obs_st and device_status arrive independently, so without this the card
+// would show "Last Report 12s ago" beside a signal reading that could be
+// hours old, with no way for the client to tell. device_status is documented
+// as roughly once a minute (tempestudp/report.go), so 15 minutes is fifteen
+// consecutive misses -- a radio that is down, not one that is jittery. A
+// stale reading presented as live is the same class of defect as a zero
+// presented as a reading, and this is the one place the server can prevent
+// it.
+const deviceStatusMaxAge = 15 * time.Minute
+
 // pressureTrendThresholdMB is the minimum |delta| (millibars, over
 // pressureTrendWindow) required to call the trend "rising"/"falling" rather
 // than "steady". Below this, sensor noise could otherwise flip the label
@@ -42,6 +55,35 @@ const (
 // branches instead.
 const heatIndexMinTempC = 26.7
 
+// applyDeviceStatus fills the sensor-health fields from the latest
+// device_status row for THIS observation's serial (#196).
+//
+// Every failure mode leaves both fields nil, which is the honest answer:
+//   - no row yet (fresh store, or the first device_status has not arrived)
+//   - the row is older than deviceStatusMaxAge
+//   - the query failed
+//
+// A query error degrades with a WARN rather than failing the request, exactly
+// as the pressure-trend history above does. A radio reading must never 500 the
+// dashboard.
+func applyDeviceStatus(ctx context.Context, reader ObservationReader, obs sqlite.Observation, now int64, resp *currentObservation) {
+	ds, err := reader.LatestDeviceStatus(ctx, obs.SerialNumber)
+	if err != nil {
+		if !errors.Is(err, sqlite.ErrDeviceStatusNotFound) {
+			slog.WarnContext(ctx, "httpserver: latest device status", "error", err, "serial", obs.SerialNumber)
+		}
+		return
+	}
+	if now-ds.Timestamp > int64(deviceStatusMaxAge.Seconds()) {
+		return // stale: better to say nothing than to present it as live
+	}
+	if ds.Rssi != nil {
+		v := float64(*ds.Rssi)
+		resp.SignalDbm = &v
+	}
+	resp.FirmwareVersion = ds.Firmware
+}
+
 // ObservationReader is the read-side dependency registerObservations needs,
 // defined at the consumer site per go-standards §12: production wires
 // *sqlite.Writer (which satisfies it), tests use fakeObservationReader.
@@ -55,6 +97,11 @@ type ObservationReader interface {
 	// SummarizeObservations returns the windowed min/max/total aggregates
 	// over [from, to] backing GET /api/observations/summary.
 	SummarizeObservations(ctx context.Context, from, to int64) (sqlite.Summary, error)
+	// LatestDeviceStatus returns the newest device_status row for serial, or
+	// sqlite.ErrDeviceStatusNotFound when that serial has none. SCOPED by
+	// serial because device_status is not Tempest-only -- see the sqlite
+	// implementation's doc comment.
+	LatestDeviceStatus(ctx context.Context, serial string) (sqlite.DeviceStatus, error)
 	// TemperatureExtremes returns the max and min air temperature in
 	// [from, to] with the timestamp at which each occurred, backing
 	// GET /api/almanac's four record columns. Every field is invalid when
@@ -92,6 +139,27 @@ type currentObservation struct {
 	HeatIndex                  float64 `json:"heatIndex"`
 	WindChill                  float64 `json:"windChill"`
 	PressureTrend              string  `json:"pressureTrend"`
+
+	// SignalDbm and FirmwareVersion are the sensor's own health (#196),
+	// sourced from the latest device_status row for this observation's serial
+	// -- a DIFFERENT report type on a different cadence, so they are "latest
+	// known device health" rather than part of this observation. They live
+	// here because the UI derives its whole StationStatus from this one
+	// response.
+	//
+	// These are the FIRST pointer fields on this type, and they are a
+	// deliberate exception to deref's "absent SQL column -> report as zero"
+	// rule below: 0 dBm is a valid reading, so zero-filling would present
+	// absent data as a reading. Null is the honest answer when there is no
+	// device_status row, when it is stale (deviceStatusMaxAge), or when the
+	// query fails.
+	//
+	// SignalDbm is deliberately NOT named signalStrength: the previous UI
+	// contract was 0-4 bars, and the units changed. A new name makes that
+	// break visible at the type level rather than silently redefining a
+	// field.
+	SignalDbm       *float64 `json:"signalDbm"`
+	FirmwareVersion *string  `json:"firmwareVersion"`
 }
 
 // historyResponse is the wire shape for GET /api/observations/history:
@@ -213,7 +281,10 @@ func handleCurrentObservation(w http.ResponseWriter, r *http.Request, reader Obs
 		trendPoints = nil
 	}
 
-	writeJSON(w, http.StatusOK, toCurrentObservation(obs, pressureTrendFromHistory(trendPoints)))
+	resp := toCurrentObservation(obs, pressureTrendFromHistory(trendPoints))
+	applyDeviceStatus(ctx, reader, obs, now, &resp)
+
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // handleHistory serves HistoryPoints for the requested field, wrapped in

@@ -1165,3 +1165,64 @@ func (w *Writer) temperatureExtreme(ctx context.Context, query string, from, to 
 	}
 	return value, at, nil
 }
+
+// ErrDeviceStatusNotFound is returned by LatestDeviceStatus when the serial
+// has no device_status row -- a fresh store, or a station whose first
+// device_status has not arrived yet. Checkable via errors.Is, mirroring
+// ErrObservationNotFound.
+var ErrDeviceStatusNotFound = errors.New("device status not found")
+
+// DeviceStatus is the read shape for the sensor's own health (#196). Rssi and
+// Firmware are POINTERS because absent must stay distinguishable from a
+// reported value: 0 dBm is valid, so it cannot double as the unknown
+// sentinel.
+type DeviceStatus struct {
+	SerialNumber string
+	Timestamp    int64
+	Rssi         *int64
+	Firmware     *string
+}
+
+const selectLatestDeviceStatusSQL = `
+SELECT serial_number, timestamp, rssi, firmware_revision
+  FROM stormglass_device_status
+ WHERE serial_number = ?
+ ORDER BY timestamp DESC
+ LIMIT 1`
+
+// LatestDeviceStatus returns the newest device_status row for serial.
+//
+// SCOPED by serial, unlike LatestObservationAny. device_status is not
+// Tempest-only -- report.go's sensor-status table covers AIR and SKY devices
+// too, and a hub can carry more than one -- so an unscoped "newest across all
+// serials" could return another device's radio next to a Tempest observation.
+// The scoping is also what makes UNIQUE(serial_number, timestamp)'s implicit
+// index serve this query: an unscoped timestamp sort could not use it, which
+// is the I1 defect idx_obs_time exists to fix for the observations table.
+//
+// Reads go through readDB, so a scan here does not serialize behind the
+// single ingest writer connection.
+func (w *Writer) LatestDeviceStatus(ctx context.Context, serial string) (DeviceStatus, error) {
+	var (
+		ds       DeviceStatus
+		rssi     sql.NullInt64
+		firmware sql.NullString
+	)
+	err := w.readDB.QueryRowContext(ctx, selectLatestDeviceStatusSQL, serial).
+		Scan(&ds.SerialNumber, &ds.Timestamp, &rssi, &firmware)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return DeviceStatus{}, fmt.Errorf("%w: serial %q", ErrDeviceStatusNotFound, serial)
+	case err != nil:
+		return DeviceStatus{}, fmt.Errorf("query latest device status: %w", err)
+	}
+	if rssi.Valid {
+		v := rssi.Int64
+		ds.Rssi = &v
+	}
+	if firmware.Valid {
+		v := firmware.String
+		ds.Firmware = &v
+	}
+	return ds, nil
+}
