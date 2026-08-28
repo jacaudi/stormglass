@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import App from './App';
+import { useWeatherData } from './hooks/useWeatherData';
 import type { WeatherData } from './hooks/useWeatherData';
 import type { CurrentObservation, ForecastDay, RecordsSummary, StationAlmanac, StationMeta } from './types/weather';
 import { PrecipitationType, PressureTrend } from './types/weather';
@@ -183,6 +184,7 @@ const mockWeatherData: WeatherData = {
   error: null,
   lastUpdated: new Date(),
   isStale: false,
+  awaitingData: false,
   capabilities: { forecast: true, radar: false, almanac: false },
   refresh: vi.fn(),
 };
@@ -190,6 +192,63 @@ const mockWeatherData: WeatherData = {
 vi.mock('./hooks/useWeatherData', () => ({
   useWeatherData: vi.fn(() => mockWeatherData),
 }));
+
+// #218: a fresh deployment has an empty store, so the core observation
+// endpoint 404s and there is no `current`. That is a healthy appliance waiting
+// for its first broadcast -- it must not render the Connection Error screen,
+// and it must not render nothing at all.
+describe('App on a fresh deployment with no observations yet', () => {
+  afterEach(() => {
+    vi.mocked(useWeatherData).mockReturnValue(mockWeatherData);
+  });
+
+  it('renders an awaiting-data state instead of the connection error screen', () => {
+    vi.mocked(useWeatherData).mockReturnValue({
+      ...mockWeatherData,
+      current: null,
+      summary: null,
+      awaitingData: true,
+      error: null,
+      lastUpdated: null,
+    });
+
+    render(<App />);
+
+    expect(screen.queryByText('Connection Error')).not.toBeInTheDocument();
+    expect(screen.getByText(/Waiting for the first observation/i)).toBeInTheDocument();
+  });
+
+  it('names the likely causes so a misconfigured deployment is diagnosable', () => {
+    vi.mocked(useWeatherData).mockReturnValue({
+      ...mockWeatherData,
+      current: null,
+      summary: null,
+      awaitingData: true,
+      error: null,
+      lastUpdated: null,
+    });
+
+    render(<App />);
+
+    expect(screen.getByText(/--net=host/)).toBeInTheDocument();
+    expect(screen.getByText(/50222/)).toBeInTheDocument();
+  });
+
+  it('still shows the connection error screen for a genuine failure', () => {
+    vi.mocked(useWeatherData).mockReturnValue({
+      ...mockWeatherData,
+      current: null,
+      summary: null,
+      awaitingData: false,
+      error: '/api/observations/current responded with 503',
+      lastUpdated: null,
+    });
+
+    render(<App />);
+
+    expect(screen.getByText('Connection Error')).toBeInTheDocument();
+  });
+});
 
 describe('App dashboard layout', () => {
   it('renders the Records card before the 7-Day Forecast', () => {

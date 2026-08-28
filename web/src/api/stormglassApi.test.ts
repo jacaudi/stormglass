@@ -78,6 +78,23 @@ describe('fetchCurrentObservation', () => {
 });
 
 describe('fetchStationStatus', () => {
+  // #218: an empty store answers /api/observations/current with 404, which is
+  // a normal startup state, not a fault. The transport must carry the status
+  // through so callers can tell "no data yet" from "the server is broken" --
+  // collapsing both into a bare Error is what rendered the Connection Error
+  // screen on every fresh deployment.
+  it('carries the HTTP status on a failed request so callers can classify it', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 404 }));
+
+    await expect(fetchCurrentObservation()).rejects.toMatchObject({ status: 404 });
+  });
+
+  it('distinguishes an empty store (404) from a server fault (503)', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 503 }));
+
+    await expect(fetchCurrentObservation()).rejects.toMatchObject({ status: 503 });
+  });
+
   it('rejects instead of returning an offline default when the underlying fetch fails', async () => {
     // A transient server error must surface as a rejection so useWeatherData's
     // allSettled retains the prior good status, rather than fetchStationStatus

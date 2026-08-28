@@ -13,7 +13,8 @@ import type {
   Capabilities,
 } from '../types/weather';
 
-vi.mock('../api/stormglassApi', () => ({
+vi.mock('../api/stormglassApi', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../api/stormglassApi')>()),
   fetchCurrentObservation: vi.fn(),
   fetchStationMeta: vi.fn(),
   fetchForecast: vi.fn(),
@@ -108,6 +109,43 @@ beforeEach(() => {
 });
 
 describe('useWeatherData', () => {
+  // #218: a fresh deployment's store is empty, and /api/observations/current
+  // answers 404. That is "no data yet", not a fault -- it must not set `error`,
+  // because App blanks the dashboard for the Connection Error screen whenever
+  // `error && !current`.
+  it('reports awaitingData rather than error when the store is empty (404)', async () => {
+    mockedApi.fetchCurrentObservation.mockRejectedValue(
+      new api.ApiError('/api/observations/current', 404)
+    );
+    mockedApi.fetchStationMeta.mockResolvedValue(baseStation);
+    mockedApi.fetchForecast.mockResolvedValue([]);
+    mockedApi.fetchStationStatus.mockResolvedValue(baseStatus);
+    mockedApi.fetchStationAlmanac.mockResolvedValue(baseAlmanac);
+    mockedApi.fetchRecordsSummary.mockResolvedValue(baseSummary);
+
+    const { result } = renderHook(() => useWeatherData());
+
+    await waitFor(() => expect(result.current.awaitingData).toBe(true));
+    expect(result.current.error).toBeNull();
+    expect(result.current.current).toBeNull();
+  });
+
+  it('still reports error for a genuine server fault (503)', async () => {
+    mockedApi.fetchCurrentObservation.mockRejectedValue(
+      new api.ApiError('/api/observations/current', 503)
+    );
+    mockedApi.fetchStationMeta.mockResolvedValue(baseStation);
+    mockedApi.fetchForecast.mockResolvedValue([]);
+    mockedApi.fetchStationStatus.mockResolvedValue(baseStatus);
+    mockedApi.fetchStationAlmanac.mockResolvedValue(baseAlmanac);
+    mockedApi.fetchRecordsSummary.mockResolvedValue(baseSummary);
+
+    const { result } = renderHook(() => useWeatherData());
+
+    await waitFor(() => expect(result.current.error).not.toBeNull());
+    expect(result.current.awaitingData).toBe(false);
+  });
+
   it('retains prior data and flips isStale when a refetch of the core observation fails', async () => {
     mockedApi.fetchCurrentObservation
       .mockResolvedValueOnce(baseObs)

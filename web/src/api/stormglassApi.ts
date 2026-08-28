@@ -48,10 +48,25 @@ const STATION_ONLINE_THRESHOLD_SECONDS = 5 * 60;
 // The "fetch, reject non-OK, parse JSON" sequence is identical for every
 // endpoint below -- shared knowledge (how a Contract C response is read),
 // not just shared shape, so it is written once here.
+// Carries the HTTP status alongside the message so callers can classify a
+// failure rather than only report it. /api/observations/current answers 404
+// when the store is simply empty -- a normal state on a fresh deployment, not
+// a fault -- and a bare Error made that indistinguishable from a real outage
+// (#218).
+export class ApiError extends Error {
+  readonly status: number;
+
+  constructor(url: string, status: number) {
+    super(`${url} responded with ${status}`);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
 async function getJSON<T>(url: string, signal?: AbortSignal): Promise<T> {
   const res = await fetch(url, { signal });
   if (!res.ok) {
-    throw new Error(`${url} responded with ${res.status}`);
+    throw new ApiError(url, res.status);
   }
   return (await res.json()) as T;
 }
