@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// tunables holds the batching/retry knobs documented in CLAUDE.md
+// tunables holds the batching/retry knobs documented in docs/configuration.md
 // (POSTGRES_BATCH_SIZE, POSTGRES_FLUSH_INTERVAL, POSTGRES_MAX_RETRIES) so
 // NewPostgresWriter can wire them from the environment instead of the
 // previously-hardcoded, inert defaults (C-H2).

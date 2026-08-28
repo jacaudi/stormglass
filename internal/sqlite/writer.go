@@ -614,7 +614,7 @@ func (w *Writer) handleLightningStrikeReport(ctx context.Context, r *tempestudp.
 
 // WriteMetrics implements sink.MetricsWriter as a documented no-op. SQLite is
 // the UDP-mode real-time store, not an API-export target: API export mode
-// writes to Postgres/gz files (see CLAUDE.md's operational-modes table), so
+// writes to Postgres/gz files (see docs/configuration.md's operational-modes table), so
 // there is no present consumer for reconstructing observations from
 // Prometheus metrics here (that logic already lives in
 // postgres.PostgresWriter.WriteMetrics) — building it for SQLite would be

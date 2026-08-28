@@ -21,7 +21,8 @@
 #   helm install stormglass bjw-s-labs/app-template \
 #     --version 5.1.0 -f deploy/kubernetes/values.yaml
 #
-# See README.md for the PVC, ConfigMap and Secret this expects to exist.
+# See docs/deployment/kubernetes.md for the PVC, ConfigMap and Secret
+# this expects to exist.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:

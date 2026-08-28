@@ -14,7 +14,7 @@
 # --- IMPORTANT: network_mode: host <-> service-DNS resolution --------------
 # `stormglass` MUST run with `network_mode: host` — Tempest UDP broadcasts are
 # link-local, and a container reached only via a published UDP port never
-# receives them (see CLAUDE.md's "UDP broadcasts are link-local" note). But a
+# receives them (see docs/deployment/docker-compose.md). But a
 # host-networked container does NOT get Compose's per-project bridge network,
 # so it CANNOT resolve other services by name (`otel-collector`,
 # `radar-sidecar`) the way every other service here can.
