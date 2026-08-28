@@ -40,6 +40,8 @@ const baseCurrent: CurrentObservation = {
   heatIndex: 20,
   windChill: 20,
   pressureTrend: PressureTrend.Steady,
+  signalDbm: null,
+  firmwareVersion: null,
 };
 
 describe('HumidityCard converted readouts (design §6.5, Task 18)', () => {

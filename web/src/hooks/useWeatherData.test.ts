@@ -18,6 +18,7 @@ vi.mock('../api/stormglassApi', () => ({
   fetchStationMeta: vi.fn(),
   fetchForecast: vi.fn(),
   fetchStationStatus: vi.fn(),
+  stationStatusFrom: vi.fn(),
   fetchStationAlmanac: vi.fn(),
   fetchRecordsSummary: vi.fn(),
   fetchCapabilities: vi.fn(),
@@ -49,6 +50,8 @@ const baseObs: CurrentObservation = {
   heatIndex: 15.5,
   windChill: 15.5,
   pressureTrend: PressureTrend.Steady,
+  signalDbm: null,
+  firmwareVersion: null,
 };
 
 const baseStation: StationMeta = {
@@ -62,7 +65,7 @@ const baseStatus: StationStatus = {
   isOnline: true,
   lastReport: 1700000000,
   batteryLevel: 2.6,
-  signalStrength: 0,
+  signalDbm: 0,
   firmwareVersion: '',
 };
 
@@ -180,6 +183,46 @@ describe('useWeatherData - isLoading with polling', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  // #196: before this, pollCurrent updated `current` and never touched
+  // `status`, so signal, firmware, battery and "last report" froze at page
+  // load for the lifetime of a tab that "may stay open for weeks" -- the same
+  // defect #89 fixed for the Records card. Every gate still passed, because
+  // the API returned fresh values and the component test injects status as a
+  // prop, which is exactly why this test lives at the hook level.
+  it('refreshes station status on a POLL TICK, not only at mount (#196)', async () => {
+    const fresh: CurrentObservation = {
+      ...baseObs,
+      timestamp: baseObs.timestamp + 60,
+      signalDbm: -55,
+    };
+    mockedApi.fetchCurrentObservation
+      .mockResolvedValueOnce(baseObs)
+      .mockResolvedValue(fresh);
+    mockedApi.fetchStationMeta.mockResolvedValue(baseStation);
+    mockedApi.fetchForecast.mockResolvedValue([]);
+    mockedApi.fetchStationStatus.mockResolvedValue(baseStatus);
+    mockedApi.fetchStationAlmanac.mockResolvedValue(baseAlmanac);
+    mockedApi.fetchRecordsSummary.mockResolvedValue(baseSummary);
+    mockedApi.stationStatusFrom.mockImplementation((obs: CurrentObservation) => ({
+      ...baseStatus,
+      lastReport: obs.timestamp,
+      signalDbm: obs.signalDbm,
+    }));
+
+    const { result } = renderHook(() => useWeatherData());
+    await vi.waitFor(() => expect(result.current.current).toEqual(baseObs));
+    // Mount populated status from fetchStationStatus (baseStatus), whose
+    // signal differs from the one the poll will bring -- so the assertion
+    // below proves the value CHANGED rather than merely being present.
+    expect(result.current.status?.signalDbm).toBe(baseStatus.signalDbm);
+    expect(baseStatus.signalDbm).not.toBe(-55);
+
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+
+    // The load-bearing assertion: the tick carried status forward too.
+    await vi.waitFor(() => expect(result.current.status?.signalDbm).toBe(-55));
   });
 
   it('clears isLoading when the poll interval aborts a still-in-flight initial load', async () => {

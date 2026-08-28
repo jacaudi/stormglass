@@ -30,6 +30,8 @@ const mockObservation: CurrentObservation = {
   heatIndex: 15.5,
   windChill: 15.5,
   pressureTrend: PressureTrend.Steady,
+  signalDbm: null,
+  firmwareVersion: null,
 };
 
 afterEach(() => {

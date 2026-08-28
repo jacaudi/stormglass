@@ -22,11 +22,16 @@ function batteryLevel(volts: number): { pct: number; label: string } {
 const EM_DASH = '—';
 
 // null in, null out: with no signal source the card must say "not reported"
-// rather than draw four empty bars beside "0/4", which states no signal on a
-// healthy station. The bars are only meaningful once a real reading exists.
-function signalBars(strength: number | null): number[] | null {
-  if (strength === null) return null;
-  return [1, 2, 3, 4].map((n) => (n <= strength ? 1 : 0));
+// #196 replaced the 0-4 bar display with the raw dBm reading. WeatherFlow
+// publishes no dBm-to-bars mapping, so drawing bars would have meant inventing
+// thresholds and presenting a guess as a measurement. signalBars is gone
+// rather than fed a unit it was never written for.
+function signalText(dbm: number | null | undefined): string {
+  // == null catches undefined too. The value comes from a JSON response, so a
+  // server that predates #196 (or any payload that simply omits the key)
+  // must render the em-dash rather than the string "undefined dBm".
+  if (dbm == null) return EM_DASH;
+  return `${dbm} dBm`;
 }
 
 function timeSince(epochSeconds: number): string {
@@ -38,7 +43,6 @@ function timeSince(epochSeconds: number): string {
 
 function StationHealthImpl({ status }: StationHealthProps) {
   const battery = batteryLevel(status.batteryLevel);
-  const bars = signalBars(status.signalStrength);
 
   return (
     <GlassCard className="station-health-card">
@@ -69,27 +73,7 @@ function StationHealthImpl({ status }: StationHealthProps) {
             </div>
           }
         />
-        <Stat
-          label="Signal"
-          value={
-            bars === null ? (
-              EM_DASH
-            ) : (
-              <div className="signal-display">
-                <div className="signal-bars">
-                  {bars.map((active, i) => (
-                    <div
-                      key={i}
-                      className={`signal-bar ${active ? 'active' : ''}`}
-                      style={{ height: `${(i + 1) * 6}px` }}
-                    />
-                  ))}
-                </div>
-                <span className="signal-text">{status.signalStrength}/4</span>
-              </div>
-            )
-          }
-        />
+        <Stat label="Signal" value={signalText(status.signalDbm)} />
         <Stat label="Last Report" value={timeSince(status.lastReport)} />
         <Stat label="Firmware" value={status.firmwareVersion ?? EM_DASH} />
       </StatRow>
