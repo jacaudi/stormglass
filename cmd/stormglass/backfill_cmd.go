@@ -4,7 +4,7 @@
 // one-shot historical API export when TOKEN is set. Two explicit
 // subcommands bypass that mode selection entirely: "backfill" (this file)
 // repairs gaps in stored history via the REST API, and "healthcheck" probes
-// a running instance's /healthz endpoint. See CLAUDE.md for the full
+// a running instance's /healthz endpoint. See docs/configuration.md for the full
 // operational-mode matrix.
 package main
 

@@ -83,4 +83,5 @@ dist/           # Vite build output — go:embed'd by the parent Go server
 
 Served by the Stormglass Go server, which embeds `web/dist` and exposes the
 `/api/*` endpoints this UI consumes. The endpoint list and the configuration
-that gates each card are in the [top-level README](../README.md).
+that gates each card are in [docs/dashboard.md](../docs/dashboard.md) and
+[docs/configuration.md](../docs/configuration.md).

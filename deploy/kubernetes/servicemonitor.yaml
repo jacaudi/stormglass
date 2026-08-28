@@ -21,7 +21,7 @@
 # Note also that the scrape path emits DIFFERENT metric names from the OTel
 # path (stormglass_wind_ms rather than stormglass_wind_meters_per_second, and
 # an `instance` label rather than `serial`), so the bundled Grafana dashboard
-# in deploy/grafana/ will NOT match what this scrapes. See the README.
+# in deploy/grafana/ will NOT match what this scrapes. See docs/deployment/kubernetes.md.
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:

@@ -1,6 +1,6 @@
 # Litestream continuously streams the SQLite WAL for /data/stormglass.db to an
 # S3-compatible replica (MinIO here). Litestream owns WAL checkpointing --
-# per CLAUDE.md's SQLite contract, the app intentionally does not set an
+# per docs/storage.md, the app intentionally does not set an
 # aggressive wal_autocheckpoint, so do not add one anywhere in this stack.
 dbs:
   - path: /data/stormglass.db

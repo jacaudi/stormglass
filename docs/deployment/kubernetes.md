@@ -1,7 +1,7 @@
 # Stormglass on Kubernetes
 
 A working [bjw-s `app-template`](https://bjw-s-labs.github.io/helm-charts/docs/app-template/)
-deployment. Three files:
+deployment. Four manifests, all under **`deploy/kubernetes/`** in the repository:
 
 | File | What it is |
 |---|---|

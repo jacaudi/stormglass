@@ -1,4 +1,5 @@
-# Stormglass on bjw-s app-template. See README.md in this directory.
+# Stormglass on bjw-s app-template.
+# Guide: docs/deployment/kubernetes.md
 #
 #   helm install stormglass bjw-s-labs/app-template \
 #     --version 5.1.0 -f deploy/kubernetes/values.yaml
