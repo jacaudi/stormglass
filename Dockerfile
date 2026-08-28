@@ -36,10 +36,18 @@ COPY --from=ui /app/web/dist ./web/dist
 RUN CGO_ENABLED=0 \
     go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o /stormglass ./cmd/stormglass
 
+# An empty /data to carry into the final stage. Docker seeds a freshly created
+# named volume from the image's directory -- ownership included -- so shipping
+# /data owned by 65532 is what makes `docker run -v vol:/data` work for the
+# unprivileged user below. Without it the volume mounts root-owned, SQLite
+# cannot open its database, and the process exits at startup (#226).
+RUN mkdir -p /seed/data
+
 # --- Final stage: non-root static image -------------------------------------
 FROM cgr.dev/chainguard/static:latest@sha256:f68e3a8244c7d0f4cd56635aaff8e6a533cf6cc3850d8fb339567a5782d6a0b0
 
 COPY --from=builder /stormglass /stormglass
+COPY --from=builder --chown=65532:65532 /seed/data /data
 
 USER 65532:65532
 

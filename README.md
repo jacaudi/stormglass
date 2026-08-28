@@ -262,8 +262,11 @@ Two details in that file are load-bearing rather than incidental:
   reason above. Everything else sits on the default compose network, and
   Stormglass reaches those services via published host ports.
 - A `stormglass-data-init` container chowns the volume before Stormglass starts.
-  The image runs as an unprivileged user, and without that step a fresh
-  `docker compose up` crash-loops on an unwritable `/data`.
+  New deployments no longer need it — the image ships `/data` owned by its own
+  unprivileged user, and Docker seeds that ownership into a newly created
+  volume. It is kept for **upgrades**: Docker only seeds an *empty* volume, so a
+  volume that already holds a database keeps its original `root` ownership and
+  Stormglass exits with `attempt to write a readonly database`.
 
 The radar sidecar is behind a compose profile, so it is off unless you ask:
 
