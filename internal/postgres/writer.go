@@ -9,6 +9,7 @@ import (
 	"math"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -55,6 +56,20 @@ type rapidWindRow struct {
 	timestamp     time.Time
 	windSpeed     float64
 	windDirection float64
+}
+
+// deviceStatusRow is the sensor's own health (#196). firmware and rssi are
+// POINTERS so an absent field reaches Postgres as NULL rather than 0.
+type deviceStatusRow struct {
+	id           uuid.UUID
+	serialNumber string
+	timestamp    time.Time
+	uptime       int64
+	voltage      float64
+	firmware     *string
+	rssi         *int
+	hubRssi      int
+	sensorStatus int
 }
 
 type hubStatusRow struct {
@@ -110,6 +125,7 @@ type PostgresWriter struct {
 	obsBatch   chan observationRow
 	windBatch  chan rapidWindRow
 	hubBatch   chan hubStatusRow
+	devBatch   chan deviceStatusRow
 	eventBatch chan eventRow
 
 	// Configuration
@@ -172,6 +188,7 @@ func NewPostgresWriter(ctx context.Context, databaseURL string) (*PostgresWriter
 		obsBatch:      make(chan observationRow, 1000),
 		windBatch:     make(chan rapidWindRow, 1000),
 		hubBatch:      make(chan hubStatusRow, 1000),
+		devBatch:      make(chan deviceStatusRow, 1000),
 		eventBatch:    make(chan eventRow, 1000),
 		batchSize:     tn.batchSize,
 		flushInterval: tn.flushInterval,
@@ -183,10 +200,11 @@ func NewPostgresWriter(ctx context.Context, databaseURL string) (*PostgresWriter
 	w.windInserter = w
 
 	// Start background batch workers
-	w.wg.Add(4)
+	w.wg.Add(5)
 	go w.batchObservations()
 	go w.batchRapidWind()
 	go w.batchHubStatus()
+	go w.batchDeviceStatus()
 	go w.batchEvents()
 
 	return w, nil
@@ -444,6 +462,83 @@ func (w *PostgresWriter) insertHubStatus(ctx context.Context, batch []hubStatusR
 	return nil
 }
 
+// batchDeviceStatus is the fifth batch worker (#196), added for the sensor's
+// own health. Structurally identical to batchHubStatus: steady-state flushes
+// use steadyStateFlushCtx so SIGTERM canceling w.ctx cannot destroy a row the
+// worker has already taken off its channel (#111), and the <-w.done branch
+// flushes the local in-flight batch on the live shutdownCtx (C-H1). Whatever
+// is still buffered in w.devBatch is drained by Close, which is the half the
+// local-slice-only drain used to miss (#154).
+func (w *PostgresWriter) batchDeviceStatus() {
+	defer w.wg.Done()
+
+	batch := make([]deviceStatusRow, 0, w.batchSize)
+	flushCtx := steadyStateFlushCtx(w.ctx)
+	ticker := time.NewTicker(w.flushInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case row := <-w.devBatch:
+			batch = append(batch, row)
+			if len(batch) >= w.batchSize {
+				w.flushDeviceStatus(flushCtx, batch)
+				batch = batch[:0]
+			}
+
+		case <-ticker.C:
+			if len(batch) > 0 {
+				w.flushDeviceStatus(flushCtx, batch)
+				batch = batch[:0]
+			}
+
+		case <-w.done:
+			if len(batch) > 0 {
+				w.flushDeviceStatus(w.shutdownCtx, batch)
+			}
+			return
+		}
+	}
+}
+
+func (w *PostgresWriter) flushDeviceStatus(ctx context.Context, batch []deviceStatusRow) {
+	w.flushWithRetry(ctx, func() error {
+		return w.insertDeviceStatus(ctx, batch)
+	}, "stormglass_device_status", len(batch))
+}
+
+func (w *PostgresWriter) insertDeviceStatus(ctx context.Context, batch []deviceStatusRow) error {
+	if len(batch) == 0 {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	b := &pgx.Batch{}
+
+	for _, row := range batch {
+		b.Queue(`
+			INSERT INTO stormglass_device_status (
+				id, serial_number, timestamp, uptime, voltage, firmware_revision, rssi, hub_rssi, sensor_status
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			ON CONFLICT (serial_number, timestamp) DO NOTHING
+		`, row.id, row.serialNumber, row.timestamp, row.uptime, row.voltage,
+			row.firmware, row.rssi, row.hubRssi, row.sensorStatus)
+	}
+
+	br := w.pool.SendBatch(ctx, b)
+	defer closeBatchResults(br)
+
+	for i := range batch {
+		if _, err := br.Exec(); err != nil {
+			return fmt.Errorf("insert device_status %d: %w", i, err)
+		}
+	}
+
+	return nil
+}
+
 func (w *PostgresWriter) batchEvents() {
 	defer w.wg.Done()
 
@@ -510,6 +605,8 @@ func (w *PostgresWriter) WriteReport(ctx context.Context, report tempestudp.Repo
 
 	case *tempestudp.HubStatusReport:
 		return w.handleHubStatusReport(ctx, r)
+	case *tempestudp.DeviceStatusReport:
+		return w.handleDeviceStatusReport(ctx, r)
 
 	case *tempestudp.RainStartReport:
 		return w.handleRainStartReport(ctx, r)
@@ -518,7 +615,7 @@ func (w *PostgresWriter) WriteReport(ctx context.Context, report tempestudp.Repo
 		return w.handleLightningStrikeReport(ctx, r)
 
 	default:
-		// Unknown report type (e.g., device_status) - not an error
+		// Unknown report type - not an error
 		return nil
 	}
 }
@@ -649,6 +746,45 @@ func (w *PostgresWriter) handleHubStatusReport(ctx context.Context, r *tempestud
 	select {
 	case w.hubBatch <- row:
 	case <-w.done: // Close in progress — stop producing, no send-on-closed
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+
+	return nil
+}
+
+// handleDeviceStatusReport mirrors handleHubStatusReport. firmware and rssi
+// stay pointers so an absent field becomes SQL NULL rather than a fabricated
+// 0 -- 0 dBm is a valid reading and cannot double as "unknown" (#196).
+func (w *PostgresWriter) handleDeviceStatusReport(ctx context.Context, r *tempestudp.DeviceStatusReport) error {
+	if r.Timestamp == 0 {
+		return nil // malformed: unkeyable by UNIQUE(serial_number, timestamp)
+	}
+
+	row := deviceStatusRow{
+		id:           uuid.Must(uuid.NewV7()),
+		serialNumber: r.SerialNumber,
+		timestamp:    time.Unix(int64(r.Timestamp), 0),
+		uptime:       int64(r.Uptime),
+		voltage:      r.Voltage,
+		hubRssi:      r.HubRssi,
+		sensorStatus: r.SensorStatus,
+	}
+	if r.FirmwareRevision != nil {
+		fw := strconv.Itoa(*r.FirmwareRevision)
+		row.firmware = &fw
+	}
+	if r.Rssi != nil {
+		// pgx range-checks int -> INTEGER at encode time, so no manual
+		// narrowing (and no unchecked conversion for gosec to flag).
+		v := *r.Rssi
+		row.rssi = &v
+	}
+
+	select {
+	case w.devBatch <- row:
+	case <-w.done:
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
@@ -1047,6 +1183,9 @@ func (w *PostgresWriter) Close(ctx context.Context) error {
 		}
 		if batch := drainChannel(w.hubBatch); len(batch) > 0 {
 			w.flushHubStatus(ctx, batch)
+		}
+		if batch := drainChannel(w.devBatch); len(batch) > 0 {
+			w.flushDeviceStatus(ctx, batch)
 		}
 		if batch := drainChannel(w.eventBatch); len(batch) > 0 {
 			w.flushEvents(ctx, batch)

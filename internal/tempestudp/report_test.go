@@ -322,8 +322,8 @@ func TestParseReport(t *testing.T) {
 				Timestamp:        1688666521,
 				Uptime:           63807156,
 				Voltage:          2.792,
-				FirmwareRevision: 156,
-				Rssi:             -82,
+				FirmwareRevision: intPtr(156),
+				Rssi:             intPtr(-82),
 				HubRssi:          -78,
 				SensorStatus:     0,
 				Debug:            0,
@@ -358,5 +358,52 @@ func TestParseReport(t *testing.T) {
 				t.Errorf("ParseReport() got = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+// intPtr is the helper the pointer-typed DeviceStatusReport fields need
+// (#196): they are pointers precisely so an ABSENT key stays distinguishable
+// from a reported 0.
+func intPtr(v int) *int { return &v }
+
+// TestParseDeviceStatus_AbsentFieldsStayNil is the reason those two fields are
+// pointers. A device_status missing rssi/firmware_revision must decode to nil,
+// NOT to 0 -- otherwise the store persists 0 and the UI renders "0 dBm" and
+// firmware "0", which is absent data presented as a reading.
+func TestParseDeviceStatus_AbsentFieldsStayNil(t *testing.T) {
+	const noRadio = `{"serial_number":"ST-1","type":"device_status","timestamp":1688666521,"uptime":1,"voltage":2.7}`
+
+	got, err := ParseReport([]byte(noRadio))
+	if err != nil {
+		t.Fatalf("ParseReport: %v", err)
+	}
+	ds, ok := got.(*DeviceStatusReport)
+	if !ok {
+		t.Fatalf("got %T, want *DeviceStatusReport", got)
+	}
+	if ds.Rssi != nil {
+		t.Errorf("Rssi = %d, want nil -- absent must not become a reading", *ds.Rssi)
+	}
+	if ds.FirmwareRevision != nil {
+		t.Errorf("FirmwareRevision = %d, want nil -- absent must not become a reading", *ds.FirmwareRevision)
+	}
+}
+
+// TestParseDeviceStatus_ZeroIsAReading is the other half: 0 is a VALID dBm
+// value, so a reported 0 must survive as a reading and not collapse into the
+// unknown sentinel.
+func TestParseDeviceStatus_ZeroIsAReading(t *testing.T) {
+	const zeroRadio = `{"serial_number":"ST-1","type":"device_status","timestamp":1,"rssi":0,"firmware_revision":0}`
+
+	got, err := ParseReport([]byte(zeroRadio))
+	if err != nil {
+		t.Fatalf("ParseReport: %v", err)
+	}
+	ds := got.(*DeviceStatusReport)
+	if ds.Rssi == nil || *ds.Rssi != 0 {
+		t.Errorf("Rssi = %v, want a non-nil 0 -- 0 dBm is a real reading", ds.Rssi)
+	}
+	if ds.FirmwareRevision == nil || *ds.FirmwareRevision != 0 {
+		t.Errorf("FirmwareRevision = %v, want a non-nil 0", ds.FirmwareRevision)
 	}
 }

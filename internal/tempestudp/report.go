@@ -237,13 +237,24 @@ type DeviceStatusReport struct {
 	// "device_status"
 	Type string `json:"type"`
 
-	HubSn            string  `json:"hub_sn"`
-	Timestamp        int     `json:"timestamp"`
-	Uptime           int     `json:"uptime"`
-	Voltage          float64 `json:"voltage"`
-	FirmwareRevision int     `json:"firmware_revision"`
-	Rssi             int     `json:"rssi"`
-	HubRssi          int     `json:"hub_rssi"`
+	HubSn     string  `json:"hub_sn"`
+	Timestamp int     `json:"timestamp"`
+	Uptime    int     `json:"uptime"`
+	Voltage   float64 `json:"voltage"`
+
+	// FirmwareRevision and Rssi are POINTERS while their siblings above are
+	// not, because these two are the fields #196 serves to the UI. A plain
+	// int cannot distinguish "the station reported 0" from "the key was
+	// absent or malformed": both decode to 0, which would then render as
+	// "0 dBm" and firmware "0" -- absent data presented as a reading, the
+	// exact defect the em-dash path in StationHealth exists to prevent. 0 is
+	// a valid dBm value, so it cannot double as the unknown sentinel.
+	// encoding/json leaves a pointer nil when the key is absent, which is the
+	// distinction the value type erases.
+	FirmwareRevision *int `json:"firmware_revision"`
+	Rssi             *int `json:"rssi"`
+
+	HubRssi int `json:"hub_rssi"`
 
 	// Binary Value	Applies to device	Status description
 	// 0b000000000	All	Sensors OK

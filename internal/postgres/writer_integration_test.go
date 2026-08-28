@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/jacaudi/stormglass/internal/tempestudp"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -79,5 +81,104 @@ func TestPostgresWriter_DrainOnClose_Integration(t *testing.T) {
 	}
 	if got != wantRows {
 		t.Fatalf("expected %d rows persisted by Close, got %d", wantRows, got)
+	}
+}
+
+// TestPostgresWriter_DeviceStatus_Integration covers #196's Postgres half
+// against a live database: the report the writer used to drop becomes a row,
+// absent radio/firmware persist as NULL (never 0), and a report queued
+// immediately before Close survives the drain.
+//
+// The drain half matters disproportionately here: device_status adds a FIFTH
+// batch goroutine, and #111 / #154 / C-H1 / D-H1 are all shutdown-drain
+// data-loss fixes in this exact file.
+func TestPostgresWriter_DeviceStatus_Integration(t *testing.T) {
+	dsn := requirePostgresURL(t)
+	ctx := t.Context()
+
+	pool, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	defer pool.Close()
+
+	serial := "ITEST-DEV-" + uuid.Must(uuid.NewV7()).String()
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(),
+			`DELETE FROM stormglass_device_status WHERE serial_number = $1`, serial)
+	})
+
+	workerCtx, cancelWorkerCtx := context.WithCancel(context.Background())
+	w, err := NewPostgresWriter(workerCtx, dsn)
+	if err != nil {
+		t.Fatalf("NewPostgresWriter: %v", err)
+	}
+
+	fw, rssi := 156, -82
+	full := &tempestudp.DeviceStatusReport{
+		SerialNumber: serial, Timestamp: 1700001000, Uptime: 63807156, Voltage: 2.792,
+		FirmwareRevision: &fw, Rssi: &rssi, HubRssi: -78, SensorStatus: 0,
+	}
+	absent := &tempestudp.DeviceStatusReport{
+		SerialNumber: serial, Timestamp: 1700002000, Voltage: 2.7,
+		// FirmwareRevision and Rssi deliberately nil.
+	}
+	for _, r := range []*tempestudp.DeviceStatusReport{full, absent} {
+		if err := w.WriteReport(ctx, r); err != nil {
+			t.Fatalf("WriteReport: %v", err)
+		}
+	}
+
+	// Mirror production shutdown ordering: worker ctx dies first, Close runs
+	// with its own live ctx. Nothing was flushed by size or ticker, so every
+	// row here is persisted by the drain or not at all.
+	cancelWorkerCtx()
+	closeCtx, cancelClose := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancelClose()
+	if err := w.Close(closeCtx); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	var n int
+	if err := pool.QueryRow(context.Background(),
+		`SELECT COUNT(*) FROM stormglass_device_status WHERE serial_number = $1`, serial).Scan(&n); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if n != 2 {
+		t.Fatalf("persisted %d rows, want 2 -- the drain dropped device_status", n)
+	}
+
+	var (
+		gotFirmware *string
+		gotRssi     *int
+		gotHubRssi  int
+	)
+	if err := pool.QueryRow(context.Background(),
+		`SELECT firmware_revision, rssi, hub_rssi FROM stormglass_device_status
+		   WHERE serial_number = $1 AND timestamp = to_timestamp(1700001000)`, serial,
+	).Scan(&gotFirmware, &gotRssi, &gotHubRssi); err != nil {
+		t.Fatalf("query full row: %v", err)
+	}
+	if gotFirmware == nil || *gotFirmware != "156" {
+		t.Errorf("firmware_revision = %v, want \"156\"", gotFirmware)
+	}
+	if gotRssi == nil || *gotRssi != -82 {
+		t.Errorf("rssi = %v, want -82", gotRssi)
+	}
+	if gotHubRssi != -78 {
+		t.Errorf("hub_rssi = %d, want -78", gotHubRssi)
+	}
+
+	if err := pool.QueryRow(context.Background(),
+		`SELECT firmware_revision, rssi FROM stormglass_device_status
+		   WHERE serial_number = $1 AND timestamp = to_timestamp(1700002000)`, serial,
+	).Scan(&gotFirmware, &gotRssi); err != nil {
+		t.Fatalf("query absent-fields row: %v", err)
+	}
+	if gotFirmware != nil {
+		t.Errorf("firmware_revision = %q, want NULL -- absent must not become a reading", *gotFirmware)
+	}
+	if gotRssi != nil {
+		t.Errorf("rssi = %d, want NULL -- absent must not become a reading", *gotRssi)
 	}
 }

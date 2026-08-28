@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"strconv"
 	"sync"
 	"time"
 
@@ -46,6 +47,7 @@ const (
 	kindObservation rowKind = iota
 	kindRapidWind
 	kindHubStatus
+	kindDeviceStatus
 	kindEvent
 	// kindFlush carries a flushRequest rather than a table row (see Flush).
 	// It is sent through the same w.rows channel as every other envelope so
@@ -67,6 +69,8 @@ func (k rowKind) String() string {
 		return "rapid_wind"
 	case kindHubStatus:
 		return "hub_status"
+	case kindDeviceStatus:
+		return "device_status"
 	case kindEvent:
 		return "event"
 	case kindFlush:
@@ -122,6 +126,21 @@ type rapidWindRow struct {
 	timestamp     int64
 	windSpeed     float64
 	windDirection float64
+}
+
+// deviceStatusRow carries the SENSOR's own health (#196). firmware and rssi
+// are POINTERS end-to-end so an absent field reaches the store as SQL NULL
+// rather than 0 -- 0 dBm is a valid reading and cannot double as "unknown".
+type deviceStatusRow struct {
+	id           uuid.UUID
+	serialNumber string
+	timestamp    int64
+	uptime       int64
+	voltage      float64
+	firmware     *string
+	rssi         *int64
+	hubRssi      int64
+	sensorStatus int64
 }
 
 type hubStatusRow struct {
@@ -240,7 +259,8 @@ func NewWriter(ctx context.Context, db *sql.DB, cfg Config, opts ...WriterOption
 // against flushBatches's own complexity instead of run's.
 func (w *Writer) flushBatches(
 	fctx context.Context,
-	obsBatch *[]observationRow, windBatch *[]rapidWindRow, hubBatch *[]hubStatusRow, evtBatch *[]eventRow,
+	obsBatch *[]observationRow, windBatch *[]rapidWindRow, hubBatch *[]hubStatusRow,
+	devBatch *[]deviceStatusRow, evtBatch *[]eventRow,
 ) {
 	if len(*obsBatch) > 0 {
 		w.insertObservations(fctx, *obsBatch)
@@ -253,6 +273,10 @@ func (w *Writer) flushBatches(
 	if len(*hubBatch) > 0 {
 		w.insertHubStatus(fctx, *hubBatch)
 		*hubBatch = (*hubBatch)[:0]
+	}
+	if len(*devBatch) > 0 {
+		w.insertDeviceStatus(fctx, *devBatch)
+		*devBatch = (*devBatch)[:0]
 	}
 	if len(*evtBatch) > 0 {
 		w.insertEvents(fctx, *evtBatch)
@@ -269,11 +293,12 @@ func (w *Writer) run(ctx context.Context) {
 		obsBatch  []observationRow
 		windBatch []rapidWindRow
 		hubBatch  []hubStatusRow
+		devBatch  []deviceStatusRow
 		evtBatch  []eventRow
 	)
 
 	flush := func(fctx context.Context) {
-		w.flushBatches(fctx, &obsBatch, &windBatch, &hubBatch, &evtBatch)
+		w.flushBatches(fctx, &obsBatch, &windBatch, &hubBatch, &devBatch, &evtBatch)
 	}
 
 	// The ordinary (non-shutdown) flushes below deliberately drop
@@ -302,9 +327,11 @@ func (w *Writer) run(ctx context.Context) {
 				close(req.done)
 				continue
 			}
-			obsBatch, windBatch, hubBatch, evtBatch = appendEnvelope(env, obsBatch, windBatch, hubBatch, evtBatch)
+			obsBatch, windBatch, hubBatch, devBatch, evtBatch =
+				appendEnvelope(env, obsBatch, windBatch, hubBatch, devBatch, evtBatch)
 			if len(obsBatch) >= w.batchSize || len(windBatch) >= w.batchSize ||
-				len(hubBatch) >= w.batchSize || len(evtBatch) >= w.batchSize {
+				len(hubBatch) >= w.batchSize || len(devBatch) >= w.batchSize ||
+				len(evtBatch) >= w.batchSize {
 				flush(steadyCtx)
 			}
 
@@ -335,7 +362,8 @@ func (w *Writer) run(ctx context.Context) {
 					close(env.payload.(flushRequest).done)
 					continue
 				}
-				obsBatch, windBatch, hubBatch, evtBatch = appendEnvelope(env, obsBatch, windBatch, hubBatch, evtBatch)
+				obsBatch, windBatch, hubBatch, devBatch, evtBatch =
+					appendEnvelope(env, obsBatch, windBatch, hubBatch, devBatch, evtBatch)
 			}
 		}
 	}
@@ -347,8 +375,9 @@ func (w *Writer) run(ctx context.Context) {
 // loop.
 func appendEnvelope(
 	env rowEnvelope,
-	obsBatch []observationRow, windBatch []rapidWindRow, hubBatch []hubStatusRow, evtBatch []eventRow,
-) ([]observationRow, []rapidWindRow, []hubStatusRow, []eventRow) {
+	obsBatch []observationRow, windBatch []rapidWindRow, hubBatch []hubStatusRow,
+	devBatch []deviceStatusRow, evtBatch []eventRow,
+) ([]observationRow, []rapidWindRow, []hubStatusRow, []deviceStatusRow, []eventRow) {
 	switch env.kind {
 	case kindObservation:
 		obsBatch = append(obsBatch, env.payload.(observationRow))
@@ -356,10 +385,12 @@ func appendEnvelope(
 		windBatch = append(windBatch, env.payload.(rapidWindRow))
 	case kindHubStatus:
 		hubBatch = append(hubBatch, env.payload.(hubStatusRow))
+	case kindDeviceStatus:
+		devBatch = append(devBatch, env.payload.(deviceStatusRow))
 	case kindEvent:
 		evtBatch = append(evtBatch, env.payload.(eventRow))
 	}
-	return obsBatch, windBatch, hubBatch, evtBatch
+	return obsBatch, windBatch, hubBatch, devBatch, evtBatch
 }
 
 // enqueue sends a CONTINUOUS row (observation/rapid_wind/hub_status).
@@ -409,12 +440,14 @@ func (w *Writer) WriteReport(ctx context.Context, report tempestudp.Report) erro
 		return w.handleRapidWindReport(ctx, r)
 	case *tempestudp.HubStatusReport:
 		return w.handleHubStatusReport(ctx, r)
+	case *tempestudp.DeviceStatusReport:
+		return w.handleDeviceStatusReport(ctx, r)
 	case *tempestudp.RainStartReport:
 		return w.handleRainStartReport(ctx, r)
 	case *tempestudp.LightningStrikeReport:
 		return w.handleLightningStrikeReport(ctx, r)
 	default:
-		// Unknown report type (e.g. device_status) - not an error.
+		// Unknown report type - not an error.
 		return nil
 	}
 }
@@ -515,6 +548,37 @@ func (w *Writer) handleHubStatusReport(ctx context.Context, r *tempestudp.HubSta
 		busErrors:    int64(r.RadioStats[2]),
 	}
 	return w.enqueue(ctx, rowEnvelope{kind: kindHubStatus, payload: row})
+}
+
+// handleDeviceStatusReport persists the sensor's own health (#196). Guarded
+// like every sibling handler: a report with no timestamp cannot be keyed by
+// UNIQUE(serial_number, timestamp) and is dropped rather than stored at epoch
+// 0. firmware and rssi stay nil-able all the way to the driver so an absent
+// field becomes SQL NULL, not a fabricated 0.
+func (w *Writer) handleDeviceStatusReport(ctx context.Context, r *tempestudp.DeviceStatusReport) error {
+	if r.Timestamp == 0 {
+		return nil // malformed: unkeyable
+	}
+	row := deviceStatusRow{
+		id:           uuid.Must(uuid.NewV7()),
+		serialNumber: r.SerialNumber,
+		timestamp:    int64(r.Timestamp),
+		uptime:       int64(r.Uptime),
+		voltage:      r.Voltage,
+		hubRssi:      int64(r.HubRssi),
+		sensorStatus: int64(r.SensorStatus),
+	}
+	if r.FirmwareRevision != nil {
+		// TEXT: the parser types firmware as int here and string in
+		// hub_status, so vendor forms are mixed; int stringifies losslessly.
+		fw := strconv.Itoa(*r.FirmwareRevision)
+		row.firmware = &fw
+	}
+	if r.Rssi != nil {
+		v := int64(*r.Rssi)
+		row.rssi = &v
+	}
+	return w.enqueue(ctx, rowEnvelope{kind: kindDeviceStatus, payload: row})
 }
 
 func (w *Writer) handleRainStartReport(ctx context.Context, r *tempestudp.RainStartReport) error {
@@ -684,6 +748,23 @@ func (w *Writer) insertRapidWind(ctx context.Context, batch []rapidWindRow) {
 	})
 	if err != nil {
 		slog.Error("sqlite: insert rapid_wind failed", "error", err, "rows", len(batch))
+	}
+}
+
+const insertDeviceStatusSQL = `
+INSERT INTO stormglass_device_status
+  (id, serial_number, timestamp, uptime, voltage, firmware_revision, rssi, hub_rssi, sensor_status)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(serial_number, timestamp) DO NOTHING`
+
+func (w *Writer) insertDeviceStatus(ctx context.Context, batch []deviceStatusRow) {
+	err := execBatch(ctx, w.db, insertDeviceStatusSQL, batch, func(stmt *sql.Stmt, row deviceStatusRow) error {
+		_, err := stmt.ExecContext(ctx, row.id.String(), row.serialNumber, row.timestamp,
+			row.uptime, row.voltage, row.firmware, row.rssi, row.hubRssi, row.sensorStatus)
+		return err
+	})
+	if err != nil {
+		slog.Error("sqlite: insert device_status failed", "error", err, "rows", len(batch))
 	}
 }
 

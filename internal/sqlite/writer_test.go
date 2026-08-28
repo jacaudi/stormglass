@@ -353,8 +353,13 @@ func TestWriter_RoutesReportTypes(t *testing.T) {
 		SerialNumber: "ST-ROUTE",
 		Evt:          []float64{1700000014, 3.2, 100},
 	}
+	device := &tempestudp.DeviceStatusReport{
+		SerialNumber: "ST-ROUTE",
+		Timestamp:    1700000015,
+		Rssi:         dsIntPtr(-70),
+	}
 
-	for _, report := range []tempestudp.Report{obs, rapidWind, hub, rainStart, lightning} {
+	for _, report := range []tempestudp.Report{obs, rapidWind, hub, rainStart, lightning, device} {
 		if err := w.WriteReport(ctx, report); err != nil {
 			t.Fatalf("WriteReport(%T): %v", report, err)
 		}
@@ -381,6 +386,7 @@ func TestWriter_RoutesReportTypes(t *testing.T) {
 	assertCount("stormglass_observations", "", 1)
 	assertCount("stormglass_rapid_wind", "", 1)
 	assertCount("stormglass_hub_status", "", 1)
+	assertCount("stormglass_device_status", "", 1)
 	assertCount("stormglass_events", "event_type = 'rain_start'", 1)
 	assertCount("stormglass_events", "event_type = 'lightning_strike'", 1)
 }
@@ -788,4 +794,218 @@ func TestReader_HistoryPoints(t *testing.T) {
 			t.Fatalf("HistoryPoints returned %d points, want capped at %d (inserted %d)", len(got), maxHistoryPoints, total)
 		}
 	})
+}
+
+func dsIntPtr(v int) *int { return &v }
+
+// TestWriter_InsertsDeviceStatus is #196's core writer case: the report the
+// writer used to drop now becomes a row, with the served fields exact.
+func TestWriter_InsertsDeviceStatus(t *testing.T) {
+	w := newTestWriter(t)
+	ctx := t.Context()
+
+	report := &tempestudp.DeviceStatusReport{
+		SerialNumber:     "ST-DEV",
+		Timestamp:        1700000100,
+		Uptime:           63807156,
+		Voltage:          2.792,
+		FirmwareRevision: dsIntPtr(156),
+		Rssi:             dsIntPtr(-82),
+		HubRssi:          -78,
+		SensorStatus:     0,
+	}
+	if err := w.WriteReport(ctx, report); err != nil {
+		t.Fatalf("WriteReport: %v", err)
+	}
+	if err := w.Flush(ctx); err != nil {
+		t.Fatalf("Flush: %v", err)
+	}
+
+	var (
+		serial   string
+		ts       int64
+		uptime   sql.NullInt64
+		voltage  sql.NullFloat64
+		firmware sql.NullString
+		rssi     sql.NullInt64
+		hubRssi  sql.NullInt64
+	)
+	err := w.db.QueryRowContext(ctx,
+		`SELECT serial_number, timestamp, uptime, voltage, firmware_revision, rssi, hub_rssi
+		   FROM stormglass_device_status WHERE serial_number = 'ST-DEV'`,
+	).Scan(&serial, &ts, &uptime, &voltage, &firmware, &rssi, &hubRssi)
+	if err != nil {
+		t.Fatalf("query device_status: %v", err)
+	}
+
+	if ts != 1700000100 {
+		t.Errorf("timestamp = %d, want 1700000100", ts)
+	}
+	// TEXT, not a number: vendor firmware forms are mixed across report types.
+	if !firmware.Valid || firmware.String != "156" {
+		t.Errorf("firmware_revision = %v, want \"156\"", firmware)
+	}
+	if !rssi.Valid || rssi.Int64 != -82 {
+		t.Errorf("rssi = %v, want -82", rssi)
+	}
+	if !hubRssi.Valid || hubRssi.Int64 != -78 {
+		t.Errorf("hub_rssi = %v, want -78", hubRssi)
+	}
+	if !voltage.Valid || voltage.Float64 != 2.792 {
+		t.Errorf("voltage = %v, want 2.792", voltage)
+	}
+	if !uptime.Valid || uptime.Int64 != 63807156 {
+		t.Errorf("uptime = %v, want 63807156", uptime)
+	}
+}
+
+// TestWriter_DeviceStatusAbsentFieldsAreNull is the whole reason the parser
+// fields are pointers. An absent rssi/firmware must reach the store as SQL
+// NULL, never as 0/"0" -- otherwise the card renders "0 dBm" and firmware "0",
+// which is absent data presented as a reading.
+func TestWriter_DeviceStatusAbsentFieldsAreNull(t *testing.T) {
+	w := newTestWriter(t)
+	ctx := t.Context()
+
+	if err := w.WriteReport(ctx, &tempestudp.DeviceStatusReport{
+		SerialNumber: "ST-ABSENT",
+		Timestamp:    1700000200,
+		Voltage:      2.7,
+		// FirmwareRevision and Rssi deliberately nil.
+	}); err != nil {
+		t.Fatalf("WriteReport: %v", err)
+	}
+	if err := w.Flush(ctx); err != nil {
+		t.Fatalf("Flush: %v", err)
+	}
+
+	var firmware sql.NullString
+	var rssi sql.NullInt64
+	err := w.db.QueryRowContext(ctx,
+		`SELECT firmware_revision, rssi FROM stormglass_device_status WHERE serial_number = 'ST-ABSENT'`,
+	).Scan(&firmware, &rssi)
+	if err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	if firmware.Valid {
+		t.Errorf("firmware_revision = %q, want SQL NULL", firmware.String)
+	}
+	if rssi.Valid {
+		t.Errorf("rssi = %d, want SQL NULL", rssi.Int64)
+	}
+}
+
+// TestWriter_DeviceStatusZeroIsStored is the other half: 0 dBm is a real
+// reading and must NOT be confused with absent.
+func TestWriter_DeviceStatusZeroIsStored(t *testing.T) {
+	w := newTestWriter(t)
+	ctx := t.Context()
+
+	if err := w.WriteReport(ctx, &tempestudp.DeviceStatusReport{
+		SerialNumber:     "ST-ZERO",
+		Timestamp:        1700000300,
+		FirmwareRevision: dsIntPtr(0),
+		Rssi:             dsIntPtr(0),
+	}); err != nil {
+		t.Fatalf("WriteReport: %v", err)
+	}
+	if err := w.Flush(ctx); err != nil {
+		t.Fatalf("Flush: %v", err)
+	}
+
+	var firmware sql.NullString
+	var rssi sql.NullInt64
+	if err := w.db.QueryRowContext(ctx,
+		`SELECT firmware_revision, rssi FROM stormglass_device_status WHERE serial_number = 'ST-ZERO'`,
+	).Scan(&firmware, &rssi); err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	if !rssi.Valid || rssi.Int64 != 0 {
+		t.Errorf("rssi = %v, want a non-NULL 0", rssi)
+	}
+	if !firmware.Valid || firmware.String != "0" {
+		t.Errorf("firmware_revision = %v, want a non-NULL \"0\"", firmware)
+	}
+}
+
+// TestWriter_DeviceStatusDropsMalformed: every sibling handler guards its
+// report (rapid wind, hub status, rain, lightning). A device_status with no
+// timestamp cannot be keyed and is dropped rather than stored at epoch 0.
+func TestWriter_DeviceStatusDropsMalformed(t *testing.T) {
+	w := newTestWriter(t)
+	ctx := t.Context()
+
+	if err := w.WriteReport(ctx, &tempestudp.DeviceStatusReport{
+		SerialNumber: "ST-BAD",
+		Timestamp:    0,
+		Rssi:         dsIntPtr(-70),
+	}); err != nil {
+		t.Fatalf("WriteReport: %v", err)
+	}
+	if err := w.Flush(ctx); err != nil {
+		t.Fatalf("Flush: %v", err)
+	}
+
+	var n int
+	if err := w.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM stormglass_device_status WHERE serial_number = 'ST-BAD'`).Scan(&n); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if n != 0 {
+		t.Errorf("stored %d malformed rows, want 0", n)
+	}
+}
+
+// TestWriter_DeviceStatusIdempotent: re-inserting the same
+// (serial_number, timestamp) must not duplicate, matching every other table.
+func TestWriter_DeviceStatusIdempotent(t *testing.T) {
+	w := newTestWriter(t)
+	ctx := t.Context()
+
+	report := &tempestudp.DeviceStatusReport{
+		SerialNumber: "ST-DUP", Timestamp: 1700000400, Rssi: dsIntPtr(-70),
+	}
+	for range 2 {
+		if err := w.WriteReport(ctx, report); err != nil {
+			t.Fatalf("WriteReport: %v", err)
+		}
+	}
+	if err := w.Flush(ctx); err != nil {
+		t.Fatalf("Flush: %v", err)
+	}
+
+	var n int
+	if err := w.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM stormglass_device_status WHERE serial_number = 'ST-DUP'`).Scan(&n); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if n != 1 {
+		t.Errorf("row count = %d, want 1", n)
+	}
+}
+
+// TestWriter_DeviceStatusDrainOnClose guards the repo's worst-history area:
+// #111, #154, C-H1 and D-H1 are all shutdown-drain data-loss fixes. A
+// device_status queued immediately before Close must still be persisted.
+func TestWriter_DeviceStatusDrainOnClose(t *testing.T) {
+	db := newTestDB(t)
+	w := NewWriter(t.Context(), db, Config{BatchSize: 100, FlushInterval: time.Hour})
+
+	if err := w.WriteReport(t.Context(), &tempestudp.DeviceStatusReport{
+		SerialNumber: "ST-DRAIN", Timestamp: 1700000500, Rssi: dsIntPtr(-55),
+	}); err != nil {
+		t.Fatalf("WriteReport: %v", err)
+	}
+	if err := w.Close(t.Context()); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	var n int
+	if err := db.QueryRow(
+		`SELECT COUNT(*) FROM stormglass_device_status WHERE serial_number = 'ST-DRAIN'`).Scan(&n); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if n != 1 {
+		t.Errorf("row count after Close = %d, want 1 -- the drain dropped it", n)
+	}
 }
