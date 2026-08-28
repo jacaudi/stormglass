@@ -75,10 +75,14 @@ services:
     restart: unless-stopped
 
   # One-shot init: the app image runs as non-root USER 65532:65532 (see
-  # Dockerfile), but a fresh named volume mounts /data owned root:root 0755 —
-  # nothing in the base image seeds ownership for it. SQLite is the default
-  # store and the app exits on startup if it can't open /data/stormglass.db, so
-  # without this chown a fresh `docker compose up` crash-loops `stormglass`.
+  # Dockerfile). The image now ships /data owned by 65532 (#226), and Docker
+  # seeds a NEWLY CREATED volume from the image directory — ownership included —
+  # so a fresh `docker compose up` no longer needs this chown.
+  #
+  # It is kept for UPGRADES. Docker only seeds an EMPTY volume; a volume that
+  # already holds a database keeps its original root:root ownership, and the app
+  # then fails with "attempt to write a readonly database (8)" and exits.
+  # Removing this would break every deployment created before #226.
   # litestream runs as root and can read the resulting 65532-owned DB fine,
   # so only `stormglass` needs to wait on this.
   stormglass-data-init:

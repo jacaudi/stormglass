@@ -69,17 +69,19 @@ tasks:
       - |
         set -eu
         echo "smoke testing ${IMAGE}"
-        # SQLITE_PATH is not optional here. SQLite is the DEFAULT store and the
-        # process EXITS ON STARTUP if it cannot open the database (CLAUDE.md,
-        # "fail-loud"). The image's /data is not a writable mount under a bare
-        # `docker run`, so without this the container crash-loops and the smoke
-        # test fails for a reason unrelated to the build. The container runs as
-        # USER 65532, so /tmp is the writable choice.
+        # Boot exactly the way README's quickstart tells users to: a named
+        # volume at /data, SQLite at its default path, no SQLITE_PATH override.
+        # SQLite is the DEFAULT store and the process EXITS ON STARTUP if it
+        # cannot open the database, so this asserts the image ships a /data its
+        # own unprivileged user can write -- the failure mode in #226, where a
+        # fresh named volume mounts root-owned against USER 65532.
+        SMOKE_VOL="smoke-data-$$"
+        docker volume create "${SMOKE_VOL}" >/dev/null
         docker run -d --name smoke \
           -p 8080:8080 \
-          -e SQLITE_PATH=/tmp/smoke.db \
+          -v "${SMOKE_VOL}":/data \
           "${IMAGE}"
-        trap 'docker logs smoke || true; docker rm -f smoke >/dev/null 2>&1 || true' EXIT
+        trap 'docker logs smoke || true; docker rm -f smoke >/dev/null 2>&1 || true; docker volume rm "${SMOKE_VOL}" >/dev/null 2>&1 || true' EXIT
         for i in $(seq 1 30); do
           curl -sf http://localhost:8080/healthz >/dev/null && break
           [ "$i" = "30" ] && { echo "::error::container never served /healthz on :8080"; exit 1; }
