@@ -83,14 +83,17 @@ deploy/.env
 
 # Agent scaffolding
 .superpowers/
-docs/prompts/
-# Implementation plans are local-only going forward. The plans already tracked
-# under this path predate the rule and were deliberately left in place -- adding
-# the ignore does not untrack them, so both regimes coexist by design.
-docs/plans/
 .auto-claude/
 
-# UI screenshots (local scratch)
+# docs/ tracks USER-FACING documentation and images -- nothing else.
+# Designs, implementation plans, handoff prompts, review write-ups and UI
+# screenshots are local development artifacts: useful while the work is in
+# flight, noise in the repository afterwards. They live on disk and in git
+# history at the commits that carried them, but not at HEAD.
+docs/designs/
+docs/plans/
+docs/prompts/
+docs/review/
 docs/screenshots/
 
 # Built binaries (this repo's, by name — the managed block's bin/ does not cover
