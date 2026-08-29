@@ -69,6 +69,21 @@ services:
       STATION_LATITUDE: ${STATION_LATITUDE:-}
       STATION_LONGITUDE: ${STATION_LONGITUDE:-}
       STATION_ELEVATION: ${STATION_ELEVATION:-}
+      # The default MUST stay empty, never ${TZ:-UTC}: an explicit UTC renders
+      # the same zone but tells Stormglass a timezone WAS configured, deleting
+      # the startup warning for every operator who set coordinates and no
+      # timezone. os.Getenv cannot distinguish empty from absent, so an empty
+      # value is treated as unset.
+      #
+      # Note this delivers TZ="" (set-but-empty), not TZ-unset. Go's runtime
+      # treats the two differently -- unset consults /etc/localtime, empty does
+      # not -- which is moot on the distroless base, since it ships no
+      # /etc/localtime.
+      TZ: ${TZ:-}
+      # DEPRECATED (removal in a future release), and kept for exactly that
+      # reason: this file has no env_file: key, so ${...} interpolation is the
+      # only path from .env to the container. Deleting this line would silently
+      # revert every existing operator's station to UTC.
       STATION_TIMEZONE: ${STATION_TIMEZONE:-}
       TOKEN: ${TOKEN:-}
       STORMGLASS_SERIAL: ${STORMGLASS_SERIAL:-}

@@ -60,12 +60,12 @@ Two things about that command are not optional:
 
 That is the whole required configuration. Everything else is optional — the
 three variables most people set next are `STATION_LATITUDE` /
-`STATION_LONGITUDE` and `STATION_TIMEZONE`, which turn on the almanac:
+`STATION_LONGITUDE` and `TZ`, which turn on the almanac:
 
 ```bash
 docker run -d --name stormglass --net=host -v stormglass-data:/data \
   -e STATION_LATITUDE=39.7392 -e STATION_LONGITUDE=-104.9903 \
-  -e STATION_TIMEZONE=America/Denver -e ENABLE_ALMANAC=true \
+  -e TZ=America/Denver -e ENABLE_ALMANAC=true \
   ghcr.io/jacaudi/stormglass
 ```
 
