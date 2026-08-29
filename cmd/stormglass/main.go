@@ -710,7 +710,7 @@ func main() {
 	//
 	// Runs in both modes. A malformed STATION_* value is an operator error
 	// wherever it appears; absent values are never an error.
-	stationCfg, err := config.LoadStation()
+	stationCfg, err := config.LoadStation(time.Local)
 	if err != nil {
 		log.Fatal(err)
 	}
