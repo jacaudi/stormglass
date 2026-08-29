@@ -527,7 +527,7 @@ func unknownRadarSiteReason(site string, lat, lon *float64) string {
 // cannot disagree. A precondition that is MET but degraded by an unintended
 // default produces a WARN instead: the route is registered and the capability
 // is true, because the card works -- it is just not what the operator meant.
-// STATION_TIMEZONE is the only such case today (issue #165).
+// An unconfigured timezone is the only such case today (issue #165).
 //
 // A MALFORMED value is a different matter and is already fatal, in
 // config.LoadStation: absent means "the operator did not configure this
@@ -570,11 +570,11 @@ func decideUI(flags uiFlags, station config.StationConfig, hasStore bool) uiDeci
 			// will render is noise when nothing renders at all.
 			if !station.TimezoneConfigured {
 				d.Warnings = append(d.Warnings,
-					"ENABLE_ALMANAC is true and coordinates are set, but STATION_TIMEZONE "+
-						"is not: sunrise and sunset will render as UTC clock times, the "+
-						"Today/This Week/This Month/This Year windows will use UTC calendar "+
-						"boundaries, and the record date labels (\"Today\", \"Jan 2\") will be "+
-						"UTC-dated. Set STATION_TIMEZONE to the station's IANA zone "+
+					"ENABLE_ALMANAC is true and coordinates are set, but no timezone "+
+						"is configured: sunrise and sunset will render as UTC clock times, "+
+						"the Today/This Week/This Month/This Year windows will use UTC "+
+						"calendar boundaries, and the record date labels (\"Today\", "+
+						"\"Jan 2\") will be UTC-dated. Set TZ to the station's IANA zone "+
 						"(e.g. America/Denver).")
 			}
 		}
@@ -711,6 +711,20 @@ func main() {
 	// Runs in both modes. A malformed STATION_* value is an operator error
 	// wherever it appears; absent values are never an error.
 	stationCfg, err := config.LoadStation(time.Local)
+	// Logged BEFORE the fatal check, so a malformed STATION_LATITUDE cannot
+	// hide a timezone diagnostic (go-standards §15.3). Ranging a nil slice is
+	// legal, and stationCfg is fully formed even on the error path.
+	//
+	// Here rather than in startAPIServer because that returns nil unless
+	// mode == ModeUDP (main.go:644-646), and these notices apply to both
+	// modes. That places them before configureOTel installs the slog bridge,
+	// so they reach the pre-bridge stderr default rather than the OTel log
+	// pipeline -- the same accepted limitation
+	// internal/prometheus/deprecation.go:32-39 documents for its own
+	// transitional deprecation notice.
+	for _, n := range stationCfg.TimezoneNotices {
+		slog.Default().Warn("timezone configuration", "notice", n)
+	}
 	if err != nil {
 		log.Fatal(err)
 	}
