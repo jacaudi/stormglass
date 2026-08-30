@@ -19,6 +19,12 @@
       "matchDatasources": ["docker"],
       "matchPackageNames": ["python"],
       "enabled": false
+    },
+    {
+      "description": "This repo publishes ghcr.io/jacaudi/stormglass, and deploy/kubernetes/values.yaml pins it as a deployment example. Left enabled, Renovate tracks our own release and opens a bump PR after every cut -- so the shipped example is permanently one release stale and the PR is superseded before it merges (#238 proposed v1.0.2 while v1.0.3 was being tagged). release-please now owns that tag through the extra-files entry in release-please-config.json and the x-release-please-version annotation on the line, which updates it inside the release PR itself. This rule must stay AFTER the docker-images group above: later rules win, and that group's \"**\" would otherwise pull this image back in.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["ghcr.io/jacaudi/stormglass"],
+      "enabled": false
     }
   ]
 }

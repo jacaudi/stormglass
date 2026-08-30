@@ -35,7 +35,12 @@ controllers:
       app:
         image:
           repository: ghcr.io/jacaudi/stormglass
-          tag: v1.0.1
+          # release-please owns this tag: the release PR rewrites it via the
+          # extra-files entry in .github/release-please-config.json, and
+          # .github/renovate.json disables Renovate on this image so the two
+          # cannot fight over it. Renovate tracking our own published image
+          # made this line permanently one release stale.
+          tag: v1.0.3 # x-release-please-version
         env:
           HTTP_ADDR: ":8080"
           SQLITE_PATH: /data/stormglass.db
