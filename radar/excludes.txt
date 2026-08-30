@@ -1,0 +1,38 @@
+# Packages dropped from this sidecar's dependency resolution (uv --excludes).
+#
+# Both the image build and the test task pass this file, so the two
+# environments resolve identically. If you add a consumer, pass it there too --
+# a resolution that sees this file and one that does not are different
+# environments, and the tests stop testing what ships.
+#
+# WHY s3fs
+#
+# arm-pyart declares s3fs as a hard, non-optional dependency, and s3fs pulls
+# aiobotocore, which caps botocore below the boto3 this sidecar wants:
+#
+#   boto3 >= 1.43.57  ->  botocore >= 1.43.57
+#   arm-pyart -> s3fs -> aiobotocore -> botocore < 1.43.57
+#
+# No published combination satisfies both ends, so boto3 sat frozen under that
+# ceiling and every Renovate bump failed to resolve. aiobotocore chronically
+# lags botocore's release cadence, so the ceiling rises slowly while boto3 moves
+# fast: waiting it out is not a fix, it is a standing tax on triage.
+#
+# s3fs is safe to drop because nothing imports it. It appears nowhere in pyart's
+# own source, and nothing in this directory imports it either -- the sidecar
+# reads the public NEXRAD bucket through boto3 directly, with an unsigned
+# client. fsspec dispatches to s3fs only for s3:// URLs, which this code never
+# opens.
+#
+# DO NOT ADD fsspec HERE. pyart/io/common.py imports it at module top level, so
+# excluding it breaks `import pyart` outright -- and the image would still build
+# green, failing only on first import. That is exactly the shape of #186, where
+# a broken cartopy extension passed the build and died at runtime. Verify a
+# change here by booting the image (`task radar-smoke`), never by building it.
+#
+# Verified before landing: boto3 resolves to 1.43.83, aiobotocore leaves the
+# graph entirely, `import pyart` and `pyart.io.nexrad_archive` both succeed, the
+# test suite passes, and the built image boots and serves /healthz.
+#
+# Refs #232.
+s3fs
