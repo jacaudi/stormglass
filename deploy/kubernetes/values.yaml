@@ -7,8 +7,19 @@
 # This file is the single source of truth for the deployment config;
 # helmrelease.yaml wraps it for Flux rather than restating it.
 #
-# Change before use: station coordinates, RADAR_SITE, image tags, and the
-# OTLP endpoint.
+# Change before use: station coordinates, RADAR_SITE, the radar image tag, and
+# the OTLP endpoint.
+#
+# Do NOT hand-edit the stormglass image tag. release-please owns it: the release
+# PR rewrites it through the extra-files entry in
+# .github/release-please-config.json, keyed on the trailing annotation comment
+# that must stay on that line. .github/renovate.json disables Renovate for this
+# one image so the two cannot fight over it -- Renovate tracking our own
+# published release left this tag permanently one cut stale.
+#
+# That annotation is the only one in this file, and it must stay that way: the
+# updater rewrites a version on every line carrying it, so repeating the token
+# in prose would arm a second rewrite site.
 controllers:
   stormglass:
     # StatefulSet, not Deployment: /data holds one SQLite database with a WAL
@@ -35,11 +46,6 @@ controllers:
       app:
         image:
           repository: ghcr.io/jacaudi/stormglass
-          # release-please owns this tag: the release PR rewrites it via the
-          # extra-files entry in .github/release-please-config.json, and
-          # .github/renovate.json disables Renovate on this image so the two
-          # cannot fight over it. Renovate tracking our own published image
-          # made this line permanently one release stale.
           tag: v1.0.3 # x-release-please-version
         env:
           HTTP_ADDR: ":8080"
