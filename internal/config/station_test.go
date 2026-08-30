@@ -247,8 +247,15 @@ func TestLoadStation_TimezoneResolution(t *testing.T) {
 		tz        string
 		stationTZ string
 		wantZone  string // Location.String()
-		wantFlag  bool
-		wantErr   bool
+		// wantLocalZone asserts pointer identity with time.Local instead of a
+		// name, and is the only way to assert STATION_TIMEZONE=Local: that
+		// value resolves through time.LoadLocation's "Local" special case,
+		// whose NAME is whatever the runner's TZ made time.Local -- exactly
+		// the order dependence the injected local parameter exists to avoid.
+		// wantZone is ignored when this is set.
+		wantLocalZone bool
+		wantFlag      bool
+		wantErr       bool
 		// wantNotices is ordered: entry i lists substrings that notice i must
 		// contain. len(wantNotices) is also the exact expected notice count.
 		wantNotices [][]string
@@ -332,6 +339,22 @@ func TestLoadStation_TimezoneResolution(t *testing.T) {
 			wantNotices: [][]string{{"is deprecated", "did not parse"}},
 			// The parsed variant's clauses are all false here.
 			wantAbsent: []string{"still honoured", "Set TZ to the same value", "takes precedence"},
+		},
+		{
+			// "Local" is the one name that time.LoadLocation accepts and the
+			// runtime cannot load from TZ, so the parsed deprecation's "set
+			// TZ to the same value" would silently move this station to UTC.
+			// It is NOT malformed: it still parses and still supplies the
+			// zone, so it must not be routed to the malformed variant.
+			name:          "station_timezone_Local_does_not_advise_copying_the_value_to_tz",
+			local:         time.UTC,
+			stationTZ:     "Local",
+			wantLocalZone: true, wantFlag: true,
+			wantNotices: [][]string{{
+				"is deprecated", "still honoured", "takes precedence over TZ",
+				"not an IANA zone name", "falls back to UTC",
+			}},
+			wantAbsent: []string{"Set TZ to the same value", "did not parse", "resolved to UTC"},
 		},
 		{
 			name: "both_set_and_equal_is_silent", local: denver,
@@ -420,7 +443,11 @@ func TestLoadStation_TimezoneResolution(t *testing.T) {
 			if cfg.Location == nil {
 				t.Fatal("Location must never be nil")
 			}
-			if got := cfg.Location.String(); got != tc.wantZone {
+			if tc.wantLocalZone {
+				if cfg.Location != time.Local {
+					t.Errorf("Location = %p, want time.Local (%p)", cfg.Location, time.Local)
+				}
+			} else if got := cfg.Location.String(); got != tc.wantZone {
 				t.Errorf("Location = %q, want %q", got, tc.wantZone)
 			}
 			if cfg.TimezoneConfigured != tc.wantFlag {
@@ -472,6 +499,14 @@ func TestTimezoneMessages_ExactText(t *testing.T) {
 			"STATION_TIMEZONE is deprecated and will be removed in a future release; set TZ " +
 				"instead. The value %q did not parse, so it supplied no zone \u2014 the startup " +
 				"error below names it."},
+		// No em dash by design: this variant's last clause is the corrective
+		// advice, and it reads as two plain sentences.
+		{"deprecation_local", tzDeprecationLocalMsg,
+			"STATION_TIMEZONE is deprecated and will be removed in a future release. It is " +
+				"still honoured and still takes precedence over TZ, so this station's times " +
+				"use %q. Local is not an IANA zone name and TZ=Local falls back to UTC, so " +
+				"set TZ to the station's actual zone (e.g. America/Denver) and remove " +
+				"STATION_TIMEZONE."},
 		{"deprecation_also_set", tzDeprecationAlsoSetMsg,
 			" Note TZ=%q is also set; log timestamps follow TZ while station times follow " +
 				"STATION_TIMEZONE."},

@@ -435,6 +435,41 @@ func TestDecideUI(t *testing.T) {
 	}
 }
 
+// TestDecideUI_TimezoneWarningExactText pins the issue #165 warning verbatim,
+// the way internal/config's TestTimezoneMessages_ExactText pins the five
+// notice constants. Everywhere else this string is asserted by the substrings
+// "ENABLE_ALMANAC", "Set TZ to" and "UTC", all three of which survive dropping
+// half the sentence or losing the "Today"/"Jan 2" examples -- so without this
+// the one warning that tells an operator their almanac is on the wrong clock
+// is free to drift.
+//
+// This string carries no em dash, unlike the config constants; if one is ever
+// added, write it here as — so a file-level normalisation cannot silently
+// make the test agree with a corrupted constant.
+//
+// If the warning legitimately changes, update this test AND re-check that
+// every clause is true in every state that reaches it. Do not update it to
+// match whatever the code now says.
+func TestDecideUI_TimezoneWarningExactText(t *testing.T) {
+	lat, lon := 39.74, -104.98
+	locatedNoTZ := config.StationConfig{Latitude: &lat, Longitude: &lon}
+
+	got := decideUI(uiFlags{Almanac: true}, locatedNoTZ, true)
+
+	want := "ENABLE_ALMANAC is true and coordinates are set, but no timezone is configured: " +
+		"sunrise and sunset will render as UTC clock times, the Today/This Week/This Month/" +
+		"This Year windows will use UTC calendar boundaries, and the record date labels " +
+		"(\"Today\", \"Jan 2\") will be UTC-dated. Set TZ to the station's IANA zone " +
+		"(e.g. America/Denver)."
+
+	if len(got.Warnings) != 1 {
+		t.Fatalf("got %d warnings, want exactly 1: %#v", len(got.Warnings), got.Warnings)
+	}
+	if got.Warnings[0] != want {
+		t.Errorf("warning drifted.\n got: %q\nwant: %q", got.Warnings[0], want)
+	}
+}
+
 // TestDecideUI_ReportsEveryUnmetPrecondition proves an operator with three
 // broken flags learns all three from one startup, not one per restart.
 func TestDecideUI_ReportsEveryUnmetPrecondition(t *testing.T) {

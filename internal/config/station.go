@@ -81,11 +81,13 @@ const (
 
 // The timezone notices are pinned constants rather than inline strings
 // because each one has to stay true in every reachable state. The deprecation
-// has two variants because the parsed one's every clause is false when the
-// value did not parse; the advisory has two because a single one would be
-// false whenever STATION_TIMEZONE supplied the zone; and the suffix says "is
-// also set" rather than "differs" because no string compare can decide whether
-// two spellings name one zone. TestTimezoneMessages_ExactText pins all five.
+// has three variants because the parsed one's every clause is false when the
+// value did not parse, and its LAST clause is false -- and actively harmful --
+// for "Local", which parses but names no zone TZ can load; the advisory has
+// two because a single one would be false whenever STATION_TIMEZONE supplied
+// the zone; and the suffix says "is also set" rather than "differs" because no
+// string compare can decide whether two spellings name one zone.
+// TestTimezoneMessages_ExactText pins all six.
 const (
 	tzDeprecationMsg = "STATION_TIMEZONE is deprecated and will be removed in a future release. " +
 		"It is still honoured and still takes precedence over TZ, so this station's times use %q. " +
@@ -98,6 +100,20 @@ const (
 	tzDeprecationMalformedMsg = "STATION_TIMEZONE is deprecated and will be removed in a future " +
 		"release; set TZ instead. The value %q did not parse, so it supplied no zone — the " +
 		"startup error below names it."
+
+	// Used instead of tzDeprecationMsg when the value is exactly "Local".
+	// time.LoadLocation special-cases that name and returns the process zone,
+	// so the value PARSES and does supply the station's times -- it is not
+	// malformed, and routing it to the variant above would both lie and change
+	// behaviour. Only tzDeprecationMsg's last clause is wrong for it, and
+	// wrong in the worst direction: the runtime cannot load "Local" from TZ
+	// (initLocal finds no such zone and falls back to UTC), so an operator who
+	// followed "set TZ to the same value" would silently move the almanac to
+	// UTC while the station kept rendering correctly right up until they did.
+	tzDeprecationLocalMsg = "STATION_TIMEZONE is deprecated and will be removed in a future " +
+		"release. It is still honoured and still takes precedence over TZ, so this station's " +
+		"times use %q. Local is not an IANA zone name and TZ=Local falls back to UTC, so set " +
+		"TZ to the station's actual zone (e.g. America/Denver) and remove STATION_TIMEZONE."
 
 	// "is also set", never "differs": whether the two spellings name the same
 	// zone is not something a string compare can decide -- utc/UTC,
@@ -127,7 +143,7 @@ const (
 // No value is ever required: an unset variable yields a nil pointer and no
 // error, and no combination of absent values can prevent the process from
 // starting. A MALFORMED value -- unparseable, out of range, non-finite, an
-// unknown timezone, or a half-set coordinate pair -- is a fatal
+// unknown STATION_TIMEZONE, or a half-set coordinate pair -- is a fatal
 // configuration error, matching ParseBoolEnv's stance that a typo is an
 // operator error rather than a silently disabled feature.
 //
@@ -137,10 +153,14 @@ const (
 // produce a fatal error -- an unresolvable value degrades to UTC with a
 // notice.)
 //
-// local is the process's local zone, injected rather than read from
-// time.Local so tests are deterministic: time.Local resolves lazily on first
-// use, which makes a test that reads it directly order-dependent. Production
-// passes time.Local. A nil local is normalised to time.UTC, so
+// PRECONDITION: local must be the runtime's own resolution of TZ. Production
+// passes time.Local, which is exactly that; it is injected rather than read
+// here so tests are deterministic, because time.Local resolves lazily on first
+// use and a test that reads it directly is order-dependent. The notices are
+// only true under this precondition -- "log timestamps follow TZ" is inferred
+// from local, so an incoherent pair (a non-UTC local beside an unresolvable
+// TZ) would make that clause false. That pair is unreachable in production,
+// and no test may construct it. A nil local is normalised to time.UTC, so
 // StationConfig.Location's never-nil guarantee is a property of this function
 // rather than of the caller.
 //
@@ -281,7 +301,7 @@ func timezoneNotices(local *time.Location, stationTZ, tz string, stationTZOK boo
 	// use %q / set TZ to the same value" clauses is true in that state.
 	if stationTZ != "" {
 		if stationTZOK {
-			n := fmt.Sprintf(tzDeprecationMsg, stationTZ)
+			n := fmt.Sprintf(deprecationMsgFor(stationTZ), stationTZ)
 			// tzResolved is correctness; the TrimPrefix compare is only
 			// noise suppression, so the common "both set to the same
 			// string" deployment stays quiet. The suffix no longer claims
@@ -320,6 +340,23 @@ func timezoneNotices(local *time.Location, stationTZ, tz string, stationTZOK boo
 	return notices
 }
 
+// localZoneName is time.LoadLocation's one name that parses without naming an
+// IANA zone: it returns the process's local zone. The stdlib switches on this
+// literal, so the comparison below is an exact match of a documented special
+// case rather than a heuristic -- "local" and "LOCAL" do not reach it and are
+// ordinary unknown zones.
+const localZoneName = "Local"
+
+// deprecationMsgFor picks the deprecation variant for a STATION_TIMEZONE that
+// parsed. Extracted rather than inlined so timezoneNotices stays at its
+// measured gocyclo of 10; see LoadStation's note on the same budget.
+func deprecationMsgFor(stationTZ string) string {
+	if stationTZ == localZoneName {
+		return tzDeprecationLocalMsg
+	}
+	return tzDeprecationMsg
+}
+
 // isUTCSpelling reports whether tz is a spelling of UTC or GMT, so an operator
 // who deliberately chose UTC is not advised about it.
 //
@@ -330,8 +367,10 @@ func timezoneNotices(local *time.Location, stationTZ, tz string, stationTZOK boo
 // String()=="UTC", and this arm is what suppresses the advisory for it.
 //
 // Accepted false positives -- spellings Go cannot load but the operator
-// plainly meant as UTC, which therefore still produce an advisory -- are
-// exactly "UTC0", "Z" and "UTC+0".
+// plainly meant as UTC, which therefore still produce an advisory -- include
+// "UTC0", "Z", "UTC+0" and "UTC-0"; the set is platform-dependent and is not
+// enumerated here. The advisory stays TRUE in all of them (the runtime really
+// did land on UTC); it is only redundant.
 func isUTCSpelling(tz string) bool {
 	name := strings.TrimPrefix(tz, ":")
 	return strings.EqualFold(name, "UTC") || strings.EqualFold(name, "GMT")
