@@ -7,24 +7,80 @@
 # This file is the single source of truth for the deployment config;
 # helmrelease.yaml wraps it for Flux rather than restating it.
 #
-# Change before use: station coordinates, RADAR_SITE, image tags, and the
-# OTLP endpoint.
+# Change before use: station coordinates, RADAR_SITE, the radar image tag, and
+# the OTLP endpoint.
+#
+# Every note about a field lives here rather than beside it, so the body stays
+# pure config. Each note names the key it is about.
+#
+#
+# IMAGE TAG
+#
+# app.image.tag -- do NOT hand-edit. release-please owns it: the release PR
+# rewrites it through the extra-files entry in
+# .github/release-please-config.json, keyed on the trailing annotation comment
+# that must stay on that line. .github/renovate.json disables Renovate for this
+# one image so the two cannot fight over it -- Renovate tracking our own
+# published release left this tag permanently one cut stale.
+#
+# That annotation is the only one in this file, and it must stay that way: the
+# updater rewrites a version on every line carrying it, so repeating the token
+# in prose would arm a second rewrite site.
+#
+#
+# POD
+#
+# type: statefulset -- not Deployment. /data holds one SQLite database with a
+# WAL that Litestream is streaming, and a rolling Deployment update would
+# briefly run two pods with two writers on one file.
+#
+# hostNetwork: true -- REQUIRED for UDP ingestion. Tempest stations broadcast
+# to :50222 as link-local traffic, which does not cross the CNI pod network.
+# Without this the pod starts, passes its probes, serves the dashboard -- and
+# receives no observations at all.
+#
+# dnsPolicy: ClusterFirstWithHostNet -- must accompany hostNetwork. Without it
+# the pod inherits the node's resolv.conf and loses cluster DNS, so in-cluster
+# service names (the OTel collector, Postgres) stop resolving. The default
+# ClusterFirst is silently wrong here rather than an error.
+#
+#
+# CONTAINERS
+#
+# radar -- optional; drop this container if ENABLE_RADAR is false. With
+# hostNetwork the app reaches it on localhost:8081, no service needed.
+#
+# radar.resources.requests.memory -- not padding: decoding a NEXRAD volume scan
+# loads the whole scan into memory, and one tile response can be several MB of
+# GeoJSON.
+#
+# litestream -- optional; streams the SQLite WAL off-node. Shares /data with the
+# app and OWNS checkpointing, which is why Stormglass does not configure
+# wal_autocheckpoint itself. Drop its two volumes below with it. Needs a Secret
+# `stormglass-litestream` with access-key-id and secret-access-key.
+#
+#
+# SERVICE
+#
+# service.app.ports -- for the deprecated scrape path, add a
+# `metrics: {port: 9000}` entry and set ENABLE_PROMETHEUS_METRICS. See
+# servicemonitor.yaml.
+#
+#
+# PERSISTENCE
+#
+# data -- needs a PVC named stormglass-data. ReadWriteOnce is fine; hostNetwork
+# pins the pod to a node anyway.
+#
+# litestream-config -- ConfigMap holding litestream.yml; use
+# deploy/litestream.yml as the content, with the db path /data/stormglass.db.
+#
+# tmp -- readOnlyRootFilesystem is on, so the app needs somewhere writable.
 controllers:
   stormglass:
-    # StatefulSet, not Deployment: /data holds one SQLite database with a WAL
-    # that Litestream is streaming, and a rolling Deployment update would
-    # briefly run two pods with two writers on one file.
     type: statefulset
     pod:
-      # REQUIRED for UDP ingestion. Tempest stations broadcast to :50222 as
-      # link-local traffic, which does not cross the CNI pod network. Without
-      # this the pod starts, passes its probes, serves the dashboard — and
-      # receives no observations at all.
       hostNetwork: true
-      # Must accompany hostNetwork. Without it the pod inherits the node's
-      # resolv.conf and loses cluster DNS, so in-cluster service names (the
-      # OTel collector below, Postgres) stop resolving. The default
-      # ClusterFirst is silently wrong here rather than an error.
       dnsPolicy: ClusterFirstWithHostNet
       securityContext:
         runAsUser: 65532
@@ -35,7 +91,7 @@ controllers:
       app:
         image:
           repository: ghcr.io/jacaudi/stormglass
-          tag: v1.0.1
+          tag: v1.0.3 # x-release-please-version
         env:
           HTTP_ADDR: ":8080"
           SQLITE_PATH: /data/stormglass.db
@@ -80,8 +136,6 @@ controllers:
           limits:
             memory: 256Mi
 
-      # Optional; drop this container if ENABLE_RADAR is false. With
-      # hostNetwork the app reaches it on localhost:8081, no service needed.
       radar:
         image:
           repository: ghcr.io/jacaudi/stormglass-radar
@@ -99,17 +153,10 @@ controllers:
         resources:
           requests:
             cpu: 50m
-            # Not padding: decoding a NEXRAD volume scan loads the whole scan
-            # into memory, and one tile response can be several MB of GeoJSON.
             memory: 512Mi
           limits:
             memory: 2Gi
 
-      # Optional; streams the SQLite WAL off-node. Shares /data with the app
-      # and OWNS checkpointing, which is why Stormglass does not configure
-      # wal_autocheckpoint itself. Drop its two volumes below with it.
-      # Needs a Secret `stormglass-litestream` with access-key-id and
-      # secret-access-key.
       litestream:
         image:
           repository: litestream/litestream
@@ -130,15 +177,11 @@ controllers:
 service:
   app:
     controller: stormglass
-    # For the deprecated scrape path, add a `metrics: {port: 9000}` entry
-    # below and set ENABLE_PROMETHEUS_METRICS. See servicemonitor.yaml.
     ports:
       http:
         port: 8080
 
 persistence:
-  # Needs a PVC named stormglass-data. ReadWriteOnce is fine — hostNetwork
-  # pins the pod to a node anyway.
   data:
     existingClaim: stormglass-data
     advancedMounts:
@@ -147,8 +190,6 @@ persistence:
           - path: /data
         litestream:
           - path: /data
-  # ConfigMap holding litestream.yml; use deploy/litestream.yml as the
-  # content, with the db path /data/stormglass.db.
   litestream-config:
     type: configMap
     name: stormglass-litestream
@@ -158,7 +199,6 @@ persistence:
           - path: /etc/litestream.yml
             subPath: litestream.yml
             readOnly: true
-  # readOnlyRootFilesystem is on, so the app needs somewhere writable.
   tmp:
     type: emptyDir
     advancedMounts:

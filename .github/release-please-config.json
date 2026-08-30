@@ -20,7 +20,8 @@
   "packages": {
     ".": {
       "release-type": "go",
-      "include-v-in-tag": true
+      "include-v-in-tag": true,
+      "extra-files": ["deploy/kubernetes/values.yaml"]
     }
   }
 }
