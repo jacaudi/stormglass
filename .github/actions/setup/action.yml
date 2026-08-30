@@ -90,7 +90,11 @@ runs:
       shell: bash
       env:
         # renovate: datasource=github-releases depName=golangci/golangci-lint
-        VERSION: 2.12.2
+        # Must be built with a Go >= the module's toolchain, or it refuses to
+        # run at all: "the Go language version used to build golangci-lint is
+        # lower than the targeted Go version". 2.13.2 is built with go1.27.0.
+        # renovate.json groups this with go-toolchain so the two move together.
+        VERSION: 2.13.2
       run: |
         set -euo pipefail
         curl -sSfL "https://github.com/golangci/golangci-lint/releases/download/v${VERSION}/golangci-lint-${VERSION}-linux-amd64.tar.gz" \
