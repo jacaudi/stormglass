@@ -23,9 +23,10 @@ An unmet precondition is never fatal. The card is not mounted, an `ERROR` names
 what is missing, `/api/capabilities` reports it false, and ingestion continues.
 A card flag cannot take down the data path.
 
-A *malformed* value — an unparseable coordinate, an unknown timezone, half a
-coordinate pair — is a different matter and **is** a fatal startup error, naming
-every offending variable at once.
+A *malformed* value — an unparseable coordinate, an unknown `STATION_TIMEZONE`,
+half a coordinate pair — is a different matter and **is** a fatal startup
+error, naming every offending variable at once. (`TZ` failures are not: see
+[Configuration](configuration.md#timezone).)
 
 ## Station identity
 
@@ -33,10 +34,10 @@ No UDP message carries the station's location, so it is configuration. Nothing
 is required, and no combination of missing values prevents startup. See
 [Configuration](configuration.md) for the variables, ranges and defaults.
 
-The one setting worth calling out is `STATION_TIMEZONE`: with coordinates set
-and the timezone unset, the almanac still mounts but renders every time on UTC,
-and logs a `WARN`. It is server-side only — the server preformats every
-timezone-dependent value, so the timezone never appears on the wire.
+The one setting worth calling out is `TZ`: with coordinates set and no timezone
+configured, the almanac still mounts but renders every time on UTC, and logs a
+`WARN`. The timezone is server-side only — the server preformats every
+timezone-dependent value, so it never appears on the wire.
 
 ## HTTP endpoints
 

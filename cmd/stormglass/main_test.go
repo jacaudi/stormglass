@@ -363,14 +363,23 @@ func TestDecideUI(t *testing.T) {
 			// The card MOUNTS and works -- it is just on the wrong clock. So
 			// this is a warning, not a reason: capabilities.almanac stays true
 			// and the route stays registered.
-			name:         "almanac_without_a_timezone_warns_but_mounts",
-			flags:        uiFlags{Almanac: true},
-			station:      locatedNoTZ,
-			hasStore:     true,
-			wantAlmanac:  true,
-			wantWarnings: []string{"ENABLE_ALMANAC", "STATION_TIMEZONE", "UTC"},
+			name:        "almanac_without_a_timezone_warns_but_mounts",
+			flags:       uiFlags{Almanac: true},
+			station:     locatedNoTZ,
+			hasStore:    true,
+			wantAlmanac: true,
+			// "Set TZ to" rather than a bare "TZ": the substring "TZ" is
+			// satisfied by the word STATION_TIMEZONE, so a bare "TZ" would
+			// pass against the OLD warning text and assert nothing.
+			wantWarnings: []string{"ENABLE_ALMANAC", "Set TZ to", "UTC"},
 		},
 		{
+			// The "not when only TZ is set" half of the contract. decideUI
+			// cannot see TZ; it sees only TimezoneConfigured, which a bare TZ
+			// now sets. The other half of the link --
+			// that TZ alone sets the flag -- is
+			// TestLoadStation_TimezoneResolution/tz_only_supplies_the_zone in
+			// internal/config.
 			name:        "almanac_with_a_timezone_is_silent",
 			flags:       uiFlags{Almanac: true},
 			station:     located,
@@ -426,6 +435,41 @@ func TestDecideUI(t *testing.T) {
 	}
 }
 
+// TestDecideUI_TimezoneWarningExactText pins the issue #165 warning verbatim,
+// the way internal/config's TestTimezoneMessages_ExactText pins the five
+// notice constants. Everywhere else this string is asserted by the substrings
+// "ENABLE_ALMANAC", "Set TZ to" and "UTC", all three of which survive dropping
+// half the sentence or losing the "Today"/"Jan 2" examples -- so without this
+// the one warning that tells an operator their almanac is on the wrong clock
+// is free to drift.
+//
+// This string carries no em dash, unlike the config constants; if one is ever
+// added, write it here as — so a file-level normalisation cannot silently
+// make the test agree with a corrupted constant.
+//
+// If the warning legitimately changes, update this test AND re-check that
+// every clause is true in every state that reaches it. Do not update it to
+// match whatever the code now says.
+func TestDecideUI_TimezoneWarningExactText(t *testing.T) {
+	lat, lon := 39.74, -104.98
+	locatedNoTZ := config.StationConfig{Latitude: &lat, Longitude: &lon}
+
+	got := decideUI(uiFlags{Almanac: true}, locatedNoTZ, true)
+
+	want := "ENABLE_ALMANAC is true and coordinates are set, but no timezone is configured: " +
+		"sunrise and sunset will render as UTC clock times, the Today/This Week/This Month/" +
+		"This Year windows will use UTC calendar boundaries, and the record date labels " +
+		"(\"Today\", \"Jan 2\") will be UTC-dated. Set TZ to the station's IANA zone " +
+		"(e.g. America/Denver)."
+
+	if len(got.Warnings) != 1 {
+		t.Fatalf("got %d warnings, want exactly 1: %#v", len(got.Warnings), got.Warnings)
+	}
+	if got.Warnings[0] != want {
+		t.Errorf("warning drifted.\n got: %q\nwant: %q", got.Warnings[0], want)
+	}
+}
+
 // TestDecideUI_ReportsEveryUnmetPrecondition proves an operator with three
 // broken flags learns all three from one startup, not one per restart.
 func TestDecideUI_ReportsEveryUnmetPrecondition(t *testing.T) {
@@ -476,7 +520,7 @@ func TestStartAPIServer_EmitsDecisionDiagnostics(t *testing.T) {
 	// These four are the only names startAPIServer reads unconditionally; it
 	// also reads RADAR_SIDECAR_URL, but only when the radar card mounts.
 	// Station identity is NOT read from the environment here -- it arrives as
-	// the `station` parameter, filled by config.LoadStation() in main.
+	// the `station` parameter, filled by config.LoadStation(time.Local) in main.
 	t.Setenv("HTTP_ADDR", "127.0.0.1:0")
 	t.Setenv("ENABLE_FORECAST", "true")
 	t.Setenv("ENABLE_ALMANAC", "true")
@@ -540,8 +584,10 @@ func TestStartAPIServer_EmitsDecisionDiagnostics(t *testing.T) {
 	if warnIdx < 0 {
 		t.Fatalf("no WARN record for a degraded card -- the warning loop did not run.\ngot:\n%s", out)
 	}
-	if !strings.Contains(out, `warning="ENABLE_ALMANAC`) || !strings.Contains(out, "STATION_TIMEZONE") {
-		t.Errorf("the WARN record must carry a warning attribute naming STATION_TIMEZONE.\ngot:\n%s", out)
+	// As above: "Set TZ to", not "TZ" -- the latter is satisfied by
+	// STATION_TIMEZONE and would pass against the old text.
+	if !strings.Contains(out, `warning="ENABLE_ALMANAC`) || !strings.Contains(out, "Set TZ to") {
+		t.Errorf("the WARN record must carry a warning attribute telling the operator to set TZ.\ngot:\n%s", out)
 	}
 
 	// Ordering is deliberate: a startup with both prints every not-mounted

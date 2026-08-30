@@ -48,7 +48,7 @@ controllers:
           STATION_LATITUDE: "47.6"
           STATION_LONGITUDE: "-122.3"
           STATION_ELEVATION: "150"
-          STATION_TIMEZONE: America/Los_Angeles
+          TZ: America/Los_Angeles
         probes:
           liveness:
             enabled: true

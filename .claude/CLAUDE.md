@@ -130,7 +130,7 @@ Prometheus push writer (`internal/prometheus/writer.go`), not the general path.
 ## Configuration
 
 **`docs/configuration.md` is authoritative** for the complete environment
-variable surface (37 variables), the operational-mode matrix, and the
+variable surface (38 variables), the operational-mode matrix, and the
 fatal-versus-degraded startup rules. It is derived from the code's real read
 sites. Do not restate it here — two hand-maintained copies of one surface is
 what produced issue #217.
@@ -147,10 +147,12 @@ Points an agent gets wrong most often:
   **exits at startup** if that database cannot be opened. Postgres is opt-in and
   can fan out alongside SQLite.
 - **A malformed value is fatal; a missing one is not.** Unparseable or
-  out-of-range values abort startup naming *every* offender at once. An
-  unmet optional-card precondition logs an `ERROR`, leaves the route
-  unregistered, and lets ingestion continue — a card flag must never be able to
-  stop the data path.
+  out-of-range values — including an unknown `STATION_TIMEZONE` — abort startup
+  naming *every* offender at once. (The one exception is `TZ`: a value the Go
+  runtime cannot resolve logs a `WARN` and degrades to UTC rather than
+  aborting.) An unmet optional-card precondition logs an `ERROR`, leaves the
+  route unregistered, and lets ingestion continue — a card flag must never be
+  able to stop the data path.
 - **Booleans go through `strconv.ParseBool`**, so `1`/`t`/`T`/`TRUE` all work,
   and an unparseable value is a fatal error rather than a silent false.
 

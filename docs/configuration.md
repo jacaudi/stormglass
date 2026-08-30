@@ -1,7 +1,7 @@
 # Configuration
 
 Every setting is an environment variable — Stormglass has no config file. This
-page is the authoritative reference for the **37 variables Stormglass itself
+page is the authoritative reference for the **38 variables Stormglass itself
 reads**; see [Scope](#scope) for what deliberately lives elsewhere.
 
 ## How values are read
@@ -14,16 +14,17 @@ rather than silently disabling the card.
 
 **Malformed is fatal; missing is not.** A value that cannot be parsed — an
 unparseable or out-of-range coordinate, a non-finite number, an unknown
-timezone, half of a coordinate pair — aborts startup, and **every** offending
-variable is named at once rather than just the first. An *absent* value never
-prevents startup: an optional card whose prerequisites are missing logs an
-`ERROR`, leaves its route unregistered, reports itself false at
-`/api/capabilities`, and the data path keeps running. A card flag can never
-take down ingestion.
+`STATION_TIMEZONE`, half of a coordinate pair — aborts startup, and **every**
+offending variable is named at once rather than just the first. (The one
+exception is `TZ`: a value the runtime cannot resolve is not fatal — see
+[Timezone](#timezone).) An *absent* value never prevents startup: an optional
+card whose prerequisites are missing logs an `ERROR`, leaves its route
+unregistered, reports itself false at `/api/capabilities`, and the data path
+keeps running. A card flag can never take down ingestion.
 
 The one middle case is a prerequisite that is met but degraded: coordinates set
-without `STATION_TIMEZONE` logs a `WARN` and the almanac still mounts, rendering
-every time on UTC.
+without a timezone logs a `WARN` and the almanac still mounts, rendering every
+time on UTC.
 
 ## Mode selection
 
@@ -117,6 +118,52 @@ See [Storage](storage.md) for the schema and the Litestream replication path.
 only works with the OTel one. This trips people up; see
 [Metrics](metrics.md) before choosing.
 
+## Timezone
+
+One variable sets the station's clock and the log timestamps together.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `TZ` | `UTC` | IANA name, e.g. `America/Denver`. Sets the zone for sunrise/sunset, the almanac's calendar windows and its record date labels, and for log timestamps |
+
+`TZ` is the conventional container timezone variable. The Go runtime reads it
+to set the process's local zone, and Stormglass reads it to set the station's.
+A value the runtime cannot resolve — a POSIX rule form such as
+`EST5EDT,M3.2.0/2,M11.1.0/2`, or a typo — is **not** fatal: it logs a `WARN`
+and the zone it would have supplied falls back to UTC. (If `STATION_TIMEZONE`
+is also set, it keeps supplying the station's times; only the log timestamps
+fall back.) This is deliberately unlike the `STATION_*` variables, where a
+malformed value aborts startup: `TZ` is an OS-level variable this project does
+not own, and crash-looping the appliance over a display setting would stop
+weather ingestion.
+
+> **`STATION_TIMEZONE` is deprecated** and will be removed in a future release.
+> It still works, and while it is set it **takes precedence over `TZ`** for the
+> station's times, so **no deployment that sets `STATION_TIMEZONE` changes
+> behaviour**. (One that sets only `TZ` does — see
+> [Upgrading from v1.0.2](#upgrading-from-v102).) Setting it logs a one-time
+> `WARN`. Set `TZ` to the same value and remove it.
+
+**Setting `TZ` sets the flag, whoever set it.** Stormglass records only that
+*a* zone was supplied, not that it is the *station's*. Clusters that inject `TZ`
+fleet-wide — a shared `envFrom` ConfigMap, a mutating webhook — will therefore
+satisfy that check with the node's zone, and a Denver station on a Frankfurt
+cluster renders its almanac in Frankfurt with no warning. The compose
+deployment has the same shape: `deploy/docker-compose.yml` interpolates
+`TZ: ${TZ:-}`, and Compose resolves that against the **host shell** first, so a
+shell that exports `TZ` overrides the value in `.env` and reaches the container
+unannounced. Set `TZ` explicitly on the Stormglass workload — or in the shell
+that runs `docker compose` — if your platform does this.
+
+### Upgrading from v1.0.2
+
+A deployment that set **`TZ` but not `STATION_TIMEZONE`** changes on upgrade:
+the almanac moves from UTC to local calendar boundaries, sunrise and sunset
+become local clock times, and because the temperature records are computed over
+those windows, **the eight record values** — a high and a low for each of the
+Today/Week/Month/Year columns — **and their date labels can change**. A
+deployment that sets `STATION_TIMEZONE` is unaffected.
+
 ## Station identity
 
 No UDP message carries the station's location, so identity is configuration.
@@ -128,16 +175,17 @@ Nothing here is required and no combination of missing values prevents startup.
 | `STATION_LONGITUDE` | — | Decimal degrees, −180 to 180. **Must be set together with latitude** |
 | `STATION_ELEVATION` | — | Metres. Display only; any finite value is accepted. Absent renders `—` |
 | `STATION_NAME` | — | Display only. When absent the dashboard renders `Tempest Station` |
-| `STATION_TIMEZONE` | `UTC` | IANA name, e.g. `America/Denver`. Server-side only — the server preformats every timezone-dependent value, so it never appears on the wire |
+| `STATION_TIMEZONE` | `UTC` | *(deprecated — use [`TZ`](#timezone))* IANA name, e.g. `America/Denver`. Still honoured and still takes precedence over `TZ`. Server-side only — the server preformats every timezone-dependent value, so it never appears on the wire |
 
 Setting only one of latitude/longitude is a fatal startup error. Both are
 required by the almanac and radar cards.
 
-**`STATION_TIMEZONE` matters more than it looks.** With coordinates set and the
-timezone unset, the almanac mounts but renders on UTC: sunrise and sunset become
-UTC clock times (a Denver station shows "Sunrise 2:17 PM · Sunset 11:39 PM" on
-the December solstice), calendar windows fall on UTC boundaries, and record date
-labels are UTC-dated. That case logs a `WARN`.
+**The timezone matters more than it looks.** With coordinates set and no
+timezone configured, the almanac mounts but renders on UTC: sunrise and sunset
+become UTC clock times (a Denver station shows "Sunrise 2:17 PM · Sunset
+11:39 PM" on the December solstice), calendar windows fall on UTC boundaries,
+and record date labels are UTC-dated. That case logs a `WARN`. Set
+[`TZ`](#timezone).
 
 ## Dashboard cards
 
