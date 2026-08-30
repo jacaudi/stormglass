@@ -139,23 +139,30 @@ weather ingestion.
 
 > **`STATION_TIMEZONE` is deprecated** and will be removed in a future release.
 > It still works, and while it is set it **takes precedence over `TZ`** for the
-> station's times, so no existing deployment changes behaviour. Setting it logs
-> a one-time `WARN`. Set `TZ` to the same value and remove it.
+> station's times, so **no deployment that sets `STATION_TIMEZONE` changes
+> behaviour**. (One that sets only `TZ` does — see
+> [Upgrading from v1.0.2](#upgrading-from-v102).) Setting it logs a one-time
+> `WARN`. Set `TZ` to the same value and remove it.
 
 **Setting `TZ` sets the flag, whoever set it.** Stormglass records only that
 *a* zone was supplied, not that it is the *station's*. Clusters that inject `TZ`
 fleet-wide — a shared `envFrom` ConfigMap, a mutating webhook — will therefore
 satisfy that check with the node's zone, and a Denver station on a Frankfurt
-cluster renders its almanac in Frankfurt with no warning. Set `TZ` explicitly
-on the Stormglass workload if your platform does this.
+cluster renders its almanac in Frankfurt with no warning. The compose
+deployment has the same shape: `deploy/docker-compose.yml` interpolates
+`TZ: ${TZ:-}`, and Compose resolves that against the **host shell** first, so a
+shell that exports `TZ` overrides the value in `.env` and reaches the container
+unannounced. Set `TZ` explicitly on the Stormglass workload — or in the shell
+that runs `docker compose` — if your platform does this.
 
 ### Upgrading from v1.0.2
 
 A deployment that set **`TZ` but not `STATION_TIMEZONE`** changes on upgrade:
 the almanac moves from UTC to local calendar boundaries, sunrise and sunset
 become local clock times, and because the temperature records are computed over
-those windows, **the four record values change**. A deployment that sets
-`STATION_TIMEZONE` is unaffected.
+those windows, **the eight record values** — a high and a low for each of the
+Today/Week/Month/Year columns — **and their date labels can change**. A
+deployment that sets `STATION_TIMEZONE` is unaffected.
 
 ## Station identity
 
