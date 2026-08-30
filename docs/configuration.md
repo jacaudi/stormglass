@@ -14,12 +14,13 @@ rather than silently disabling the card.
 
 **Malformed is fatal; missing is not.** A value that cannot be parsed — an
 unparseable or out-of-range coordinate, a non-finite number, an unknown
-timezone, half of a coordinate pair — aborts startup, and **every** offending
-variable is named at once rather than just the first. An *absent* value never
-prevents startup: an optional card whose prerequisites are missing logs an
-`ERROR`, leaves its route unregistered, reports itself false at
-`/api/capabilities`, and the data path keeps running. A card flag can never
-take down ingestion.
+`STATION_TIMEZONE`, half of a coordinate pair — aborts startup, and **every**
+offending variable is named at once rather than just the first. (The one
+exception is `TZ`: a value the runtime cannot resolve is not fatal — see
+[Timezone](#timezone).) An *absent* value never prevents startup: an optional
+card whose prerequisites are missing logs an `ERROR`, leaves its route
+unregistered, reports itself false at `/api/capabilities`, and the data path
+keeps running. A card flag can never take down ingestion.
 
 The one middle case is a prerequisite that is met but degraded: coordinates set
 without a timezone logs a `WARN` and the almanac still mounts, rendering every

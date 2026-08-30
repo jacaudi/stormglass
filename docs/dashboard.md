@@ -23,9 +23,10 @@ An unmet precondition is never fatal. The card is not mounted, an `ERROR` names
 what is missing, `/api/capabilities` reports it false, and ingestion continues.
 A card flag cannot take down the data path.
 
-A *malformed* value — an unparseable coordinate, an unknown timezone, half a
-coordinate pair — is a different matter and **is** a fatal startup error, naming
-every offending variable at once.
+A *malformed* value — an unparseable coordinate, an unknown `STATION_TIMEZONE`,
+half a coordinate pair — is a different matter and **is** a fatal startup
+error, naming every offending variable at once. (`TZ` failures are not: see
+[Configuration](configuration.md#timezone).)
 
 ## Station identity
 
