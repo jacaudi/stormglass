@@ -55,10 +55,26 @@ tasks:
       # ModuleNotFoundError, the exact trap the comment above warns about,
       # arriving by a different route. --with-requirements installs the pinned
       # set, so tests run against the versions radar actually ships.
+      #
+      # Second deviation: when an excludes.txt sits beside requirements.txt, the
+      # environment is built with `uv pip install --excludes` into a throwaway
+      # venv instead of by `uv run`. `uv run` accepts no excludes/overrides file
+      # -- neither the flag nor UV_OVERRIDE reaches it, and uv.toml's
+      # override-dependencies does not apply outside a project -- so it would
+      # resolve the unexcluded graph and fail outright where the image succeeds.
+      # Matching the image's resolution is the whole point: an env that differs
+      # from what ships is not a test of what ships (#232).
       - |
         set -eu
         if [ -d tests ] || [ -d test ]; then
-          if [ -f requirements.txt ]; then
+          if [ -f requirements.txt ] && [ -f excludes.txt ]; then
+            venv=$(mktemp -d)
+            trap 'rm -rf "${venv}"' EXIT
+            uv venv --quiet "${venv}"
+            VIRTUAL_ENV="${venv}" uv pip install --quiet \
+              -r requirements.txt --excludes excludes.txt
+            "${venv}/bin/pytest"
+          elif [ -f requirements.txt ]; then
             uv run --with-requirements requirements.txt pytest
           else
             uv run --with pytest pytest

@@ -25,6 +25,12 @@
       "matchDatasources": ["docker"],
       "matchPackageNames": ["ghcr.io/jacaudi/stormglass"],
       "enabled": false
+    },
+    {
+      "description": "golangci-lint refuses to run when the Go version it was built with is older than the module's toolchain, so its pin has to lead every Go bump rather than trail it. As separate groups the two can never be ordered -- #161 sat red because the toolchain moved to 1.27 while the linter pin was still a 1.26 build, and the failure was not in that PR's own diff. Grouping them means one PR carries both and the ordering question disappears. The go-toolchain group itself comes from the shared jacaudi/renovate-config:go preset; this rule only adds the linter to it, locally, rather than changing a preset six repos consume.",
+      "matchDatasources": ["github-releases"],
+      "matchPackageNames": ["golangci/golangci-lint"],
+      "groupName": "go-toolchain"
     }
   ]
 }

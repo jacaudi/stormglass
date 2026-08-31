@@ -27,12 +27,18 @@ RUN apt-get update \
 RUN python -m venv /venv
 ENV PATH="/venv/bin:$PATH"
 
+# uv, not pip: excludes.txt drops arm-pyart's unused s3fs dependency, which is
+# the only thing pinning boto3 under aiobotocore's botocore ceiling (#232). pip
+# has no way to exclude a transitive dependency. Pinned by digest like every
+# other base here.
+COPY --from=ghcr.io/astral-sh/uv:0.12.7@sha256:95f2aa1fe59274951cfe9b0cbc7972e879ff1004bc8945d130a32eb0dbd85945 /uv /usr/local/bin/uv
+
 WORKDIR /app
-COPY requirements.txt .
+COPY requirements.txt excludes.txt ./
 # pytest is a test-only dep pinned in requirements.txt (shared with the test
 # suite); drop it here so it doesn't ship in the runtime image.
-RUN pip install --no-cache-dir -r requirements.txt \
-    && pip uninstall -y --no-input pytest
+RUN uv pip install --no-cache -r requirements.txt --excludes excludes.txt \
+    && uv pip uninstall pytest
 
 FROM python:3.12-slim
 
