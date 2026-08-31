@@ -5,9 +5,9 @@
 
 ### Bug Fixes
 
-* **deploy:** let release-please own the shipped image tag ([ef1fff9](https://github.com/jacaudi/stormglass/commit/ef1fff92fa2179284a697c5663a8ff62cd4f7b53))
 * **deploy:** let release-please own the shipped image tag ([c0f3eb4](https://github.com/jacaudi/stormglass/commit/c0f3eb4a034c2945c298b23b03ca7781ee575cc4))
 * **deploy:** move the tag rationale into the values.yaml header ([bf5509b](https://github.com/jacaudi/stormglass/commit/bf5509badc85ca68ed1f30b93edaed6bde6d029f))
+* **radar:** drop arm-pyart's unused s3fs so boto3 can move ([2dea46b](https://github.com/jacaudi/stormglass/commit/2dea46b3f88d843788b31cfd1971346c6cc2bc47))
 
 ## [1.0.3](https://github.com/jacaudi/stormglass/compare/v1.0.2...v1.0.3) (2026-08-30)
 
@@ -17,7 +17,6 @@
 * **cli:** log timezone notices and point the almanac warning at TZ ([067ac76](https://github.com/jacaudi/stormglass/commit/067ac76deb473fcd2251babf69163c0a7e2ee2e0))
 * **config:** resolve the station timezone from TZ ([17e2f29](https://github.com/jacaudi/stormglass/commit/17e2f29ec448c9f6328b8ab31852a6628ca96e6c))
 * **config:** stop advising operators to copy STATION_TIMEZONE=Local into TZ ([705eb26](https://github.com/jacaudi/stormglass/commit/705eb26489311bf33c6361fb57acb9c5c3786b8c))
-* make TZ the station's timezone and deprecate STATION_TIMEZONE ([c985316](https://github.com/jacaudi/stormglass/commit/c9853160293cb3c07cbfeeaf3f28113867c9769a))
 
 ## [1.0.2](https://github.com/jacaudi/stormglass/compare/v1.0.1...v1.0.2) (2026-08-28)
 
