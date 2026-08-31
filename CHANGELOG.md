@@ -17,7 +17,6 @@
 * **cli:** log timezone notices and point the almanac warning at TZ ([067ac76](https://github.com/jacaudi/stormglass/commit/067ac76deb473fcd2251babf69163c0a7e2ee2e0))
 * **config:** resolve the station timezone from TZ ([17e2f29](https://github.com/jacaudi/stormglass/commit/17e2f29ec448c9f6328b8ab31852a6628ca96e6c))
 * **config:** stop advising operators to copy STATION_TIMEZONE=Local into TZ ([705eb26](https://github.com/jacaudi/stormglass/commit/705eb26489311bf33c6361fb57acb9c5c3786b8c))
-* make TZ the station's timezone and deprecate STATION_TIMEZONE ([c985316](https://github.com/jacaudi/stormglass/commit/c9853160293cb3c07cbfeeaf3f28113867c9769a))
 
 ## [1.0.2](https://github.com/jacaudi/stormglass/compare/v1.0.1...v1.0.2) (2026-08-28)
 
