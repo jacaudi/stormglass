@@ -5,9 +5,9 @@
 
 ### Bug Fixes
 
-* **deploy:** let release-please own the shipped image tag ([ef1fff9](https://github.com/jacaudi/stormglass/commit/ef1fff92fa2179284a697c5663a8ff62cd4f7b53))
 * **deploy:** let release-please own the shipped image tag ([c0f3eb4](https://github.com/jacaudi/stormglass/commit/c0f3eb4a034c2945c298b23b03ca7781ee575cc4))
 * **deploy:** move the tag rationale into the values.yaml header ([bf5509b](https://github.com/jacaudi/stormglass/commit/bf5509badc85ca68ed1f30b93edaed6bde6d029f))
+* **radar:** drop arm-pyart's unused s3fs so boto3 can move ([2dea46b](https://github.com/jacaudi/stormglass/commit/2dea46b3f88d843788b31cfd1971346c6cc2bc47))
 
 ## [1.0.3](https://github.com/jacaudi/stormglass/compare/v1.0.2...v1.0.3) (2026-08-30)
 
