@@ -91,7 +91,7 @@ controllers:
       app:
         image:
           repository: ghcr.io/jacaudi/stormglass
-          tag: v1.0.3 # x-release-please-version
+          tag: v1.0.4 # x-release-please-version
         env:
           HTTP_ADDR: ":8080"
           SQLITE_PATH: /data/stormglass.db
