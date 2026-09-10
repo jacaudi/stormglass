@@ -160,7 +160,7 @@ controllers:
       litestream:
         image:
           repository: litestream/litestream
-          tag: "0.5.16"
+          tag: "0.5.17"
         args: ["replicate"]
         env:
           LITESTREAM_ACCESS_KEY_ID:
