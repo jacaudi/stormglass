@@ -31,6 +31,12 @@
       "matchDatasources": ["github-releases"],
       "matchPackageNames": ["golangci/golangci-lint"],
       "groupName": "go-toolchain"
+    },
+    {
+      "description": "govulncheck has the same lead-the-toolchain constraint as golangci-lint above, for a different reason: it builds an SSA call graph of the stdlib, so a govulncheck whose bundled golang.org/x/tools predates the toolchain panics on syntax that toolchain introduced. Go 1.27 lets a keyed composite literal set a promoted field from an embedded struct, and go/ssa before x/tools v0.45.0 aborts with `panic: unexpected expr: *ast.KeyValueExpr` on Linux stdlib code -- so #161 was red on a failure absent from its own diff, exactly as the linter rule describes. Grouping the pin with the toolchain makes one PR carry both.",
+      "matchDatasources": ["go"],
+      "matchPackageNames": ["golang.org/x/vuln"],
+      "groupName": "go-toolchain"
     }
   ]
 }
