@@ -2,7 +2,7 @@ module github.com/jacaudi/stormglass
 
 go 1.25.0
 
-toolchain go1.26.6
+toolchain go1.27.1
 
 require (
 	github.com/google/uuid v1.6.0
