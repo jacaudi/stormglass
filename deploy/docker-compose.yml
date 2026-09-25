@@ -101,7 +101,7 @@ services:
   # litestream runs as root and can read the resulting 65532-owned DB fine,
   # so only `stormglass` needs to wait on this.
   stormglass-data-init:
-    image: busybox:1.38.0@sha256:dc2d74b28e4cf8984fa52af1f39bc7c3d9c73760b41a74d629f5d11b1ab28616
+    image: busybox:1.38.0@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e
     command: ["sh", "-c", "chown -R 65532:65532 /data"]
     volumes:
       - stormglass-data:/data
@@ -133,7 +133,7 @@ services:
     restart: unless-stopped
 
   prometheus:
-    image: prom/prometheus:v3.14.0@sha256:5ce7540c3c00ef4ab0c9d2c995c6a5b9c421f44b4a115d97a2c7af3b1c21cbb0
+    image: prom/prometheus:v3.15.0@sha256:efd719c99d83b060d9daefdcf00360461adf279f45ef5391f8d111892118753e
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
