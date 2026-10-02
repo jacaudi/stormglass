@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.0.5](https://github.com/jacaudi/stormglass/compare/v1.0.4...v1.0.5) (2026-09-22)
+
+
+### Miscellaneous Chores
+
+* **deps:** Update dependency @types/node to v24.13.6 ([12d3660](https://github.com/jacaudi/stormglass/commit/12d3660847faa0dd08c941ef5134ce81d74bdcf7))
+* **deps:** Update dependency boto3 to v1.43.99 ([95ebe0c](https://github.com/jacaudi/stormglass/commit/95ebe0ce79fae9c69e1b3f25897d634483402cdb))
+* **deps:** Update dependency eslint to v10.11.0 ([7908698](https://github.com/jacaudi/stormglass/commit/79086984b474d52773d23b7fb0703572cc294198))
+* **deps:** Update dependency eslint-plugin-react-refresh to v0.5.7 ([d915459](https://github.com/jacaudi/stormglass/commit/d915459c7f02d9e5cde08bf2cd43a8f61b034ebe))
+* **deps:** Update dependency globals to v17.12.0 ([a068dd8](https://github.com/jacaudi/stormglass/commit/a068dd8a106a0aede6161396923e640b4c912fcd))
+* **deps:** Update dependency maplibre-gl to v6.10.0 ([4e507aa](https://github.com/jacaudi/stormglass/commit/4e507aad2885a708599cce67a3d441b1f17f4ca0))
+* **deps:** Update dependency matplotlib to v3.11.2 ([e39dea0](https://github.com/jacaudi/stormglass/commit/e39dea0e35e8341f331fa1cef468ab2df0c31782))
+* **deps:** Update dependency playwright to v1.63.0 ([2deb0f1](https://github.com/jacaudi/stormglass/commit/2deb0f106cc0112c4750182ce8e4db8c9f418a36))
+* **deps:** Update dependency react-dom to v19.3.0 ([c9f7a8b](https://github.com/jacaudi/stormglass/commit/c9f7a8bc438d29d4ef70f14a5c27d4c7374105a1))
+* **deps:** Update dependency typescript-eslint to v8.70.1 ([3585f3e](https://github.com/jacaudi/stormglass/commit/3585f3ef3b062ab18836fce27e6f5d4efac2d5aa))
+* **deps:** Update dependency uvicorn to v0.53.0 ([cd54aca](https://github.com/jacaudi/stormglass/commit/cd54aca1472e95003b917e9b4e9525c308bf01f6))
+* **deps:** Update dependency vite to v8.3.0 ([44feaba](https://github.com/jacaudi/stormglass/commit/44feaba78776192734bbb875415394272f5e4c50))
+* **deps:** Update docker-images ([b765b62](https://github.com/jacaudi/stormglass/commit/b765b62dfc298722d4bb99ec3590a8bb2d1f60e7))
+* **deps:** Update GitHub Actions ([38e87c9](https://github.com/jacaudi/stormglass/commit/38e87c9813d945a58015a729c8586b7d5702a584))
+* **deps:** Update module github.com/jackc/pgx/v5 to v5.11.0 ([fcdefb9](https://github.com/jacaudi/stormglass/commit/fcdefb9b9ae5072defd36ef96b601e3aaee6829a))
+* **deps:** Update module github.com/prometheus/client_model to v0.6.3 ([84834b3](https://github.com/jacaudi/stormglass/commit/84834b36e9d6310cda09f5389a5b442c8fcc44f6))
+* **deps:** Update module modernc.org/sqlite to v1.59.0 ([d59a175](https://github.com/jacaudi/stormglass/commit/d59a17570baad4c037a9a311c96bc790956a7d17))
+* **deps:** Update react monorepo to v19.3.0 ([f3fbd01](https://github.com/jacaudi/stormglass/commit/f3fbd0168bef981b821cd1d7a835cc5910f87385))
+
 ## [1.0.4](https://github.com/jacaudi/stormglass/compare/v1.0.3...v1.0.4) (2026-08-30)
 
 
