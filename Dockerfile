@@ -44,7 +44,7 @@ RUN CGO_ENABLED=0 \
 RUN mkdir -p /seed/data
 
 # --- Final stage: non-root static image -------------------------------------
-FROM cgr.dev/chainguard/static:latest@sha256:bf639cba19ba56329e6907ac26a7afcdde57a80b6aa66d5100da6883196e6b82
+FROM cgr.dev/chainguard/static:latest@sha256:fe55470f22d3259488d9d3739168d8f04da67755f0b69382bc26eda4a7d3d327
 
 COPY --from=builder /stormglass /stormglass
 COPY --from=builder --chown=65532:65532 /seed/data /data
