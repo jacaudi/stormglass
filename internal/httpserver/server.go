@@ -184,7 +184,12 @@ func registerStatic(mux *http.ServeMux, deps Deps) {
 		if assetPath != indexPage && fs.ValidPath(assetPath) {
 			if isRegularFile(deps.StaticFS, assetPath) {
 				w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
-				http.ServeFileFS(w, r, deps.StaticFS, assetPath)
+				// assetPath is path.Clean'd and fs.ValidPath-checked above, and
+				// is opened through an io/fs.FS rooted at the embedded dist
+				// (no ".." element can reach it, and an fs.FS cannot name a file
+				// outside its root), so gosec's taint flow from r.URL.Path is
+				// not a path traversal. TestServer_StaticTraversal pins this.
+				http.ServeFileFS(w, r, deps.StaticFS, assetPath) //nolint:gosec // G703: sanitized above, fs.FS-rooted; see comment above
 				return
 			}
 			if path.Ext(assetPath) != "" {

@@ -90,11 +90,18 @@ runs:
       shell: bash
       env:
         # renovate: datasource=github-releases depName=golangci/golangci-lint
-        # Must be built with a Go >= the module's toolchain, or it refuses to
-        # run at all: "the Go language version used to build golangci-lint is
-        # lower than the targeted Go version". 2.13.2 is built with go1.27.0.
-        # renovate.json groups this with go-toolchain so the two move together.
-        VERSION: 2.13.2
+        # Must lead the module's toolchain on two counts, or typecheck fails:
+        #   - built with a Go >= the toolchain ("the Go language version used
+        #     to build golangci-lint is lower than the targeted Go version");
+        #   - bundles an x/tools new enough to read the toolchain's compiled
+        #     export data. go1.27.2 emits unified-IR V5 (golang/go#81188), which
+        #     x/tools reads from v0.50.0, i.e. golangci-lint >= 2.14.0; 2.13.2
+        #     fails with "export data version 5 is greater than maximum
+        #     supported version 4".
+        # Renovate does not detect this pin (no customManager matches the
+        # annotation above), so renovate.json's go-toolchain grouping is inert:
+        # bump it by hand alongside every toolchain bump.
+        VERSION: 2.15.0
       run: |
         set -euo pipefail
         curl -sSfL "https://github.com/golangci/golangci-lint/releases/download/v${VERSION}/golangci-lint-${VERSION}-linux-amd64.tar.gz" \

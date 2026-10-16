@@ -3,6 +3,8 @@ package httpserver
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -235,5 +237,43 @@ func TestServer_Healthz(t *testing.T) {
 	}
 	if got := strings.TrimSpace(rec.Body.String()); got != `{"status":"ok"}` {
 		t.Fatalf("body = %q, want {\"status\":\"ok\"}", got)
+	}
+}
+
+// TestServer_StaticTraversal pins the claim behind the gosec G703 suppression
+// in registerStatic: a request path cannot read outside the served root. The
+// secret sits one directory above the root on a real os.DirFS, so a traversal
+// that escaped would actually return it.
+func TestServer_StaticTraversal(t *testing.T) {
+	parent := t.TempDir()
+	const secret = "TOP-SECRET-OUTSIDE-ROOT"
+	if err := os.WriteFile(filepath.Join(parent, "secret.txt"), []byte(secret), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	root := filepath.Join(parent, "site")
+	if err := os.Mkdir(root, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "index.html"), []byte("<html>fake index</html>"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	srv := New(Deps{StaticFS: os.DirFS(root)})
+
+	for _, target := range []string{
+		"/../secret.txt",
+		"/%2e%2e/secret.txt",
+		"/assets/../../secret.txt",
+		"/..%2fsecret.txt",
+		"/%2e%2e%2fsecret.txt",
+	} {
+		t.Run(target, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, target, nil)
+			rec := httptest.NewRecorder()
+			srv.Handler.ServeHTTP(rec, req)
+
+			if strings.Contains(rec.Body.String(), secret) {
+				t.Fatalf("GET %s served a file from outside the static root: %q", target, rec.Body.String())
+			}
+		})
 	}
 }
