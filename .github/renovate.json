@@ -37,6 +37,12 @@
       "matchDatasources": ["go"],
       "matchPackageNames": ["golang.org/x/vuln"],
       "groupName": "go-toolchain"
+    },
+    {
+      "description": "Hold TypeScript below 7 until typescript-eslint supports it. TypeScript 7 is the native Go port and ships no JS API (one is planned for 7.1), so typescript-eslint -- whose every release through 8.71.2 declares the peer typescript >=4.8.4 <6.1.0 -- aborts with \"typescript-eslint does not support TS 7.0\" and Renovate cannot even regenerate web/package-lock.json (#96). tsc 7 itself compiles web/ cleanly; only the linter blocks. Remove this rule once a typescript-eslint release accepts typescript 7 in its peer range (typescript-eslint/typescript-eslint#10940).",
+      "matchDatasources": ["npm"],
+      "matchPackageNames": ["typescript"],
+      "allowedVersions": "<7"
     }
   ]
 }
