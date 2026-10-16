@@ -181,4 +181,4 @@ POSTGRES_URL='postgres://postgres:x@localhost:55432/weather?sslmode=disable' go 
 docker rm -f pg-test
 ```
 
-Go 1.25.0+ required (see go.mod; the pinned toolchain is go1.26.6).
+Go 1.26.0+ required (see go.mod; the pinned toolchain is go1.26.9).

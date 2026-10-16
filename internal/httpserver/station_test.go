@@ -37,16 +37,13 @@ func getStationJSON(t *testing.T, deps Deps) map[string]any {
 	return body
 }
 
-func strPtr(s string) *string   { return &s }
-func fltPtr(f float64) *float64 { return &f }
-
 func TestAPI_Station_EmitsConfiguredFields(t *testing.T) {
 	body := getStationJSON(t, testDepsWithStation(config.StationConfig{
-		Name:      strPtr("Backyard"),
-		Latitude:  fltPtr(40.1234),
-		Longitude: fltPtr(-75.9876),
-		Elevation: fltPtr(118.3),
-		RadarSite: strPtr("TLX"),
+		Name:      new("Backyard"),
+		Latitude:  new(40.1234),
+		Longitude: new(-75.9876),
+		Elevation: new(118.3),
+		RadarSite: new("TLX"),
 	}))
 
 	want := map[string]any{
@@ -80,7 +77,7 @@ func TestAPI_Station_OmitsUnsetFields(t *testing.T) {
 // and sea level -- and must be emitted, not treated as unset.
 func TestAPI_Station_EmitsLegitimateZeros(t *testing.T) {
 	body := getStationJSON(t, testDepsWithStation(config.StationConfig{
-		Latitude: fltPtr(0), Longitude: fltPtr(0), Elevation: fltPtr(0),
+		Latitude: new(0.0), Longitude: new(0.0), Elevation: new(0.0),
 	}))
 
 	for _, k := range []string{"latitude", "longitude", "elevation"} {
@@ -103,8 +100,8 @@ func TestAPI_Station_CoordinatesAreAPairOrNothing(t *testing.T) {
 		name string
 		cfg  config.StationConfig
 	}{
-		{"latitude_only", config.StationConfig{Latitude: fltPtr(40.1)}},
-		{"longitude_only", config.StationConfig{Longitude: fltPtr(-75.9)}},
+		{"latitude_only", config.StationConfig{Latitude: new(40.1)}},
+		{"longitude_only", config.StationConfig{Longitude: new(-75.9)}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			body := getStationJSON(t, testDepsWithStation(tc.cfg))
@@ -125,7 +122,7 @@ func TestAPI_Station_NeverEmitsTimezone(t *testing.T) {
 	// field never reaches the wire, and using a real zone would create a
 	// dependency on Task 5's mustLoad helper for no added coverage.
 	body := getStationJSON(t, testDepsWithStation(config.StationConfig{
-		Name: strPtr("Backyard"), Location: time.UTC,
+		Name: new("Backyard"), Location: time.UTC,
 	}))
 	if _, present := body["timezone"]; present {
 		t.Error("timezone must never appear on the wire")
@@ -137,7 +134,7 @@ func TestAPI_Station_NeverEmitsTimezone(t *testing.T) {
 // handed. A future edit that reads an environment variable inside the
 // handler would break this.
 func TestStationResponseFrom_IsTheOnlyMapping(t *testing.T) {
-	cfg := config.StationConfig{Name: strPtr("Backyard"), Elevation: fltPtr(118.3)}
+	cfg := config.StationConfig{Name: new("Backyard"), Elevation: new(118.3)}
 	got := stationResponseFrom(cfg)
 
 	if got.Name != cfg.Name || got.Elevation != cfg.Elevation {

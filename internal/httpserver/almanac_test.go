@@ -25,7 +25,7 @@ func denverStation(t *testing.T) config.StationConfig {
 	t.Helper()
 	lat, lon := 39.74, -104.98
 	return config.StationConfig{
-		Name: strPtr("Backyard"), Latitude: &lat, Longitude: &lon,
+		Name: new("Backyard"), Latitude: &lat, Longitude: &lon,
 		Location: mustLoad(t, "America/Denver"),
 	}
 }

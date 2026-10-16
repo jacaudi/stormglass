@@ -10,8 +10,6 @@ import (
 	"github.com/jacaudi/stormglass/internal/weather"
 )
 
-func f(v float64) *float64 { return &v }
-
 func TestBackfillWetBulbDerivation(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -20,21 +18,21 @@ func TestBackfillWetBulbDerivation(t *testing.T) {
 	}{
 		{
 			name: "all inputs present",
-			obs:  weather.Observation{TempAir: f(20.5), Humidity: f(55), Pressure: f(1013)},
+			obs:  weather.Observation{TempAir: new(20.5), Humidity: new(55.0), Pressure: new(1013.0)},
 		},
 		{
 			name:    "humidity missing",
-			obs:     weather.Observation{TempAir: f(20.5), Pressure: f(1013)},
+			obs:     weather.Observation{TempAir: new(20.5), Pressure: new(1013.0)},
 			wantNil: true,
 		},
 		{
 			name:    "temp missing",
-			obs:     weather.Observation{Humidity: f(55), Pressure: f(1013)},
+			obs:     weather.Observation{Humidity: new(55.0), Pressure: new(1013.0)},
 			wantNil: true,
 		},
 		{
 			name:    "pressure missing",
-			obs:     weather.Observation{TempAir: f(20.5), Humidity: f(55)},
+			obs:     weather.Observation{TempAir: new(20.5), Humidity: new(55.0)},
 			wantNil: true,
 		},
 	}
@@ -125,7 +123,7 @@ func TestBackfillPostgresIntegration(t *testing.T) {
 		seed = append(seed, weather.Observation{
 			SerialNumber: serialA,
 			Timestamp:    base.Add(off),
-			TempAir:      f(20),
+			TempAir:      new(20.0),
 			// precip_type is the sole INTEGER column among these four
 			// (schema.go:55) while the bind is a *float64 — the exact
 			// truncation hazard named at the top of this file's comment
@@ -135,14 +133,14 @@ func TestBackfillPostgresIntegration(t *testing.T) {
 			// PRECISION (schema.go:43,58,61); seeding them here is a
 			// float8 round-trip fidelity check, not an INTEGER hazard
 			// check.
-			PrecipType:           f(1),
-			WindSampleInterval:   f(3),
-			LightningStrikeCount: f(0),
-			ReportInterval:       f(1),
+			PrecipType:           new(1.0),
+			WindSampleInterval:   new(3.0),
+			LightningStrikeCount: new(0.0),
+			ReportInterval:       new(1.0),
 		})
 	}
 	for off := 30 * time.Second; off <= 95*time.Minute; off += 10 * time.Minute {
-		seed = append(seed, weather.Observation{SerialNumber: serialB, Timestamp: base.Add(off), TempAir: f(21)})
+		seed = append(seed, weather.Observation{SerialNumber: serialB, Timestamp: base.Add(off), TempAir: new(21.0)})
 	}
 	// serialC has all three wetBulb inputs present, closing the
 	// derive-and-store path end to end: nothing else in this fixture proves
@@ -150,9 +148,9 @@ func TestBackfillPostgresIntegration(t *testing.T) {
 	seed = append(seed, weather.Observation{
 		SerialNumber: serialC,
 		Timestamp:    base,
-		TempAir:      f(20.5),
-		Humidity:     f(55),
-		Pressure:     f(1013),
+		TempAir:      new(20.5),
+		Humidity:     new(55.0),
+		Pressure:     new(1013.0),
 	})
 	// serialD carries a DISTINCT, unambiguous value in every one of the 18
 	// bound columns (17 direct fields + the derived temp_wetbulb), so a
@@ -165,23 +163,23 @@ func TestBackfillPostgresIntegration(t *testing.T) {
 	seed = append(seed, weather.Observation{
 		SerialNumber:         serialD,
 		Timestamp:            base,
-		WindLull:             f(21.1),
-		WindAvg:              f(22.2),
-		WindGust:             f(23.3),
-		WindDirection:        f(24.4),
-		WindSampleInterval:   f(25),
-		Pressure:             f(26.6),
-		TempAir:              f(27.7),
-		Humidity:             f(28.8),
-		Illuminance:          f(29.9),
-		UVIndex:              f(30.1),
-		Irradiance:           f(31.1),
-		RainRate:             f(32.2),
-		PrecipType:           f(33), // the sole INTEGER column (schema.go:55)
-		LightningDistance:    f(34.4),
-		LightningStrikeCount: f(35),
-		Battery:              f(36.6),
-		ReportInterval:       f(37),
+		WindLull:             new(21.1),
+		WindAvg:              new(22.2),
+		WindGust:             new(23.3),
+		WindDirection:        new(24.4),
+		WindSampleInterval:   new(25.0),
+		Pressure:             new(26.6),
+		TempAir:              new(27.7),
+		Humidity:             new(28.8),
+		Illuminance:          new(29.9),
+		UVIndex:              new(30.1),
+		Irradiance:           new(31.1),
+		RainRate:             new(32.2),
+		PrecipType:           new(33.0), // the sole INTEGER column (schema.go:55)
+		LightningDistance:    new(34.4),
+		LightningStrikeCount: new(35.0),
+		Battery:              new(36.6),
+		ReportInterval:       new(37.0),
 	})
 
 	// Partial-conflict coverage (the real repair-run shape): insert a prefix
@@ -450,10 +448,10 @@ func TestInsertObservationsPreservesFractionalMeasurements(t *testing.T) {
 	obs := []weather.Observation{{
 		SerialNumber:         serial,
 		Timestamp:            stamp,
-		WindSampleInterval:   f(1.5),
-		PrecipType:           f(1.9),
-		LightningStrikeCount: f(2.5),
-		ReportInterval:       f(5.9),
+		WindSampleInterval:   new(1.5),
+		PrecipType:           new(1.9),
+		LightningStrikeCount: new(2.5),
+		ReportInterval:       new(5.9),
 	}}
 	if _, err := InsertObservations(ctx, pool, obs); err != nil {
 		t.Fatalf("InsertObservations: %v", err)

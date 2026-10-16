@@ -1079,8 +1079,7 @@ func isRetryable(err error) bool {
 	}
 
 	// Check for pgconn errors
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) {
+	if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {
 		// isRetryable's default (below) is fail-closed: any SQLSTATE not
 		// explicitly listed here as retryable gets zero retries and an
 		// immediate batch drop, not the 1s/2s/4s backoff. So omitting a

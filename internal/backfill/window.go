@@ -47,9 +47,6 @@ func chunkWindow(from, to time.Time, size time.Duration) []window {
 
 // isRetryable reports whether retrying err could plausibly succeed.
 //
-// Classification uses errors.As, NOT errors.AsType — that is Go 1.26 and
-// go.mod declares go 1.25.0.
-//
 // DO NOT add a `errors.Is(err, context.DeadlineExceeded) -> false` guard here.
 // It looks obviously correct and it is a serious bug. http.Client.Timeout is
 // IMPLEMENTED as a context deadline, so a per-attempt timeout produces a
@@ -76,8 +73,7 @@ func isRetryable(err error) bool {
 		return false
 	}
 
-	var se *tempestapi.StatusError
-	if errors.As(err, &se) {
+	if se, ok := errors.AsType[*tempestapi.StatusError](err); ok {
 		// A non-zero API-level status_code is a real failure, not congestion.
 		if se.StatusCode != 0 {
 			return false

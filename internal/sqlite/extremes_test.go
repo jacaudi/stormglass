@@ -18,9 +18,7 @@ func seedTemp(t *testing.T, w *Writer, id string, ts int64, temp sql.NullFloat64
 	}
 }
 
-// nullTemp is deliberately NOT named f: package sqlite already declares
-// `func f(v float64) *float64` in backfill_test.go, and both files compile
-// into the same test binary.
+// nullTemp wraps v as a non-NULL temperature column value.
 func nullTemp(v float64) sql.NullFloat64 { return sql.NullFloat64{Float64: v, Valid: true} }
 
 func TestTemperatureExtremes(t *testing.T) {

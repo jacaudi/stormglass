@@ -44,7 +44,7 @@ docker buildx bake image-local
 holds — an empty `web/dist` still compiles, which is the one failure `go build`
 cannot catch. `task build` sequences them correctly.
 
-Go 1.25+; the pinned toolchain is go1.26.6.
+Go 1.26+; the pinned toolchain is go1.26.9.
 
 ## Tests
 

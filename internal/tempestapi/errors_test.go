@@ -32,9 +32,8 @@ func TestStatusErrorMessage(t *testing.T) {
 	}
 }
 
-// The retry layer classifies with errors.As, so StatusError must survive
-// wrapping. NOTE: errors.As, never errors.AsType — that is Go 1.26 and
-// go.mod declares go 1.25.0.
+// The retry layer classifies with errors.AsType, so StatusError must survive
+// wrapping.
 func TestStatusErrorUnwrapsThroughFmtErrorf(t *testing.T) {
 	wrapped := fmt.Errorf("fetch window: %w", &StatusError{HTTPStatus: 429})
 	var se *StatusError

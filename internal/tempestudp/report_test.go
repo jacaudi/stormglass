@@ -322,8 +322,8 @@ func TestParseReport(t *testing.T) {
 				Timestamp:        1688666521,
 				Uptime:           63807156,
 				Voltage:          2.792,
-				FirmwareRevision: intPtr(156),
-				Rssi:             intPtr(-82),
+				FirmwareRevision: new(156),
+				Rssi:             new(-82),
 				HubRssi:          -78,
 				SensorStatus:     0,
 				Debug:            0,
@@ -360,11 +360,6 @@ func TestParseReport(t *testing.T) {
 		})
 	}
 }
-
-// intPtr is the helper the pointer-typed DeviceStatusReport fields need
-// (#196): they are pointers precisely so an ABSENT key stays distinguishable
-// from a reported 0.
-func intPtr(v int) *int { return &v }
 
 // TestParseDeviceStatus_AbsentFieldsStayNil is the reason those two fields are
 // pointers. A device_status missing rssi/firmware_revision must decode to nil,
