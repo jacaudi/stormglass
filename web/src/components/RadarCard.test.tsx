@@ -122,12 +122,11 @@ beforeEach(() => {
   mapInstances.length = 0;
   attributionControlInstances.length = 0;
   setDataMock.mockClear();
-  // Deliberately NOT cleared: RadarCard registers the pmtiles:// protocol
-  // once per page load (a module-level singleton guard, matching
-  // maplibregl.addProtocol's own global-registry semantics), so only the
-  // first RadarCard mount across this whole test file actually calls it.
-  // Asserting on cumulative call history is the correct check for a
-  // once-ever side effect.
+  // addProtocolMock is not cleared here, but Vitest 5's clearMocks default
+  // wipes its history before every test anyway. RadarCard registers the
+  // pmtiles:// protocol once per page load (a module-level guard), so a
+  // test can't rely on a call made by an earlier mount: the registration
+  // test below loads a fresh copy of the module instead.
   setMatchMedia(false);
 });
 
@@ -142,11 +141,22 @@ describe('RadarCard basemap + protocol registration', () => {
     expect(screen.getByTestId('radar-map-container')).toBeInTheDocument();
   });
 
-  it('registers the pmtiles:// protocol and points the basemap source at the same-origin file', () => {
+  it('registers the pmtiles:// protocol once per page load and points the basemap source at the same-origin file', async () => {
     vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
-    render(<RadarCard station={STATION} site="TLX" />);
+    // A fresh module instance resets the once-per-page-load guard, so the
+    // registration happens inside this test whatever ran before it.
+    vi.resetModules();
+    const { RadarCard: FreshRadarCard } = await import('./RadarCard');
+    addProtocolMock.mockClear();
 
+    const first = render(<FreshRadarCard station={STATION} site="TLX" />);
+    expect(addProtocolMock).toHaveBeenCalledOnce();
     expect(addProtocolMock).toHaveBeenCalledWith('pmtiles', expect.any(Function));
+
+    // A second mount on the same page must not register again.
+    first.unmount();
+    render(<FreshRadarCard station={STATION} site="TLX" />);
+    expect(addProtocolMock).toHaveBeenCalledOnce();
 
     const map = mapInstances[mapInstances.length - 1];
     const style = map.options.style as { sources: Record<string, { url?: string }> };
