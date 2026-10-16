@@ -98,7 +98,9 @@ runs:
         #     x/tools reads from v0.50.0, i.e. golangci-lint >= 2.14.0; 2.13.2
         #     fails with "export data version 5 is greater than maximum
         #     supported version 4".
-        # renovate.json groups this with go-toolchain so the two move together.
+        # Renovate does not detect this pin (no customManager matches the
+        # annotation above), so renovate.json's go-toolchain grouping is inert:
+        # bump it by hand alongside every toolchain bump.
         VERSION: 2.15.0
       run: |
         set -euo pipefail
