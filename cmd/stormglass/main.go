@@ -33,7 +33,6 @@ import (
 	promclient "github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/expfmt"
 	otelapi "go.opentelemetry.io/otel"
-	otellogglobal "go.opentelemetry.io/otel/log/global"
 )
 
 // version is the running binary's version, recorded as the OTel
@@ -420,7 +419,7 @@ func configureOTel(ctx context.Context, metricsSink *sink.MetricsSink) func(cont
 	// BOTH the OTel bridge and a plain stderr handler, preserving the
 	// existing log.Printf/log.Fatal container-log visibility instead of
 	// silently replacing it with OTel-only export.
-	otelHandler := otel.NewSlogHandler(otellogglobal.GetLoggerProvider())
+	otelHandler := otel.NewSlogHandler(otelapi.GetLoggerProvider())
 	stderrHandler := slog.NewTextHandler(os.Stderr, nil)
 	slog.SetDefault(slog.New(newTeeHandler(otelHandler, stderrHandler)))
 

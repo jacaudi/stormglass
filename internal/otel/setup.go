@@ -4,13 +4,11 @@
 // place OTel is set up, so a later SDK bump (particularly the still-
 // experimental log signal) is a one-file change.
 //
-// Setup registers the MeterProvider and TracerProvider as OTel's global
-// providers (otel.SetMeterProvider / otel.SetTracerProvider) and the
-// LoggerProvider as the global log provider
-// (go.opentelemetry.io/otel/log/global.SetLoggerProvider). Callers obtain
-// them afterward via the standard OTel accessors: otel.GetMeterProvider(),
-// otel.GetTracerProvider(), and log/global.GetLoggerProvider() — no
-// additional accessor is exposed here.
+// Setup registers the MeterProvider, TracerProvider, and LoggerProvider as
+// OTel's global providers (otel.SetMeterProvider, otel.SetTracerProvider,
+// and otel.SetLoggerProvider). Callers obtain them afterward via the
+// standard OTel accessors: otel.GetMeterProvider(), otel.GetTracerProvider(),
+// and otel.GetLoggerProvider() — no additional accessor is exposed here.
 package otel
 
 import (
@@ -24,7 +22,6 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
-	logglobal "go.opentelemetry.io/otel/log/global"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -138,7 +135,7 @@ func Setup(ctx context.Context, cfg Config) (func(context.Context) error, error)
 		sdklog.WithProcessor(sdklog.NewBatchProcessor(logExporter)),
 		sdklog.WithResource(res),
 	)
-	logglobal.SetLoggerProvider(loggerProvider)
+	otel.SetLoggerProvider(loggerProvider)
 
 	var (
 		once        sync.Once
