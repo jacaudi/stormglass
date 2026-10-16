@@ -356,7 +356,7 @@ func TestWriter_RoutesReportTypes(t *testing.T) {
 	device := &tempestudp.DeviceStatusReport{
 		SerialNumber: "ST-ROUTE",
 		Timestamp:    1700000015,
-		Rssi:         dsIntPtr(-70),
+		Rssi:         new(-70),
 	}
 
 	for _, report := range []tempestudp.Report{obs, rapidWind, hub, rainStart, lightning, device} {
@@ -796,8 +796,6 @@ func TestReader_HistoryPoints(t *testing.T) {
 	})
 }
 
-func dsIntPtr(v int) *int { return &v }
-
 // TestWriter_InsertsDeviceStatus is #196's core writer case: the report the
 // writer used to drop now becomes a row, with the served fields exact.
 func TestWriter_InsertsDeviceStatus(t *testing.T) {
@@ -809,8 +807,8 @@ func TestWriter_InsertsDeviceStatus(t *testing.T) {
 		Timestamp:        1700000100,
 		Uptime:           63807156,
 		Voltage:          2.792,
-		FirmwareRevision: dsIntPtr(156),
-		Rssi:             dsIntPtr(-82),
+		FirmwareRevision: new(156),
+		Rssi:             new(-82),
 		HubRssi:          -78,
 		SensorStatus:     0,
 	}
@@ -904,8 +902,8 @@ func TestWriter_DeviceStatusZeroIsStored(t *testing.T) {
 	if err := w.WriteReport(ctx, &tempestudp.DeviceStatusReport{
 		SerialNumber:     "ST-ZERO",
 		Timestamp:        1700000300,
-		FirmwareRevision: dsIntPtr(0),
-		Rssi:             dsIntPtr(0),
+		FirmwareRevision: new(0),
+		Rssi:             new(0),
 	}); err != nil {
 		t.Fatalf("WriteReport: %v", err)
 	}
@@ -938,7 +936,7 @@ func TestWriter_DeviceStatusDropsMalformed(t *testing.T) {
 	if err := w.WriteReport(ctx, &tempestudp.DeviceStatusReport{
 		SerialNumber: "ST-BAD",
 		Timestamp:    0,
-		Rssi:         dsIntPtr(-70),
+		Rssi:         new(-70),
 	}); err != nil {
 		t.Fatalf("WriteReport: %v", err)
 	}
@@ -963,7 +961,7 @@ func TestWriter_DeviceStatusIdempotent(t *testing.T) {
 	ctx := t.Context()
 
 	report := &tempestudp.DeviceStatusReport{
-		SerialNumber: "ST-DUP", Timestamp: 1700000400, Rssi: dsIntPtr(-70),
+		SerialNumber: "ST-DUP", Timestamp: 1700000400, Rssi: new(-70),
 	}
 	for range 2 {
 		if err := w.WriteReport(ctx, report); err != nil {
@@ -992,7 +990,7 @@ func TestWriter_DeviceStatusDrainOnClose(t *testing.T) {
 	w := NewWriter(t.Context(), db, Config{BatchSize: 100, FlushInterval: time.Hour})
 
 	if err := w.WriteReport(t.Context(), &tempestudp.DeviceStatusReport{
-		SerialNumber: "ST-DRAIN", Timestamp: 1700000500, Rssi: dsIntPtr(-55),
+		SerialNumber: "ST-DRAIN", Timestamp: 1700000500, Rssi: new(-55),
 	}); err != nil {
 		t.Fatalf("WriteReport: %v", err)
 	}

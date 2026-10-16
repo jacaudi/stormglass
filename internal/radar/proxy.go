@@ -241,8 +241,7 @@ func mapSidecarError(code string, status int) error {
 // embeds the full request URL; that URL (the sidecar's address) is scrubbed
 // defensively so it never reaches a log line.
 func scrubTransportError(err error) error {
-	var urlErr *url.Error
-	if errors.As(err, &urlErr) {
+	if _, ok := errors.AsType[*url.Error](err); ok {
 		return errors.New("radar sidecar request failed: upstream unreachable")
 	}
 	return fmt.Errorf("radar sidecar request failed: %w", err)

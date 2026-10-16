@@ -136,13 +136,11 @@ func TestSeriesBoundsEmptyTable(t *testing.T) {
 	}
 }
 
-func f(v float64) *float64 { return &v }
-
 func TestInsertObservationsIsIdempotent(t *testing.T) {
 	db := newTestDB(t)
 	obs := []weather.Observation{
-		{SerialNumber: "ST-A", Timestamp: ts(1000), TempAir: f(20.5), Humidity: f(55), Pressure: f(1013)},
-		{SerialNumber: "ST-A", Timestamp: ts(1060), TempAir: f(20.6), Humidity: f(56), Pressure: f(1013)},
+		{SerialNumber: "ST-A", Timestamp: ts(1000), TempAir: new(20.5), Humidity: new(55.0), Pressure: new(1013.0)},
+		{SerialNumber: "ST-A", Timestamp: ts(1060), TempAir: new(20.6), Humidity: new(56.0), Pressure: new(1013.0)},
 	}
 
 	n, err := InsertObservations(t.Context(), db, obs)
@@ -174,7 +172,7 @@ func TestInsertObservationsPreservesNull(t *testing.T) {
 	db := newTestDB(t)
 	// Pressure is nil — it must land as SQL NULL, not 0.0.
 	obs := []weather.Observation{
-		{SerialNumber: "ST-A", Timestamp: ts(1000), TempAir: f(20.5), Humidity: f(55)},
+		{SerialNumber: "ST-A", Timestamp: ts(1000), TempAir: new(20.5), Humidity: new(55.0)},
 	}
 	if _, err := InsertObservations(t.Context(), db, obs); err != nil {
 		t.Fatalf("insert: %v", err)
@@ -191,7 +189,7 @@ func TestInsertObservationsPreservesNull(t *testing.T) {
 func TestInsertObservationsDerivesWetBulb(t *testing.T) {
 	db := newTestDB(t)
 	obs := []weather.Observation{
-		{SerialNumber: "ST-A", Timestamp: ts(1000), TempAir: f(20.5), Humidity: f(55), Pressure: f(1013)},
+		{SerialNumber: "ST-A", Timestamp: ts(1000), TempAir: new(20.5), Humidity: new(55.0), Pressure: new(1013.0)},
 	}
 	if _, err := InsertObservations(t.Context(), db, obs); err != nil {
 		t.Fatalf("insert: %v", err)
@@ -213,7 +211,7 @@ func TestInsertObservationsWetBulbNullWhenInputsMissing(t *testing.T) {
 	// No humidity: wet bulb is not derivable and must stay NULL rather than
 	// being computed from a zero value.
 	obs := []weather.Observation{
-		{SerialNumber: "ST-A", Timestamp: ts(1000), TempAir: f(20.5), Pressure: f(1013)},
+		{SerialNumber: "ST-A", Timestamp: ts(1000), TempAir: new(20.5), Pressure: new(1013.0)},
 	}
 	if _, err := InsertObservations(t.Context(), db, obs); err != nil {
 		t.Fatalf("insert: %v", err)
@@ -255,23 +253,23 @@ func TestInsertObservationsRoundTripsAllColumns(t *testing.T) {
 	o := weather.Observation{
 		SerialNumber:         "ST-A",
 		Timestamp:            ts(1000),
-		WindLull:             f(1.5),
-		WindAvg:              f(3.5),
-		WindGust:             f(6.5),
-		WindDirection:        f(180),
-		WindSampleInterval:   f(3), // REAL column: integral here; fidelity is pinned elsewhere
-		Pressure:             f(1013.25),
-		TempAir:              f(22.5),
-		Humidity:             f(65),
-		Illuminance:          f(15000),
-		UVIndex:              f(4.5),
-		Irradiance:           f(600),
-		RainRate:             f(0.5),
-		PrecipType:           f(1), // INTEGER column: kept integral
-		LightningDistance:    f(12.5),
-		LightningStrikeCount: f(2), // REAL column: integral here; fidelity is pinned elsewhere
-		Battery:              f(2.85),
-		ReportInterval:       f(5), // REAL column: integral here; fidelity is pinned elsewhere
+		WindLull:             new(1.5),
+		WindAvg:              new(3.5),
+		WindGust:             new(6.5),
+		WindDirection:        new(180.0),
+		WindSampleInterval:   new(3.0), // REAL column: integral here; fidelity is pinned elsewhere
+		Pressure:             new(1013.25),
+		TempAir:              new(22.5),
+		Humidity:             new(65.0),
+		Illuminance:          new(15000.0),
+		UVIndex:              new(4.5),
+		Irradiance:           new(600.0),
+		RainRate:             new(0.5),
+		PrecipType:           new(1.0), // INTEGER column: kept integral
+		LightningDistance:    new(12.5),
+		LightningStrikeCount: new(2.0), // REAL column: integral here; fidelity is pinned elsewhere
+		Battery:              new(2.85),
+		ReportInterval:       new(5.0), // REAL column: integral here; fidelity is pinned elsewhere
 	}
 
 	if _, err := InsertObservations(t.Context(), db, []weather.Observation{o}); err != nil {
@@ -360,10 +358,10 @@ func TestInsertObservationsPreservesFractionalMeasurements(t *testing.T) {
 		{
 			SerialNumber:         "ST-A",
 			Timestamp:            ts(1000),
-			WindSampleInterval:   f(1.5),
-			PrecipType:           f(1.9),
-			LightningStrikeCount: f(2.5),
-			ReportInterval:       f(5.9),
+			WindSampleInterval:   new(1.5),
+			PrecipType:           new(1.9),
+			LightningStrikeCount: new(2.5),
+			ReportInterval:       new(5.9),
 		},
 	}
 	if _, err := InsertObservations(t.Context(), db, obs); err != nil {

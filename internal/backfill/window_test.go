@@ -164,8 +164,7 @@ func TestIsRetryableRealHTTPTimeoutIsRetried(t *testing.T) {
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("precondition changed: a Client.Timeout error should satisfy errors.Is(DeadlineExceeded); got %v", err)
 	}
-	var ne net.Error
-	if !errors.As(err, &ne) {
+	if _, ok := errors.AsType[net.Error](err); !ok {
 		t.Fatalf("precondition changed: a Client.Timeout error should satisfy errors.As(net.Error); got %v", err)
 	}
 

@@ -27,8 +27,7 @@ func TestGapDuration(t *testing.T) {
 // in Task 3's decode test and Task 5's insert test.
 func TestObservationMeasurementFieldsArePointers(t *testing.T) {
 	typ := reflect.TypeFor[Observation]()
-	for i := range typ.NumField() {
-		f := typ.Field(i)
+	for f := range typ.Fields() {
 		if f.Name == "SerialNumber" || f.Name == "Timestamp" {
 			continue
 		}
