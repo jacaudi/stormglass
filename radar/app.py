@@ -57,7 +57,7 @@ def _fetch_newest_key(site: str, product: str) -> str | None:
     API), so scan today's UTC date prefix, falling back to yesterday's to cover the
     UTC day-boundary edge case, rather than paginating the bucket's full history.
     """
-    now = datetime.datetime.now(datetime.timezone.utc)
+    now = datetime.datetime.now(datetime.UTC)
     for day in (now, now - datetime.timedelta(days=1)):
         prefix = f"{site}_{product}_{day:%Y_%m_%d}"
         resp = _s3.list_objects_v2(Bucket=_BUCKET, Prefix=prefix)
