@@ -525,7 +525,7 @@ func TestStartAPIServer_EmitsDecisionDiagnostics(t *testing.T) {
 	t.Setenv("ENABLE_FORECAST", "true")
 	t.Setenv("ENABLE_ALMANAC", "true")
 	// Hermeticity, not decoration: left unset, an ambient ENABLE_RADAR=yes
-	// makes ParseBoolEnv error and startAPIServer log.Fatal, which kills the
+	// makes ParseBoolEnv error and startAPIServer exit via fatal, which kills the
 	// whole test binary with no output.
 	t.Setenv("ENABLE_RADAR", "false")
 
