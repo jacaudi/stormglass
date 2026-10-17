@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"os"
 	"os/exec"
@@ -279,6 +280,38 @@ func TestRunBackfillRefusesAmbiguousStoreAndWritesNothing(t *testing.T) {
 	}
 	if _, err := os.Stat(dbPath); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("SQLite database at %s was created; an ambiguous store selection must write nothing", dbPath)
+	}
+}
+
+// A malformed SQLite tunable takes backfill's store-selection error path
+// (docs/configuration.md, Logging): plain text, not a log record, exit 2, and
+// nothing written. Every offender is named in the one error. Re-exec, because
+// "plain text on stderr" is a property of the real process.
+func TestBackfillMalformedSQLiteTunablesExitTwoAndWriteNothing(t *testing.T) {
+	bin := buildTestBinary(t)
+	dbPath := filepath.Join(t.TempDir(), "never.db")
+
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, bin, "backfill")
+	cmd.Env = []string{"TOKEN=x", "SQLITE_PATH=" + dbPath, "SQLITE_BATCH_SIZE=0", "SQLITE_FLUSH_INTERVAL=soon"}
+	out, err := cmd.CombinedOutput()
+
+	exitErr, ok := errors.AsType[*exec.ExitError](err)
+	if !ok || exitErr.ExitCode() != 2 {
+		t.Fatalf("want exit code 2, got err=%v\n%s", err, out)
+	}
+	// Quoted values: a bare "0" would match almost any output.
+	for _, want := range []string{"SQLITE_BATCH_SIZE", `"0"`, "SQLITE_FLUSH_INTERVAL", `"soon"`} {
+		if !strings.Contains(string(out), want) {
+			t.Errorf("output does not name %s:\n%s", want, out)
+		}
+	}
+	if strings.Contains(string(out), "level=") {
+		t.Errorf("output is a log record, want plain text:\n%s", out)
+	}
+	if _, err := os.Stat(dbPath); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("SQLite database at %s was created; a malformed tunable must write nothing", dbPath)
 	}
 }
 

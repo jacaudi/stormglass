@@ -293,8 +293,11 @@ func configureSQLiteWriter(ctx context.Context, metricsSink *sink.MetricsSink, c
 	if !choice.sqlite {
 		return nil, nil, nil
 	}
-	sqliteCfg := sqlite.LoadConfig(os.Getenv)
-	db, err := sqlite.Open(ctx, choice.sqlitePath, sqliteCfg)
+	sqliteCfg, err := sqlite.LoadConfig(os.Getenv)
+	if err != nil {
+		fatal("invalid configuration", "error", err)
+	}
+	db, err = sqlite.Open(ctx, choice.sqlitePath, sqliteCfg)
 	if err != nil {
 		fatal("failed to open sqlite", "path", choice.sqlitePath, "error", err)
 	}
@@ -669,12 +672,12 @@ func main() {
 	// legal, and stationCfg is fully formed even on the error path.
 	//
 	// Here rather than in startAPIServer because that returns nil unless
-	// mode == ModeUDP (main.go:644-646), and these notices apply to both
+	// mode == ModeUDP (its opening guard), and these notices apply to both
 	// modes. That places them before configureOTel installs the slog bridge,
 	// so they reach the pre-bridge stderr default rather than the OTel log
-	// pipeline -- the same accepted limitation
-	// internal/prometheus/deprecation.go:32-39 documents for its own
-	// transitional deprecation notice.
+	// pipeline -- the same accepted limitation warnDeprecated's doc comment
+	// (internal/prometheus/deprecation.go) documents for its own transitional
+	// deprecation notice.
 	for _, n := range stationCfg.TimezoneNotices {
 		slog.Default().Warn("timezone configuration", "notice", n)
 	}

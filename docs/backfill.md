@@ -43,7 +43,7 @@ which sees one device per station.
 |---|---|
 | `0` | Success — including `--help`, and including permanent holes (windows the station was genuinely offline for, which the API cannot fill either) |
 | `1` | One or more gaps failed, or a runtime error |
-| `2` | Usage error |
+| `2` | Usage error, a store selection it cannot resolve, or a malformed `SQLITE_*` tunable (see [Configuration](configuration.md#sqlite)) |
 
 ## Scope
 

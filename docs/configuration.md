@@ -14,13 +14,26 @@ rather than silently disabling the card.
 
 **Malformed is fatal; missing is not.** A value that cannot be parsed — an
 unparseable or out-of-range coordinate, a non-finite number, an unknown
-`STATION_TIMEZONE`, half of a coordinate pair — aborts startup, and **every**
-offending variable is named at once rather than just the first. (The one
+`STATION_TIMEZONE`, half of a coordinate pair, a [storage](#storage) tunable
+that is not a positive number or duration — aborts startup. (The one
 exception is `TZ`: a value the runtime cannot resolve is not fatal — see
-[Timezone](#timezone).) An *absent* value never prevents startup: an optional
-card whose prerequisites are missing logs an `ERROR`, leaves its route
-unregistered, reports itself false at `/api/capabilities`, and the data path
-keeps running. A card flag can never take down ingestion.
+[Timezone](#timezone).)
+
+Malformed values are caught in gates, in startup order, and the first gate
+holding an offender stops the process. Within a gate **every** offender is
+named at once; a later gate is only reached once the earlier ones pass, so fix
+what is named and restart to see the next. The daemon's gates are `LOG_LEVEL`
+and `LOG_FORMAT` together (see [Logging](#logging)), then every `STATION_*`
+variable together, then the rest at the point startup reads them: **each
+boolean on its own**, and each store's three tunables together — the
+`SQLITE_*` ones, then the `POSTGRES_*` ones — read only when that store is in
+use. The `backfill` subcommand runs the logging gate, then reads only what it
+needs.
+
+An *absent* value never prevents startup: an optional card whose prerequisites
+are missing logs an `ERROR`, leaves its route unregistered, reports itself
+false at `/api/capabilities`, and the data path keeps running. A card flag can
+never take down ingestion.
 
 The one middle case is a prerequisite that is met but degraded: coordinates set
 without a timezone logs a `WARN` and the almanac still mounts, rendering every
@@ -59,8 +72,9 @@ error (exit 2).
 Logs are written to **stderr**, which a container runtime captures. With
 `ENABLE_OTEL`, the same records are also exported over OTLP, and `LOG_LEVEL`
 filters both. The `backfill` subcommand honours both variables in its log
-records; its usage errors and store-selection errors are plain text instead,
-and exit 2. `healthcheck` logs nothing and ignores both variables.
+records; its usage errors, store-selection errors and malformed `SQLITE_*`
+tunables are plain text instead, and exit 2. `healthcheck` logs nothing and
+ignores both variables.
 
 An unrecognised value for either variable is a fatal startup error that names
 the variable and the value. Both are checked together, but before any other
@@ -87,12 +101,12 @@ API-export mode.
 | Variable | Default | Meaning |
 |---|---|---|
 | `SQLITE_PATH` | `/data/stormglass.db` | Database file. Its directory must be writable — **if the database cannot be opened the process exits at startup** |
-| `SQLITE_BATCH_SIZE` | `100` | Rows per insert batch |
-| `SQLITE_FLUSH_INTERVAL` | `10s` | Batch flush interval. Any Go duration string |
-| `SQLITE_BUSY_TIMEOUT` | `5000` | SQLite `busy_timeout`, in **milliseconds** |
+| `SQLITE_BATCH_SIZE` | `100` | Rows per insert batch. A positive integer — a malformed or non-positive value is fatal |
+| `SQLITE_FLUSH_INTERVAL` | `10s` | Batch flush interval. A positive Go duration string — a malformed or non-positive value is fatal |
+| `SQLITE_BUSY_TIMEOUT` | `5000` | SQLite `busy_timeout`, in **milliseconds**. A positive integer — a malformed or non-positive value is fatal |
 
-An unparseable or non-positive value for the three tunables falls back to its
-default rather than failing — they are performance knobs, not correctness ones.
+The three tunables are checked together, before the database is opened, and
+every malformed one is named at once. Unset takes the default.
 
 ### PostgreSQL
 
@@ -109,11 +123,27 @@ when both are present.
 | `POSTGRES_PASSWORD` | — | Component form: password |
 | `POSTGRES_NAME` | — | Component form: database name |
 | `POSTGRES_SSLMODE` | `disable` | `disable`, `require`, `verify-ca` or `verify-full` |
-| `POSTGRES_BATCH_SIZE` | `100` | Rows per insert batch |
-| `POSTGRES_FLUSH_INTERVAL` | `10s` | Batch flush interval |
-| `POSTGRES_MAX_RETRIES` | `3` | Write retry attempts |
+| `POSTGRES_BATCH_SIZE` | `100` | Rows per insert batch. A positive integer — a malformed or non-positive value is fatal |
+| `POSTGRES_FLUSH_INTERVAL` | `10s` | Batch flush interval. A positive Go duration string — a malformed or non-positive value is fatal |
+| `POSTGRES_MAX_RETRIES` | `3` | Write retry attempts. A positive integer — a malformed or non-positive value, including `0`, is fatal |
+
+As with SQLite, the three tunables are checked together, before the first
+connection attempt, and every malformed one is named at once. Unset takes the
+default. The `backfill` subcommand does not read them.
 
 See [Storage](storage.md) for the schema and the Litestream replication path.
+
+### Upgrading from v1.1.0
+
+In v1.1.0 an unparseable, zero or negative value for any of the six storage
+tunables — `SQLITE_BATCH_SIZE`, `SQLITE_FLUSH_INTERVAL`, `SQLITE_BUSY_TIMEOUT`,
+`POSTGRES_BATCH_SIZE`, `POSTGRES_FLUSH_INTERVAL`, `POSTGRES_MAX_RETRIES` — was
+silently replaced by its default. Such a value now **stops the daemon at
+startup**, for whichever store it writes, with an error naming the variable and
+the value. The `backfill` subcommand reads only the `SQLITE_*` tunables, and
+only when it repairs SQLite; there it refuses with exit 2. The likeliest traps: `POSTGRES_MAX_RETRIES=0`; a duration with no unit, such as
+`SQLITE_FLUSH_INTERVAL=10` (write `10s`); and a duration string for
+`SQLITE_BUSY_TIMEOUT`, which is milliseconds (`5000`, not `5s`).
 
 ## Metrics
 

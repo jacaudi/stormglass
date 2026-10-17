@@ -62,7 +62,8 @@ func TestMigrateDeclaresMeasurementColumnsAsREAL(t *testing.T) {
 
 	// precip_type is deliberately excluded: it is a categorical enum
 	// (0 none, 1 rain, 2 hail, 3 rain+hail), not a measurement, and stays
-	// INTEGER so it matches internal/postgres/schema.go:55.
+	// INTEGER so it matches createObservationsTable in
+	// internal/postgres/schema.go.
 	want := map[string]string{
 		"wind_sample_interval":   "REAL",
 		"lightning_strike_count": "REAL",
@@ -146,7 +147,7 @@ func assertSchemaVersion(t *testing.T, db *sql.DB, want int) {
 
 // TestMigrateTypesDeviceStatusColumnsFromSourceTypes pins #196's column
 // affinities to the Go types they come from, not to hub_status's. Every field
-// but voltage is an int in DeviceStatusReport (report.go:242-246, 260) where
+// but voltage is an int in tempestudp.DeviceStatusReport where
 // HubStatusReport uses float64, and sensor_status is a BITFIELD -- the repo's
 // own precedent for a categorical is `precip_type INTEGER, -- categorical
 // enum ... not a measurement` (0002_init.sql).

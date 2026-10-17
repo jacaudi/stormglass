@@ -131,11 +131,11 @@ func usageErr(fs *flag.FlagSet, format string, a ...any) error {
 //
 // Backfill repairs ONE store per run. selectStore returns BOTH when
 // ENABLE_POSTGRES=true and SQLITE_PATH is set — a documented fan-out the
-// daemon honors by writing every observation to both (main.go:302-336). In
-// that configuration backfill cannot infer the target, and guessing is the
-// worst option available: repairing Postgres while leaving the
-// Litestream-replicated SQLite database still holed, then exiting 0, tells
-// the operator the history is fixed when it is not.
+// daemon honors by writing every observation to both (configureSQLiteWriter
+// and configurePostgresWriter). In that configuration backfill cannot infer
+// the target, and guessing is the worst option available: repairing Postgres
+// while leaving the Litestream-replicated SQLite database still holed, then
+// exiting 0, tells the operator the history is fixed when it is not.
 func resolveStore(choice storeChoice, flagValue string) (string, error) {
 	var configured []string
 	if choice.sqlite {
@@ -212,7 +212,8 @@ func (s postgresStore) InsertObservations(ctx context.Context, obs []weather.Obs
 }
 
 // openBackfillStore opens the write handle for target ("postgres" or
-// "sqlite"), creating the schema first for postgres, and returns a cleanup
+// "sqlite"; sqliteCfg is the caller's validated sqlite.LoadConfig, used only
+// for "sqlite"), creating the schema first for postgres, and returns a cleanup
 // func the caller must defer to release it. cleanup is returned rather than
 // deferred here: opening the handle and releasing it happen in different
 // stack frames (this function returns long before runBackfill is done using
@@ -222,7 +223,7 @@ func (s postgresStore) InsertObservations(ctx context.Context, obs []weather.Obs
 // On failure the specific error is already logged via slog.Error before
 // returning, matching runBackfill's original inline error handling exactly
 // — callers only need to check err != nil and return the exit code.
-func openBackfillStore(ctx context.Context, target string, choice storeChoice) (backfill.Store, func(), error) {
+func openBackfillStore(ctx context.Context, target string, choice storeChoice, sqliteCfg sqlite.Config) (backfill.Store, func(), error) {
 	switch target {
 	case "postgres":
 		dbConfig, err := config.GetDatabaseConfig()
@@ -260,7 +261,7 @@ func openBackfillStore(ctx context.Context, target string, choice storeChoice) (
 		// The write handle, not OpenReadOnly: read-only fails when the file
 		// does not exist and cannot migrate, and its ingest-contention
 		// rationale does not apply to a separate one-shot process.
-		db, err := sqlite.Open(ctx, choice.sqlitePath, sqlite.LoadConfig(os.Getenv))
+		db, err := sqlite.Open(ctx, choice.sqlitePath, sqliteCfg)
 		if err != nil {
 			slog.Error("backfill: open sqlite", "path", choice.sqlitePath, "error", err)
 			return nil, func() {}, err
@@ -284,7 +285,7 @@ func openBackfillStore(ctx context.Context, target string, choice storeChoice) (
 // handles, wire dependencies, return an exit code.
 //
 // It performs ALL cleanup via internal defers. Copying the healthcheck shape
-// (os.Exit at the dispatch site, main.go:189-191) would skip db.Close() and
+// (os.Exit at the dispatch site, dispatchSubcommand) would skip db.Close() and
 // the pgx pool drain.
 //
 // Exit codes: 0 success (including permanent holes), 1 a gap failed or a
@@ -326,16 +327,28 @@ func runBackfill(ctx context.Context, args []string) int {
 
 	// Backfill repairs ONE store per run, and must never guess which. The
 	// daemon fans out to both when ENABLE_POSTGRES and SQLITE_PATH are both
-	// set (main.go:147-154, :302-336); silently repairing Postgres while
-	// leaving the SQLite database — the one Litestream replicates to S3 —
-	// still holed, then reporting success, is the worst available outcome.
+	// set (selectStore, configureSQLiteWriter, configurePostgresWriter);
+	// silently repairing Postgres while leaving the SQLite database — the one
+	// Litestream replicates to S3 — still holed, then reporting success, is
+	// the worst available outcome.
 	target, err := resolveStore(choice, storeFlag)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 2
 	}
 
-	store, cleanupStore, err := openBackfillStore(ctx, target, choice)
+	// Read only for the store this run opens. A malformed tunable is refused
+	// the way an unresolvable store selection is: plain text, exit 2, before
+	// any handle is opened.
+	var sqliteCfg sqlite.Config
+	if target == "sqlite" {
+		if sqliteCfg, err = sqlite.LoadConfig(os.Getenv); err != nil {
+			fmt.Fprintln(os.Stderr, "backfill: invalid configuration:", err)
+			return 2
+		}
+	}
+
+	store, cleanupStore, err := openBackfillStore(ctx, target, choice, sqliteCfg)
 	if err != nil {
 		// openBackfillStore has already logged the specific cause via
 		// slog.Error before returning.

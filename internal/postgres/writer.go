@@ -167,6 +167,13 @@ type PostgresWriter struct {
 
 // NewPostgresWriter creates a new PostgreSQL writer with connection pooling.
 func NewPostgresWriter(ctx context.Context, databaseURL string) (*PostgresWriter, error) {
+	// Validated before the pool opens: a malformed tunable is a configuration
+	// error, and must not first cost (or be masked by) a connection attempt.
+	tn, err := postgresTunables(os.Getenv)
+	if err != nil {
+		return nil, err
+	}
+
 	pool, err := OpenPool(ctx, databaseURL)
 	if err != nil {
 		return nil, err
@@ -179,8 +186,6 @@ func NewPostgresWriter(ctx context.Context, databaseURL string) (*PostgresWriter
 	}
 
 	slog.Info("postgres: connected, schema ready")
-
-	tn := postgresTunables(os.Getenv)
 
 	// Initialize writer
 	w := &PostgresWriter{

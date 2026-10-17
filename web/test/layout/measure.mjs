@@ -58,7 +58,7 @@ function checkAppCssDeletions() {
     /\.station-health-card\s+\.health-grid\b/,
   ];
   const found = banned.filter((re) => re.test(css)).map(String);
-  // .glass-card must keep `position: relative` (App.css:67) -- deleting
+  // .glass-card must keep `position: relative` (its base rule) -- deleting
   // `.rain-card { position: relative }` is only safe because of it, and
   // .rain-animation is absolutely positioned against it.
   const hasGlassRelative = /\.glass-card\s*\{[^}]*position:\s*relative/.test(css);
@@ -119,11 +119,11 @@ function checkWorkerAsset() {
 }
 
 async function checkServerParity(port) {
-  // Mirrors internal/httpserver/server.go:164-200. A missing path WITH a file
-  // extension 404s; a missing path WITHOUT one serves index.html; /api/* never
-  // falls back. An earlier harness used a naive SPA fallback and returned
-  // 200 + HTML for /basemap/osm.pmtiles, hiding a dev/prod-parity defect
-  // (12-factor X) in exactly the dimension under test.
+  // Mirrors registerStatic in internal/httpserver/server.go. A missing path
+  // WITH a file extension 404s; a missing path WITHOUT one serves index.html;
+  // /api/* never falls back. An earlier harness used a naive SPA fallback and
+  // returned 200 + HTML for /basemap/osm.pmtiles, hiding a dev/prod-parity
+  // defect (12-factor X) in exactly the dimension under test.
   const cases = [
     ['/', 200],
     ['/basemap/osm.pmtiles', 404],
@@ -775,7 +775,7 @@ CHECKS.push({
 
 // B-1's regression gate: the rain card must centre in BOTH states. m.rain is a
 // second server instance serving observations-current.rain.json, so
-// .rain-animation is present as a conditional third child.
+// .rain-animation is present as a conditional last child.
 CHECKS.push({
   id: 'rain-card-centres-while-raining',
   section: '§6.4 / §15 B-1',
@@ -821,8 +821,9 @@ CHECKS.push({
 });
 
 // Weaker than design §12's "/assets/maplibre-gl-worker-*.js returns 200",
-// deliberately and on the record. loadRadar() runs only inside map.on('load')
-// (RadarCard.tsx:234-243), so if MapLibre never initialises in headless
+// deliberately and on the record. RadarCard first calls loadRadar() from its
+// map.on('load') handler (the refresh interval re-runs it only after
+// RADAR_REFRESH_MS, 5 minutes), so if MapLibre never initialises in headless
 // Chromium the worker is never requested and a 200-required check would fail
 // for a reason unrelated to this fix. Asserted instead: no worker request 404s,
 // and any that WAS made returned 200. `maplibre-worker-emitted` above is the

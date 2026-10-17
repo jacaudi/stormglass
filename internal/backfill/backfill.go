@@ -18,9 +18,9 @@ const (
 	// The realistic invocation is `docker exec <running container>
 	// stormglass backfill` against a LIVE database. A long backfill
 	// transaction contends with ingest writes; busy_timeout defaults to 5s
-	// and ingest's error path only LOGS (sqlite/writer.go:646), so an
-	// unbounded transaction could cause live observations to be silently lost
-	// while repairing historical ones. Short transactions are the mitigation.
+	// and ingest's error path only LOGS (sqlite.Writer.insertObservations), so
+	// an unbounded transaction could cause live observations to be silently
+	// lost while repairing historical ones. Short transactions are the mitigation.
 	insertBatchSize = 200
 
 	// maxAttempts bounds retries per window, including the first try.

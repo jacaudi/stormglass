@@ -3,9 +3,11 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
-	"strconv"
 	"time"
+
+	"github.com/jacaudi/stormglass/internal/config"
 
 	// Register the pure-Go SQLite driver (CGO-free) under the name "sqlite".
 	// This blank import MUST live in production code, not only in _test.go
@@ -27,33 +29,19 @@ type Config struct {
 }
 
 // LoadConfig reads SQLITE_BATCH_SIZE, SQLITE_FLUSH_INTERVAL, and
-// SQLITE_BUSY_TIMEOUT via getenv, falling back to defaults (100, 10s, 5000ms)
-// when a value is unset, unparseable, or non-positive. getenv is injected so
-// callers can test without touching the real process environment.
-func LoadConfig(getenv func(string) string) Config {
-	atoiOr := func(s string, def int) int {
-		if n, err := strconv.Atoi(s); err == nil && n > 0 {
-			return n
-		}
-		return def
-	}
-	msOr := func(s string, def time.Duration) time.Duration {
-		if ms, err := strconv.Atoi(s); err == nil && ms > 0 {
-			return time.Duration(ms) * time.Millisecond
-		}
-		return def
-	}
-	durOr := func(s string, def time.Duration) time.Duration {
-		if d, err := time.ParseDuration(s); err == nil && d > 0 {
-			return d
-		}
-		return def
-	}
+// SQLITE_BUSY_TIMEOUT (milliseconds) via getenv. Unset or empty takes the
+// default (100, 10s, 5000ms); a value that does not parse or is not positive
+// is an error, and every offender is joined into the one returned. getenv is
+// injected so callers can test without touching the real process environment.
+func LoadConfig(getenv func(string) string) (Config, error) {
+	batch, batchErr := config.PositiveIntEnv(getenv, "SQLITE_BATCH_SIZE", 100)
+	flush, flushErr := config.PositiveDurationEnv(getenv, "SQLITE_FLUSH_INTERVAL", 10*time.Second)
+	busyMS, busyErr := config.PositiveIntEnv(getenv, "SQLITE_BUSY_TIMEOUT", 5000)
 	return Config{
-		BatchSize:     atoiOr(getenv("SQLITE_BATCH_SIZE"), 100),
-		FlushInterval: durOr(getenv("SQLITE_FLUSH_INTERVAL"), 10*time.Second),
-		BusyTimeout:   msOr(getenv("SQLITE_BUSY_TIMEOUT"), 5000*time.Millisecond),
-	}
+		BatchSize:     batch,
+		FlushInterval: flush,
+		BusyTimeout:   time.Duration(busyMS) * time.Millisecond,
+	}, errors.Join(batchErr, flushErr, busyErr)
 }
 
 // Open establishes a connection to the SQLite database at path with the

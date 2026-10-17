@@ -1,8 +1,10 @@
 package postgres
 
 import (
-	"strconv"
+	"errors"
 	"time"
+
+	"github.com/jacaudi/stormglass/internal/config"
 )
 
 // tunables holds the batching/retry knobs documented in docs/configuration.md
@@ -16,24 +18,16 @@ type tunables struct {
 }
 
 // postgresTunables is a pure helper (testable without a live DB): getenv is
-// injected so tests can supply a fake instead of the real os.Getenv. Each
-// value falls back to its default when unset, unparseable, or non-positive.
-func postgresTunables(getenv func(string) string) tunables {
-	atoiOr := func(s string, def int) int {
-		if n, err := strconv.Atoi(s); err == nil && n > 0 {
-			return n
-		}
-		return def
-	}
-	durOr := func(s string, def time.Duration) time.Duration {
-		if d, err := time.ParseDuration(s); err == nil && d > 0 {
-			return d
-		}
-		return def
-	}
+// injected so tests can supply a fake instead of the real os.Getenv. Unset or
+// empty takes the default (100, 10s, 3); a value that does not parse or is not
+// positive is an error, and every offender is joined into the one returned.
+func postgresTunables(getenv func(string) string) (tunables, error) {
+	batch, batchErr := config.PositiveIntEnv(getenv, "POSTGRES_BATCH_SIZE", 100)
+	flush, flushErr := config.PositiveDurationEnv(getenv, "POSTGRES_FLUSH_INTERVAL", 10*time.Second)
+	retries, retriesErr := config.PositiveIntEnv(getenv, "POSTGRES_MAX_RETRIES", 3)
 	return tunables{
-		batchSize:     atoiOr(getenv("POSTGRES_BATCH_SIZE"), 100),
-		flushInterval: durOr(getenv("POSTGRES_FLUSH_INTERVAL"), 10*time.Second),
-		maxRetries:    atoiOr(getenv("POSTGRES_MAX_RETRIES"), 3),
-	}
+		batchSize:     batch,
+		flushInterval: flush,
+		maxRetries:    retries,
+	}, errors.Join(batchErr, flushErr, retriesErr)
 }

@@ -1,5 +1,5 @@
 // Static server for a built web/dist plus the recorded API fixtures, mirroring
-// internal/httpserver/server.go:164-200 exactly:
+// registerStatic in internal/httpserver/server.go exactly:
 //   - /api/* never falls back to the SPA index
 //   - a path resolving to a real file is served
 //   - a missing path WITH a file extension 404s

@@ -82,9 +82,9 @@ Every other invocation is a matter of which environment variables are set. See
 ### Operational Modes
 
 The application switches modes on the presence of `TOKEN`:
-- **No TOKEN**: `listenAndPushWithSink()` (`main.go:756`) — UDP listener feeding
-  every configured writer.
-- **With TOKEN**: `exportWithSink()` (`main.go:890`) — historical export, then exit.
+- **No TOKEN**: `listenAndPushWithSink()` — UDP listener feeding every
+  configured writer.
+- **With TOKEN**: `exportWithSink()` — historical export, then exit.
 
 ### Package Structure
 
@@ -106,7 +106,7 @@ The application switches modes on the presence of `TOKEN`:
 
 ### Data Flow (UDP Mode)
 
-1. UDP packets received on :50222 → `listen()` (`main.go:788`)
+1. UDP packets received on :50222 → `listen()`
 2. Raw bytes → `tempestudp.ParseReport()` → Report struct
 3. Report → `Report.Metrics()` → `[]prometheus.Metric`
 4. Handed to `sink.MetricsSink`, which fans out to **every registered writer**:
@@ -151,7 +151,9 @@ Points an agent gets wrong most often:
   out-of-range values — including an unknown `STATION_TIMEZONE` — abort
   startup. The gates run in order and each stops the process: `LOG_*` first
   (both named together), then `STATION_*` (every offender named together), then
-  each boolean on its own — see `docs/configuration.md`. (The one exception is
+  the rest where startup reads them — each boolean on its own, and each
+  in-use store's three tunables together (`SQLITE_*`, then `POSTGRES_*`) — see
+  `docs/configuration.md`, "How values are read". (The one exception is
   `TZ`: a value the Go runtime cannot resolve logs a `WARN` and degrades to UTC
   rather than aborting.) An unmet optional-card precondition logs an `ERROR`,
   leaves the route unregistered, and lets ingestion continue — a card flag must

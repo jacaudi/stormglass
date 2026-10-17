@@ -97,8 +97,11 @@ docs/review/
 docs/screenshots/
 
 # Built binaries (this repo's, by name — the managed block's bin/ does not cover
-# a binary written to the repo root, which `go build ./cmd/stormglass` does by default)
-stormglass
+# a binary written to the repo root, which `go build ./cmd/stormglass` does by default).
+# Anchored: unanchored, it also matched the cmd/stormglass/ source directory.
+/stormglass
+# The same binary when `go build` runs inside cmd/stormglass/.
+/cmd/stormglass/stormglass
 
 # Go build cache and coverage formats the managed block does not carry
 .cache/

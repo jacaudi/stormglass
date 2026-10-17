@@ -77,7 +77,7 @@
 }
 
 /* Card interiors (#180). Scoped to `.dashboard-grid >` deliberately:
-   SettingsPanel.tsx:68 renders `settings-panel glass-card`, and an unscoped rule
+   SettingsPanel renders `settings-panel glass-card`, and an unscoped rule
    would turn the modal into a flex column with auto margins on its body, against
    its own overflow-y: auto and max-height: 85dvh. The probe never opens it and
    no test covers it, so that would ship unseen.
@@ -100,14 +100,16 @@
    destroys `display: grid` on .records-grid and .almanac-records -- measured,
    the records card went 238px -> 1014px.
 
-   `:first-child`, not `.card-header`: RecordsCard.tsx:38 heads with
+   `:first-child`, not `.card-header`: RecordsCard heads with
    .records-header, and .hero-card has no header element at all (it is already
-   centred by :264-269, so `:first-child + *` correctly matches nothing there).
+   centred by its own .hero-card rule, so `:first-child + *` correctly matches
+   nothing there).
 
    `:nth-last-child(1 of :not(.rain-animation))`, not `:last-child`:
-   RainCard.tsx:68 renders .rain-animation as a third child ONLY while it is
-   raining. It is position: absolute (:714-723) so it absorbs no free space, yet
-   it is structurally :last-child -- a plain :last-child rule hands it the
+   RainCard renders .rain-animation as its last child ONLY while it is
+   raining. It is position: absolute (the .rain-animation rule) so it absorbs
+   no free space, yet it is structurally :last-child -- a plain :last-child
+   rule hands it the
    margin-bottom: auto it cannot use and bottom-pins the card (measured 270/0
    raining against 135/135 dry). Both "just move it in the DOM" fixes were
    tested and break the other way; the out-of-flow element has to be excluded.
@@ -171,8 +173,8 @@
      have specificity 0 at the start of the author origin, so a CSS rule wins and
      they survive as a no-CSS fallback. All ten card icons are
      <svg className="card-icon" width="20" height="20">, so no component changes.
-     The hero glyph (TemperatureHero.tsx:40) and the two Header SVGs are sized in
-     TSX and deliberately do NOT ride this scale -- see design §6.8. */
+     The hero glyph (.hero-icon in TemperatureHero) and the two Header SVGs are
+     sized in TSX and deliberately do NOT ride this scale -- see design §6.8. */
   width: 1.25rem;
   height: 1.25rem;
   opacity: 0.7;
@@ -538,8 +540,9 @@
 .dashboard-grid {
   display: grid;
   /* minmax(0, 1fr) here is a measured NO-OP for today's DOM: .glass-card sets
-     overflow: hidden (:75), which makes every grid child a scroll container, and
-     per CSS Grid L1 §6.6 the automatic minimum size does not apply to those.
+     overflow: hidden (its base rule), which makes every grid child a scroll
+     container, and per CSS Grid L1 §6.6 the automatic minimum size does not
+     apply to those.
      It is kept as a Patchbay seam -- one line, zero present cost -- so a future
      card WITHOUT overflow: hidden degrades to an equal track instead of a
      content-sized one. The SPAN CLAMPS below are the actual fix. */
@@ -1594,7 +1597,7 @@
      it mixed-alignment -- icon and temperature centred as a flex row, stats
      grid left-aligned beneath -- which reads as misaligned rather than
      deliberate. (.hero-icon needs no `order`: it is already the first DOM child
-     at TemperatureHero.tsx:40, and flex wrapping does not reorder.) */
+     in TemperatureHero, and flex wrapping does not reorder.) */
   .hero-content { justify-content: center; }
 
   .dashboard-grid {

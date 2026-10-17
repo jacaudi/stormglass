@@ -64,7 +64,7 @@ const raincard = (c: HTMLElement) => c.querySelector('.glass-card')!.children;
 describe('RainCard interior centring precondition (design §6.4)', () => {
   it('renders the rain animation as a conditional LAST child while raining', () => {
     // The interior rule in App.css excludes .rain-animation by class because it
-    // is an out-of-flow third child that exists only in this state. If the
+    // is an out-of-flow last child that exists only in this state. If the
     // component ever stops rendering it last, or renders it unconditionally,
     // the exclusion silently stops matching what it was written for.
     const raining = { ...baseCurrent, precipitationType: PrecipitationType.Rain };

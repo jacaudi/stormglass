@@ -361,9 +361,9 @@ func TestSink_SendReportBoundsBlockingWriter(t *testing.T) {
 // TestSink_SendMetricsIsNotBoundedByWriteTimeout verifies SendMetrics passes
 // the caller's ctx straight through instead of wrapping it in the sink's
 // writeTimeout (#47 review finding). SendMetrics's only caller is the API
-// export/backfill path (main.go:562), which accumulates up to 200,000
-// metrics per call; an internal timeout there can expire mid-batch and
-// silently drop the remaining rows while the export advances. There is no
+// export path (cmd/stormglass's exportWithSink), which accumulates up to
+// 200,000 metrics per call; an internal timeout there can expire mid-batch
+// and silently drop the remaining rows while the export advances. There is no
 // shared-read-loop hazard on that path to justify the cost — blocking is
 // correct backpressure.
 //

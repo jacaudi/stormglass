@@ -12,7 +12,7 @@ import (
 )
 
 // newTestClient points a Client at an httptest.Server via the existing
-// WithBaseURL seam (client.go:35-39).
+// WithBaseURL seam.
 func newTestClient(t *testing.T, handler http.HandlerFunc) *Client {
 	t.Helper()
 	srv := httptest.NewServer(handler)

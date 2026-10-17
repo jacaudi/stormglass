@@ -77,8 +77,8 @@ func TestInsertObservationsEmptyInput(t *testing.T) {
 //   - EXTRACT(EPOCH FROM (ts - prev)) yields numeric in PG14+, compared here
 //     against a float64 parameter.
 //   - MIN/MAX over timestamptz scanned into time.Time.
-//   - precip_type is INTEGER in the DDL (schema.go:55) while the bind is a
-//     *float64 — pgx truncates silently rather than erroring.
+//   - precip_type is INTEGER in the DDL (createObservationsTable) while the
+//     bind is a *float64 — pgx truncates silently rather than erroring.
 //
 // Follow the existing skip idiom in writer_integration_test.go. This must be
 // RUN AT LEAST ONCE against a real database before the branch merges; a run
@@ -125,14 +125,13 @@ func TestBackfillPostgresIntegration(t *testing.T) {
 			Timestamp:    base.Add(off),
 			TempAir:      new(20.0),
 			// precip_type is the sole INTEGER column among these four
-			// (schema.go:55) while the bind is a *float64 — the exact
-			// truncation hazard named at the top of this file's comment
-			// block; pgx truncates a float into int4 silently, so only a
-			// real round-trip catches it. wind_sample_interval,
+			// (createObservationsTable) while the bind is a *float64 — the
+			// exact truncation hazard named at the top of this file's
+			// comment block; pgx truncates a float into int4 silently, so
+			// only a real round-trip catches it. wind_sample_interval,
 			// lightning_strike_count, and report_interval are DOUBLE
-			// PRECISION (schema.go:43,58,61); seeding them here is a
-			// float8 round-trip fidelity check, not an INTEGER hazard
-			// check.
+			// PRECISION (same DDL); seeding them here is a float8
+			// round-trip fidelity check, not an INTEGER hazard check.
 			PrecipType:           new(1.0),
 			WindSampleInterval:   new(3.0),
 			LightningStrikeCount: new(0.0),
@@ -175,7 +174,7 @@ func TestBackfillPostgresIntegration(t *testing.T) {
 		UVIndex:              new(30.1),
 		Irradiance:           new(31.1),
 		RainRate:             new(32.2),
-		PrecipType:           new(33.0), // the sole INTEGER column (schema.go:55)
+		PrecipType:           new(33.0), // the sole INTEGER column in the DDL
 		LightningDistance:    new(34.4),
 		LightningStrikeCount: new(35.0),
 		Battery:              new(36.6),
@@ -242,7 +241,7 @@ func TestBackfillPostgresIntegration(t *testing.T) {
 		t.Errorf("SeriesBounds missing %s: %+v", serialA, bounds)
 	}
 
-	// Round-trip precip_type (the sole INTEGER column here — schema.go:55)
+	// Round-trip precip_type (the sole INTEGER column in createObservationsTable)
 	// alongside the three DOUBLE PRECISION columns (wind_sample_interval,
 	// lightning_strike_count, report_interval) for float8 fidelity, plus
 	// temp_air/pressure/temp_wetbulb — selected by name, never positionally
