@@ -58,8 +58,9 @@ error (exit 2).
 
 Logs are written to **stderr**, which a container runtime captures. With
 `ENABLE_OTEL`, the same records are also exported over OTLP, and `LOG_LEVEL`
-filters both. The `backfill` subcommand honours both variables; `healthcheck`
-logs nothing and ignores them.
+filters both. The `backfill` subcommand honours both variables in its log
+records; its usage errors and store-selection errors are plain text instead,
+and exit 2. `healthcheck` logs nothing and ignores both variables.
 
 An unrecognised value for either variable is a fatal startup error that names
 the variable and the value. Both are checked together, but before any other
