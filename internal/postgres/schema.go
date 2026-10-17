@@ -128,9 +128,9 @@ CREATE INDEX IF NOT EXISTS idx_events_time ON stormglass_events(timestamp DESC);
 // columns on stormglass_observations because a device_status broadcast has no
 // observation row to attach to: it is its own report type on its own cadence.
 //
-// Column types follow the Go source types in DeviceStatusReport
-// (report.go:242-246, 260), where every field but voltage is an int --
-// HubStatusReport's float64s are a different report. sensor_status is a
+// Column types follow the Go source types in tempestudp.DeviceStatusReport,
+// where every field but voltage is an int -- HubStatusReport's float64s are a
+// different report. sensor_status is a
 // bitfield, so INTEGER rather than a float.
 const createDeviceStatusTable = `
 CREATE TABLE IF NOT EXISTS stormglass_device_status (

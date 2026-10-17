@@ -4,7 +4,7 @@
 //  2. empty space is ASYMMETRY, not bottom slack -- bottom slack punishes the
 //     deliberately-centred hero;
 //  3. horizontal overflow is documentElement.scrollWidth - innerWidth --
-//     index.css:49 sets body { overflow-x: hidden }, so measuring on body
+//     index.css's body rule sets overflow-x: hidden, so measuring on body
 //     reports zero everywhere and hides the defect.
 
 export async function probe(page) {
@@ -381,7 +381,7 @@ export async function probe(page) {
       // no geometric threshold can see a dropped label or a swapped value, and #178
       // is literally "WIND CHILL and UV INDEX are absent". Frozen at the Task 12
       // gate and compared on every Phase 2 task.
-      // Excludes anything MapLibre injects: RadarCard.tsx:174-177 adds an
+      // Excludes anything MapLibre injects: RadarCard's map setup adds an
       // AttributionControl rendering "© OpenStreetMap contributors" INSIDE the
       // card, so whether the map initialises would otherwise flip the radar
       // card's text between runs and report a drift no task caused.

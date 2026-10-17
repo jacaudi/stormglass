@@ -21,7 +21,7 @@ const earthRadiusKm = 6371.0
 // the great-circle (haversine) distance to it in kilometres.
 //
 // lat and lon are assumed finite and in range. config.LoadStation, via
-// parseFloatEnv (internal/config/station.go:146-165), rejects NaN, +/-Inf
+// parseFloatEnv (internal/config/station.go), rejects NaN, +/-Inf
 // and out-of-range values before any coordinate can reach this function's
 // only production caller, so no guard is duplicated here. The note is
 // worth stating because the precondition now lives across a package

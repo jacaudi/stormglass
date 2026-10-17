@@ -54,7 +54,8 @@ const (
 
 // obsMinFields is the floor below which a tuple carries no usable core
 // measurements. It mirrors the UDP ingest path, which accepts a report at
-// len(ob) >= 13 and fills the tail conditionally (sqlite/writer.go:406-457).
+// len(ob) >= 13 and fills the tail conditionally
+// (sqlite.Writer.handleObservationReport).
 //
 // The guards here are GRADUATED, not all-or-nothing. A hard
 // "len(ob) < 18 -> drop" would silently discard a short tuple's temperature,

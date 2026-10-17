@@ -675,9 +675,9 @@ func main() {
 	// mode == ModeUDP (its opening guard), and these notices apply to both
 	// modes. That places them before configureOTel installs the slog bridge,
 	// so they reach the pre-bridge stderr default rather than the OTel log
-	// pipeline -- the same accepted limitation
-	// internal/prometheus/deprecation.go:32-39 documents for its own
-	// transitional deprecation notice.
+	// pipeline -- the same accepted limitation warnDeprecated's doc comment
+	// (internal/prometheus/deprecation.go) documents for its own transitional
+	// deprecation notice.
 	for _, n := range stationCfg.TimezoneNotices {
 		slog.Default().Warn("timezone configuration", "notice", n)
 	}

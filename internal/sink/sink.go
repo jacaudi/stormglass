@@ -37,7 +37,7 @@ import (
 // partial data loss with no analogous shared-read-loop hazard to justify the
 // cost.
 //
-// 5s matches eventBlockTimeout in internal/sqlite/writer.go:29, which bounds
+// 5s matches eventBlockTimeout in internal/sqlite/writer.go, which bounds
 // the analogous case (a discrete event blocking on a full channel). Kept
 // consistent rather than picking an independent value for the same class of
 // wait.

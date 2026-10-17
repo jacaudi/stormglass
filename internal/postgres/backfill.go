@@ -28,8 +28,9 @@ import (
 // satisfies both.
 
 // backfillBatchTimeout bounds one backfill SendBatch. The daemon's hardcoded
-// 5s at insertObservations (writer.go:222) was sized for the 1-row live path;
-// a backfill batch of up to 200 rows needs its own budget.
+// 5s context.WithTimeout in PostgresWriter.insertObservations was sized for
+// the 1-row live path; a backfill batch of up to 200 rows needs its own
+// budget.
 const backfillBatchTimeout = 30 * time.Second
 
 // findObservationGapsSQL locates interior holes in each station's series.
@@ -158,7 +159,8 @@ func asPrecipType(p *float64) *int {
 // InsertObservations writes obs idempotently and reports how many rows were
 // actually new. CommandTag.RowsAffected() is 0 for a skipped conflict and 1
 // for an insert — the same semantics as SQLite's per-row RowsAffected, and
-// the value the daemon path currently discards (writer.go:250).
+// the value the daemon path currently discards
+// (PostgresWriter.insertObservations ignores br.Exec's CommandTag).
 //
 // pgx SendBatch is all-or-nothing per batch, so the count is only meaningful
 // once every Exec has succeeded. The caller bounds len(obs).

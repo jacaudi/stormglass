@@ -16,11 +16,11 @@ import (
 // This file holds the backfill tool's read/write path. Everything here is a
 // package-level function taking *sql.DB, never a method on Writer:
 // Writer.run is documented as "the only goroutine that ever touches db"
-// (writer.go:161,236), so an insert method on that type would breach the
-// single-writer invariant and be callable from the daemon. Nothing here
-// starts a goroutine.
+// (the Writer and run doc comments in writer.go), so an insert method on that
+// type would breach the single-writer invariant and be callable from the
+// daemon. Nothing here starts a goroutine.
 //
-// IMPORTANT: sqlite.Open sets db.SetMaxOpenConns(1) (db.go:74). Every query
+// IMPORTANT: sqlite.Open sets db.SetMaxOpenConns(1). Every query
 // below fully materializes its result slice and closes its *sql.Rows before
 // returning. A streaming iterator that yielded rows while the caller inserted
 // would deadlock on the single connection with no error and no timeout. Do
@@ -149,7 +149,8 @@ func DistinctSerials(ctx context.Context, db *sql.DB) ([]string, error) {
 // The count is what makes the permanent-hole tradeoff visible: if the station
 // was genuinely offline, the API has no data either, and inserted stays 0
 // across runs. ON CONFLICT (serial_number, timestamp) DO NOTHING is backed by
-// a real UNIQUE constraint (migrations/0002_init.sql:22), and per-row
+// a real UNIQUE constraint (stormglass_observations in
+// migrations/0002_init.sql), and per-row
 // RowsAffected returns 0 for a skipped conflict and 1 for an insert.
 //
 // The count is returned only after a successful Commit — execBatch rolls the
@@ -209,9 +210,9 @@ func asPrecipType(p *float64) *int64 {
 // wetBulb derives temp_wetbulb, which the REST API does not return.
 //
 // It uses the same tempestudp.WetBulbTemperatureC + math.IsNaN guard the UDP
-// ingest path uses (writer.go:410,432-434), single-sourced, so backfilled and
-// live rows are indistinguishable. Change the formula and both paths change
-// together: shared knowledge, not shared shape.
+// ingest path uses (Writer.handleObservationReport), single-sourced, so
+// backfilled and live rows are indistinguishable. Change the formula and both
+// paths change together: shared knowledge, not shared shape.
 //
 // Any missing input yields NULL rather than a value computed from a zero —
 // the same reason the decode preserves nulls in the first place.

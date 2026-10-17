@@ -13,7 +13,7 @@
 -- which is the same shape for the hub's side.
 --
 -- Column affinities follow the GO SOURCE types, not hub_status's: every field
--- but voltage is an int in DeviceStatusReport (report.go:242-246, 260) where
+-- but voltage is an int in tempestudp.DeviceStatusReport where
 -- HubStatusReport uses float64. sensor_status is a BITFIELD, so INTEGER for
 -- the same reason precip_type is INTEGER in 0002 -- a categorical, not a
 -- measurement.

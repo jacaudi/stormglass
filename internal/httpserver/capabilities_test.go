@@ -22,7 +22,7 @@ func testDepsForCapabilities() Deps {
 
 // stubRadarProxy returns a RadarProxy whose Get always succeeds. These tests
 // only care whether the route exists, not what it serves -- but fakeRadarProxy
-// (radar_test.go:18) dispatches straight to its getFunc field, so a bare
+// (radar_test.go) dispatches straight to its getFunc field, so a bare
 // &fakeRadarProxy{} panics the moment the route is actually requested.
 func stubRadarProxy() *fakeRadarProxy {
 	return &fakeRadarProxy{

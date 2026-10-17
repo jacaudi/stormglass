@@ -122,7 +122,7 @@ tasks:
         set -eu
         echo "smoke testing radar sidecar ${IMAGE}"
         # The issue's own minimal check first, so an import-time failure names
-        # itself instead of surfacing as "never served /healthz". app.py:15
+        # itself instead of surfacing as "never served /healthz". radar/app.py
         # does `import decode` at module top, and decode.py pulls the
         # pyart/matplotlib/cartopy chain -- which is exactly how #186 failed:
         # the native extensions did not load, so uvicorn never started.

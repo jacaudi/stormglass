@@ -38,10 +38,10 @@ func newCapabilities(deps Deps) capabilities {
 // routes it gates, this one is always registered and has no failure mode --
 // it marshals a three-field struct with no dependency to consult.
 //
-// Cache-Control is set before writeJSON because writeJSON calls WriteHeader
-// immediately (observations.go:436-438); setting it afterwards would be a
-// silent no-op. no-store, not a max-age, so an operator's config change shows
-// up on the next page load rather than after a cache expiry.
+// Cache-Control is set before writeJSON because writeJSON (observations.go)
+// calls WriteHeader immediately; setting it afterwards would be a silent
+// no-op. no-store, not a max-age, so an operator's config change shows up on
+// the next page load rather than after a cache expiry.
 func registerCapabilities(mux *http.ServeMux, caps capabilities) {
 	mux.HandleFunc("GET /api/capabilities", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")

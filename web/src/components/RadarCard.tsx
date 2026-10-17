@@ -12,7 +12,7 @@ import { Protocol } from 'pmtiles';
 // `?worker&url`, NOT a bare `?url`: maplibre-gl-worker.mjs imports
 // ./maplibre-gl-shared.mjs as a relative sibling, and a plain asset copy loses
 // it. `?worker` routes through Vite's bundleWorkerEntry, which resolves that
-// import. setWorkerUrl is a documented export (maplibre-gl.d.ts:16731).
+// import. setWorkerUrl is a documented export (declared in maplibre-gl.d.ts).
 //
 // Cost: +470.82 kB uncompressed in dist/assets, and thence into the Go binary
 // via web/embed.go's //go:embed all:dist. Cause is Vite's default
