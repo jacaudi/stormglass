@@ -5,6 +5,16 @@
     "github>jacaudi/renovate-config:go",
     "github>jacaudi/renovate-config:fork"
   ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Track every tool pin annotated `# renovate: datasource=<ds> depName=<name>` (the setup action's actionlint, golangci-lint, govulncheck and hadolint, the taskfile's ruff). The annotation sits above the pinned value, with any number of `#` comment lines allowed in between; the value is the first `KEY: value` line after it, and a leading `tool@` (ruff@0.14.4) is skipped so only the version is replaced. Only the captured value is rewritten, and the default semver-coerced versioning keeps the pin's existing shape: github-releases tags carry a v (v2.15.0) but a no-v pin is proposed as 2.15.0, while the go datasource's v1.8.0 stays v-prefixed, so no extractVersion is needed (checked with a lookup dry run against downgraded pins).",
+      "managerFilePatterns": ["/\\.ya?ml$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\n(?:\\s*#[^\\n]*\\n)*\\s*\\w+: ['\"]?(?:[\\w-]+@)?(?<currentValue>[^\\s'\"]+)"
+      ]
+    }
+  ],
   "packageRules": [
     {
       "description": "Collapse routine Docker image updates into a single PR instead of one PR per image. Majors are deliberately NOT grouped: holding one major (python 3.14, grafana 13) would otherwise block every routine digest and patch bump riding in the same PR.",
@@ -27,7 +37,7 @@
       "enabled": false
     },
     {
-      "description": "golangci-lint refuses to run when the Go version it was built with is older than the module's toolchain, so its pin has to lead every Go bump rather than trail it. As separate groups the two can never be ordered -- #161 sat red because the toolchain moved to 1.27 while the linter pin was still a 1.26 build, and the failure was not in that PR's own diff. Grouping them means one PR carries both and the ordering question disappears. The go-toolchain group itself comes from the shared jacaudi/renovate-config:go preset; this rule only adds the linter to it, locally, rather than changing a preset six repos consume.",
+      "description": "golangci-lint refuses to run when the Go version it was built with is older than the module's toolchain, so its pin has to lead every Go bump rather than trail it. As separate groups the two can never be ordered -- #161 sat red because go1.27.2 emits unified-IR V5 export data, which golang.org/x/tools reads from v0.50.0 (golangci-lint >= 2.14.0), while the pin was still 2.13.2 (\"export data version 5 is greater than maximum supported version 4\"), and the failure was not in that PR's own diff. Grouping them means one PR carries both and the ordering question disappears. The go-toolchain group itself comes from the shared jacaudi/renovate-config:go preset; this rule only adds the linter to it, locally, rather than changing a preset six repos consume.",
       "matchDatasources": ["github-releases"],
       "matchPackageNames": ["golangci/golangci-lint"],
       "groupName": "go-toolchain"
