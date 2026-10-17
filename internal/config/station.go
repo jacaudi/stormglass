@@ -325,7 +325,7 @@ func timezoneNotices(local *time.Location, stationTZ, tz string, stationTZOK boo
 	//
 	// local.String() is the only available signal, and the notice says only
 	// that the runtime LANDED on UTC -- never why. The runtime's own TZ
-	// handling (initLocal, $(go env GOROOT)/src/time/zoneinfo_unix.go:28-69)
+	// handling (initLocal in Go's time package, src/time/zoneinfo_unix.go)
 	// strips a leading colon and loads absolute paths, neither of which
 	// time.LoadLocation does, so re-deriving the resolution here would be
 	// wrong in both directions.

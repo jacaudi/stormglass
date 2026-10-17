@@ -106,7 +106,7 @@
    nothing there).
 
    `:nth-last-child(1 of :not(.rain-animation))`, not `:last-child`:
-   RainCard renders .rain-animation as a third child ONLY while it is
+   RainCard renders .rain-animation as its last child ONLY while it is
    raining. It is position: absolute (the .rain-animation rule) so it absorbs
    no free space, yet it is structurally :last-child -- a plain :last-child
    rule hands it the

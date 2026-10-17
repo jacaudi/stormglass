@@ -196,7 +196,7 @@ func TestPushPath_StripsTimestamps(t *testing.T) {
 
 // TestPushPath_DrainTwoSamplesOfOneSeries is #187 (b), and it is the reason
 // the naive fix is not enough. client_golang's checkMetricConsistency hashes
-// the TIMESTAMP into its uniqueness key (registry.go:983-986), so today two
+// the TIMESTAMP into its uniqueness key, so today two
 // samples of one series hash apart and no error fires. Strip the timestamps
 // and they collide: Gather() aborts with "was collected before with the same
 // name and label values" and the push dies locally, before any HTTP request.
