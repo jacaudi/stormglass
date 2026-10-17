@@ -19,6 +19,7 @@ import (
 
 	"github.com/jacaudi/stormglass/internal/config"
 	"github.com/jacaudi/stormglass/internal/httpserver"
+	"github.com/jacaudi/stormglass/internal/logging"
 	"github.com/jacaudi/stormglass/internal/otel"
 	"github.com/jacaudi/stormglass/internal/postgres"
 	"github.com/jacaudi/stormglass/internal/prometheus"
@@ -40,73 +41,6 @@ import (
 // Dockerfile and buildx bake config); it stays the "dev" default for
 // non-release/local builds that don't set VERSION.
 var version = "dev"
-
-// teeHandler fans every slog.Record at or above level out to multiple
-// handlers. It exists to work around a real stdlib side effect:
-// slog.SetDefault(l) calls log.SetOutput(&handlerWriter{l.Handler(), ...})
-// whenever l.Handler() isn't the unexported *defaultHandler type (see
-// log/slog/logger.go's SetDefault doc comment), which means installing the
-// OTel log bridge as the sole slog default would silently redirect every slog
-// record, and anything a dependency still writes through stdlib log, away
-// from stderr into the OTel pipeline only. Fanning out to a plain stderr
-// handler alongside the OTel one preserves that visibility.
-//
-// level is LOG_LEVEL. The stderr handler already filters on it, but the OTel
-// bridge enables every level, so the tee is where one LOG_LEVEL governs both.
-type teeHandler struct {
-	level    slog.Level
-	handlers []slog.Handler
-}
-
-// newTeeHandler returns a slog.Handler that forwards every record at or above
-// level to each of handlers.
-func newTeeHandler(level slog.Level, handlers ...slog.Handler) *teeHandler {
-	return &teeHandler{level: level, handlers: handlers}
-}
-
-func (h *teeHandler) Enabled(ctx context.Context, level slog.Level) bool {
-	if level < h.level {
-		return false
-	}
-	for _, sub := range h.handlers {
-		if sub.Enabled(ctx, level) {
-			return true
-		}
-	}
-	return false
-}
-
-func (h *teeHandler) Handle(ctx context.Context, r slog.Record) error {
-	if r.Level < h.level {
-		return nil
-	}
-	var errs []error
-	for _, sub := range h.handlers {
-		if !sub.Enabled(ctx, r.Level) {
-			continue
-		}
-		if err := sub.Handle(ctx, r.Clone()); err != nil {
-			errs = append(errs, err)
-		}
-	}
-	return errors.Join(errs...)
-}
-
-func (h *teeHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
-	next := make([]slog.Handler, len(h.handlers))
-	for i, sub := range h.handlers {
-		next[i] = sub.WithAttrs(attrs)
-	}
-	return &teeHandler{level: h.level, handlers: next}
-}
-
-func (h *teeHandler) WithGroup(name string) slog.Handler {
-	next := make([]slog.Handler, len(h.handlers))
-	for i, sub := range h.handlers {
-		next[i] = sub.WithGroup(name)
-	}
-	return &teeHandler{level: h.level, handlers: next}
-}
 
 // Old collector implementation removed - now using MetricsSink
 
@@ -243,7 +177,9 @@ func dispatchSubcommand() {
 		// wires its own signal context. Logging is configured first so
 		// its slog records honor LOG_LEVEL and LOG_FORMAT; a malformed
 		// value exits before anything is opened.
-		initLogging()
+		if _, err := logging.Init(os.Stderr); err != nil {
+			fatal("invalid logging configuration", "error", err)
+		}
 		os.Exit(runBackfill(context.Background(), os.Args[2:]))
 	default:
 		// Unreachable while this switch and isKnownSubcommand agree — but
@@ -397,10 +333,10 @@ func configurePostgresWriter(ctx context.Context, metricsSink *sink.MetricsSink,
 // is set: Setup registers the meter/tracer/logger providers as OTel
 // globals, the sink metrics writer is registered like any other writer, and
 // slog's default logger is redirected to the OTel log bridge (Task 6.4) so
-// internal/sink's slog calls flow to OTel too. logCfg is what initLogging
+// internal/sink's slog calls flow to OTel too. logCfg is what logging.Init
 // returned: the stderr half of that default keeps its level and format.
 // Returns the shutdown func Setup returned, or nil if OTel is disabled.
-func configureOTel(ctx context.Context, metricsSink *sink.MetricsSink, logCfg config.LogConfig) func(context.Context) error {
+func configureOTel(ctx context.Context, metricsSink *sink.MetricsSink, logCfg logging.Config) func(context.Context) error {
 	enableOTEL, err := config.ParseBoolEnv("ENABLE_OTEL")
 	if err != nil {
 		fatal("invalid configuration", "error", err)
@@ -429,13 +365,13 @@ func configureOTel(ctx context.Context, metricsSink *sink.MetricsSink, logCfg co
 	metricsSink.AddWriter(otelWriter)
 
 	// slog.SetDefault redirects stdlib log's own default output (see
-	// teeHandler's doc comment) — so the default handler fans out to
-	// BOTH the OTel bridge and the stderr handler initLogging installed,
+	// logging.NewTee's doc comment) — so the default handler fans out to
+	// BOTH the OTel bridge and the stderr handler logging.Init installed,
 	// preserving container-log visibility instead of silently replacing
 	// it with OTel-only export. logCfg.Level gates both halves.
 	otelHandler := otel.NewSlogHandler(otelapi.GetLoggerProvider())
-	stderrHandler := newLogHandler(os.Stderr, logCfg)
-	slog.SetDefault(slog.New(newTeeHandler(logCfg.Level, otelHandler, stderrHandler)))
+	stderrHandler := logging.NewHandler(os.Stderr, logCfg)
+	slog.SetDefault(slog.New(logging.NewTee(logCfg.Level, otelHandler, stderrHandler)))
 
 	return shutdown
 }
@@ -652,7 +588,7 @@ func decideUI(flags uiFlags, station config.StationConfig, hasStore bool) uiDeci
 // the previous logger undoes neither). main passes slog.Default(), which is
 // equivalent to the previous implicit package-level calls for as long as
 // nothing calls slog.SetDefault AFTER startAPIServer returns -- true today:
-// the production SetDefault calls are in initLogging and configureOTel, which
+// the production SetDefault calls are in logging.Init and configureOTel, which
 // main runs first.
 func startAPIServer(mode Mode, station config.StationConfig, sw *sqlite.Writer, logger *slog.Logger) *http.Server {
 	if mode != ModeUDP {
@@ -720,7 +656,16 @@ func main() {
 	// After the dispatch, which owns the subcommands: healthcheck needs no
 	// logger and must not depend on LOG_* being well-formed, and backfill
 	// installs its own (see dispatchSubcommand).
-	logCfg := initLogging()
+	//
+	// Logs go to stderr, not stdout: that is where this process's logs have
+	// always gone, and a container runtime captures both streams. It runs
+	// before anything else logs, so every later record, including the startup
+	// diagnostics and fatal errors, honors the operator's choice; Init installs
+	// the logger before reporting a bad value, so fatal's record does too.
+	logCfg, err := logging.Init(os.Stderr)
+	if err != nil {
+		fatal("invalid logging configuration", "error", err)
+	}
 
 	// Station identity is validated at the boundary, ahead of any resource
 	// attachment (go-standards §15.3, 12-Factor III). Validating after the
@@ -807,8 +752,8 @@ func main() {
 
 	// Start the UI/JSON-API HTTP server (UDP mode only)
 	// slog.Default() rather than a locally built logger: configureOTel has
-	// already run above, so when ENABLE_OTEL is set this is the teeHandler that
-	// fans records to both stderr and the OTel log bridge.
+	// already run above, so when ENABLE_OTEL is set this is the logging.NewTee
+	// tee that fans records to both stderr and the OTel log bridge.
 	srv = startAPIServer(mode, stationCfg, sw, slog.Default())
 
 	// Choose operational mode

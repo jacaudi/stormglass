@@ -100,6 +100,7 @@ The application switches modes on the presence of `TOKEN`:
 - **`internal/prometheus/`**: the **deprecated** scrape/push writers, plus `deprecation.go`
 - **`internal/httpserver/`**: the dashboard and `/api/*` handlers
 - **`internal/config/`**: `STATION_*` decoding, Postgres connection settings, boolean/float env helpers
+- **`internal/logging/`**: `LOG_LEVEL`/`LOG_FORMAT` decoding, the stderr handler, `logging.Init` (installs slog's default), and the level-gated tee that `ENABLE_OTEL` fans out through
 - **`internal/astro/`**: sunrise/sunset and almanac astronomy
 - **`internal/radar/`**: WSR-88D site table and the sidecar proxy
 

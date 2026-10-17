@@ -14,16 +14,12 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"sync"
 	"syscall"
 	"testing"
 	"time"
 
 	"github.com/jacaudi/stormglass/internal/config"
-	"github.com/jacaudi/stormglass/internal/otel"
 	"github.com/jacaudi/stormglass/internal/sqlite"
-
-	sdklog "go.opentelemetry.io/otel/sdk/log"
 )
 
 func TestSignalContext_RegistersInterruptAndSIGTERM(t *testing.T) {
@@ -68,65 +64,6 @@ func TestSelectStore(t *testing.T) {
 				t.Fatalf("path %q want %q", c.sqlitePath, tc.wantPath)
 			}
 		})
-	}
-}
-
-// capturingExporter is a real sdklog.Exporter (not a mock) that appends every
-// exported Record to a slice, guarded by a mutex per Export's documented
-// concurrency contract.
-type capturingExporter struct {
-	mu      sync.Mutex
-	records []sdklog.Record
-}
-
-func (e *capturingExporter) Export(_ context.Context, records []sdklog.Record) error {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	e.records = append(e.records, records...)
-	return nil
-}
-
-func (e *capturingExporter) Shutdown(context.Context) error   { return nil }
-func (e *capturingExporter) ForceFlush(context.Context) error { return nil }
-
-func (e *capturingExporter) captured() []sdklog.Record {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	return e.records
-}
-
-// TestTeeHandler_FansOutToAllHandlers asserts newTeeHandler's fix for a real
-// stdlib behavior: slog.SetDefault(l) calls log.SetOutput(&handlerWriter{l.Handler(),...})
-// whenever l.Handler() isn't the unexported *defaultHandler type (see
-// log/slog/logger.go's SetDefault) — so wiring ENABLE_OTEL's log bridge as the
-// sole slog default would silently redirect every slog record, and anything a
-// dependency still writes through stdlib log, away from stderr and into the
-// OTel pipeline only. newTeeHandler fans every record out to both the OTel
-// bridge and a plain stderr handler, so container log visibility is preserved.
-func TestTeeHandler_FansOutToAllHandlers(t *testing.T) {
-	exporter := &capturingExporter{}
-	lp := sdklog.NewLoggerProvider(
-		sdklog.WithProcessor(sdklog.NewSimpleProcessor(exporter)),
-	)
-	t.Cleanup(func() { _ = lp.Shutdown(t.Context()) })
-
-	var stderrBuf bytes.Buffer
-	stderrHandler := slog.NewTextHandler(&stderrBuf, nil)
-	otelHandler := otel.NewSlogHandler(lp)
-
-	logger := slog.New(newTeeHandler(slog.LevelDebug, otelHandler, stderrHandler))
-	logger.InfoContext(t.Context(), "tee test message", "key", "val")
-
-	if !strings.Contains(stderrBuf.String(), "tee test message") {
-		t.Errorf("stderr buffer = %q, want it to contain the log message (visibility must be preserved)", stderrBuf.String())
-	}
-
-	records := exporter.captured()
-	if len(records) != 1 {
-		t.Fatalf("got %d records captured by OTel exporter, want 1: %+v", len(records), records)
-	}
-	if got := records[0].Body().AsString(); got != "tee test message" {
-		t.Errorf("OTel record Body() = %q, want %q", got, "tee test message")
 	}
 }
 
