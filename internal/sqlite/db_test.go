@@ -3,6 +3,7 @@ package sqlite
 import (
 	"database/sql"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -104,16 +105,24 @@ func TestLoadConfig(t *testing.T) {
 			"SQLITE_BUSY_TIMEOUT":   "1500",
 		}[k]
 	}
-	cfg := LoadConfig(getenv)
+	cfg, err := LoadConfig(getenv)
+	if err != nil {
+		t.Fatalf("LoadConfig(valid overrides) error = %v", err)
+	}
 	if cfg.BatchSize != 7 || cfg.FlushInterval != 2*time.Second || cfg.BusyTimeout != 1500*time.Millisecond {
 		t.Fatalf("overrides not applied: %+v", cfg)
 	}
 
-	def := LoadConfig(func(string) string { return "" })
+	def, err := LoadConfig(func(string) string { return "" })
+	if err != nil {
+		t.Fatalf("LoadConfig(unset) error = %v", err)
+	}
 	if def.BatchSize != 100 || def.FlushInterval != 10*time.Second || def.BusyTimeout != 5000*time.Millisecond {
 		t.Fatalf("defaults wrong: %+v", def)
 	}
 
+	// Malformed is fatal, not a fall back to the default, and every offender
+	// is named in the one error.
 	bad := func(k string) string {
 		return map[string]string{
 			"SQLITE_BATCH_SIZE":     "0",
@@ -121,8 +130,13 @@ func TestLoadConfig(t *testing.T) {
 			"SQLITE_BUSY_TIMEOUT":   "-1",
 		}[k]
 	}
-	badCfg := LoadConfig(bad)
-	if badCfg.BatchSize != 100 || badCfg.FlushInterval != 10*time.Second || badCfg.BusyTimeout != 5000*time.Millisecond {
-		t.Fatalf("non-positive/unparseable values should fall back to defaults: %+v", badCfg)
+	_, err = LoadConfig(bad)
+	if err == nil {
+		t.Fatal("LoadConfig(malformed) error = nil, want one naming every offender")
+	}
+	for _, want := range []string{"SQLITE_BATCH_SIZE", `"0"`, "SQLITE_FLUSH_INTERVAL", `"abc"`, "SQLITE_BUSY_TIMEOUT", `"-1"`} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q does not name %s", err, want)
+		}
 	}
 }

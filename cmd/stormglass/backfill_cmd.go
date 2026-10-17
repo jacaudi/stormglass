@@ -212,7 +212,8 @@ func (s postgresStore) InsertObservations(ctx context.Context, obs []weather.Obs
 }
 
 // openBackfillStore opens the write handle for target ("postgres" or
-// "sqlite"), creating the schema first for postgres, and returns a cleanup
+// "sqlite"; sqliteCfg is the caller's validated sqlite.LoadConfig, used only
+// for "sqlite"), creating the schema first for postgres, and returns a cleanup
 // func the caller must defer to release it. cleanup is returned rather than
 // deferred here: opening the handle and releasing it happen in different
 // stack frames (this function returns long before runBackfill is done using
@@ -222,7 +223,7 @@ func (s postgresStore) InsertObservations(ctx context.Context, obs []weather.Obs
 // On failure the specific error is already logged via slog.Error before
 // returning, matching runBackfill's original inline error handling exactly
 // — callers only need to check err != nil and return the exit code.
-func openBackfillStore(ctx context.Context, target string, choice storeChoice) (backfill.Store, func(), error) {
+func openBackfillStore(ctx context.Context, target string, choice storeChoice, sqliteCfg sqlite.Config) (backfill.Store, func(), error) {
 	switch target {
 	case "postgres":
 		dbConfig, err := config.GetDatabaseConfig()
@@ -260,7 +261,7 @@ func openBackfillStore(ctx context.Context, target string, choice storeChoice) (
 		// The write handle, not OpenReadOnly: read-only fails when the file
 		// does not exist and cannot migrate, and its ingest-contention
 		// rationale does not apply to a separate one-shot process.
-		db, err := sqlite.Open(ctx, choice.sqlitePath, sqlite.LoadConfig(os.Getenv))
+		db, err := sqlite.Open(ctx, choice.sqlitePath, sqliteCfg)
 		if err != nil {
 			slog.Error("backfill: open sqlite", "path", choice.sqlitePath, "error", err)
 			return nil, func() {}, err
@@ -335,7 +336,18 @@ func runBackfill(ctx context.Context, args []string) int {
 		return 2
 	}
 
-	store, cleanupStore, err := openBackfillStore(ctx, target, choice)
+	// Read only for the store this run opens. A malformed tunable is refused
+	// the way an unresolvable store selection is: plain text, exit 2, before
+	// any handle is opened.
+	var sqliteCfg sqlite.Config
+	if target == "sqlite" {
+		if sqliteCfg, err = sqlite.LoadConfig(os.Getenv); err != nil {
+			fmt.Fprintln(os.Stderr, "backfill: invalid configuration:", err)
+			return 2
+		}
+	}
+
+	store, cleanupStore, err := openBackfillStore(ctx, target, choice, sqliteCfg)
 	if err != nil {
 		// openBackfillStore has already logged the specific cause via
 		// slog.Error before returning.

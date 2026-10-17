@@ -293,8 +293,11 @@ func configureSQLiteWriter(ctx context.Context, metricsSink *sink.MetricsSink, c
 	if !choice.sqlite {
 		return nil, nil, nil
 	}
-	sqliteCfg := sqlite.LoadConfig(os.Getenv)
-	db, err := sqlite.Open(ctx, choice.sqlitePath, sqliteCfg)
+	sqliteCfg, err := sqlite.LoadConfig(os.Getenv)
+	if err != nil {
+		fatal("invalid configuration", "error", err)
+	}
+	db, err = sqlite.Open(ctx, choice.sqlitePath, sqliteCfg)
 	if err != nil {
 		fatal("failed to open sqlite", "path", choice.sqlitePath, "error", err)
 	}

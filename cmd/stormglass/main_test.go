@@ -3,12 +3,14 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -470,7 +472,10 @@ func TestStartAPIServer_EmitsDecisionDiagnostics(t *testing.T) {
 	// reachable with a store, so build a real one. A bare &sqlite.Writer{}
 	// also passes today -- nothing dereferences it at construction -- but that
 	// would make this test silently depend on httpserver.New never touching it.
-	cfg := sqlite.LoadConfig(func(string) string { return "" })
+	cfg, err := sqlite.LoadConfig(func(string) string { return "" })
+	if err != nil {
+		t.Fatalf("load sqlite config: %v", err)
+	}
 	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "test.db"), cfg)
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
@@ -534,5 +539,36 @@ func TestStartAPIServer_EmitsDecisionDiagnostics(t *testing.T) {
 	if errIdx > warnIdx {
 		t.Errorf("reasons must be emitted before warnings; ERROR at index %d, WARN at index %d.\ngot:\n%s",
 			errIdx, warnIdx, out)
+	}
+}
+
+// A malformed storage tunable is fatal, not a silent fall back to its default
+// (docs/configuration.md, "How values are read"): the daemon exits 1 before
+// opening the database, naming every SQLite offender in one error.
+func TestMalformedSQLiteTunablesAreFatalAndNameEveryOffender(t *testing.T) {
+	bin := buildTestBinary(t)
+	dbPath := filepath.Join(t.TempDir(), "never.db")
+
+	// Bounded because the failure mode is a daemon that never exits: falling
+	// back to the defaults, it opens the store and runs the UDP listener.
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, bin)
+	// Hermetic: config.LoadStation runs first, so an ambient malformed
+	// STATION_* would be the fatal error reported instead.
+	cmd.Env = []string{"SQLITE_PATH=" + dbPath, "SQLITE_BATCH_SIZE=abc", "SQLITE_BUSY_TIMEOUT=-1"}
+	out, err := cmd.CombinedOutput()
+
+	exitErr, ok := errors.AsType[*exec.ExitError](err)
+	if !ok || exitErr.ExitCode() != 1 {
+		t.Fatalf("want exit code 1, got err=%v\n%s", err, out)
+	}
+	for _, want := range []string{"SQLITE_BATCH_SIZE", "abc", "SQLITE_BUSY_TIMEOUT", "-1"} {
+		if !strings.Contains(string(out), want) {
+			t.Errorf("output does not name %s:\n%s", want, out)
+		}
+	}
+	if _, err := os.Stat(dbPath); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("SQLite database at %s was created; tunables must be validated before the store is opened", dbPath)
 	}
 }
