@@ -177,9 +177,7 @@ func dispatchSubcommand() {
 		// wires its own signal context. Logging is configured first so
 		// its slog records honor LOG_LEVEL and LOG_FORMAT; a malformed
 		// value exits before anything is opened.
-		if _, err := logging.Init(os.Stderr); err != nil {
-			fatal("invalid logging configuration", "error", err)
-		}
+		mustInitLogging()
 		os.Exit(runBackfill(context.Background(), os.Args[2:]))
 	default:
 		// Unreachable while this switch and isKnownSubcommand agree — but
@@ -656,16 +654,7 @@ func main() {
 	// After the dispatch, which owns the subcommands: healthcheck needs no
 	// logger and must not depend on LOG_* being well-formed, and backfill
 	// installs its own (see dispatchSubcommand).
-	//
-	// Logs go to stderr, not stdout: that is where this process's logs have
-	// always gone, and a container runtime captures both streams. It runs
-	// before anything else logs, so every later record, including the startup
-	// diagnostics and fatal errors, honors the operator's choice; Init installs
-	// the logger before reporting a bad value, so fatal's record does too.
-	logCfg, err := logging.Init(os.Stderr)
-	if err != nil {
-		fatal("invalid logging configuration", "error", err)
-	}
+	logCfg := mustInitLogging()
 
 	// Station identity is validated at the boundary, ahead of any resource
 	// attachment (go-standards §15.3, 12-Factor III). Validating after the

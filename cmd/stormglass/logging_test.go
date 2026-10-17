@@ -26,25 +26,29 @@ func buildTestBinary(t *testing.T) string {
 }
 
 // Both malformed values must abort startup naming every offender, and the
-// process must exit 1.
+// process must exit 1, in the daemon and in the backfill subcommand alike.
 func TestMalformedLogConfigIsFatalAndNamesEveryOffender(t *testing.T) {
 	bin := buildTestBinary(t)
 
-	cmd := exec.CommandContext(t.Context(), bin)
-	cmd.Env = append(os.Environ(), "LOG_LEVEL=loud", "LOG_FORMAT=xml")
-	out, err := cmd.CombinedOutput()
+	for name, args := range map[string][]string{"daemon": nil, "backfill": {"backfill"}} {
+		t.Run(name, func(t *testing.T) {
+			cmd := exec.CommandContext(t.Context(), bin, args...)
+			cmd.Env = append(os.Environ(), "LOG_LEVEL=loud", "LOG_FORMAT=xml")
+			out, err := cmd.CombinedOutput()
 
-	var exitErr *exec.ExitError
-	if !errors.As(err, &exitErr) {
-		t.Fatalf("expected a non-zero exit, got err=%v\n%s", err, out)
-	}
-	if code := exitErr.ExitCode(); code != 1 {
-		t.Errorf("exit code = %d, want 1\n%s", code, out)
-	}
-	for _, want := range []string{"LOG_LEVEL", "loud", "LOG_FORMAT", "xml"} {
-		if !strings.Contains(string(out), want) {
-			t.Errorf("output does not name %s:\n%s", want, out)
-		}
+			var exitErr *exec.ExitError
+			if !errors.As(err, &exitErr) {
+				t.Fatalf("expected a non-zero exit, got err=%v\n%s", err, out)
+			}
+			if code := exitErr.ExitCode(); code != 1 {
+				t.Errorf("exit code = %d, want 1\n%s", code, out)
+			}
+			for _, want := range []string{"LOG_LEVEL", "loud", "LOG_FORMAT", "xml"} {
+				if !strings.Contains(string(out), want) {
+					t.Errorf("output does not name %s:\n%s", want, out)
+				}
+			}
+		})
 	}
 }
 
