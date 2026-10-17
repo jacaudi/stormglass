@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.1.1](https://github.com/jacaudi/stormglass/compare/v1.1.0...v1.1.1) (2026-10-17)
+
+
+### Bug Fixes
+
+* **config:** fail loud on malformed storage tunables ([c20a510](https://github.com/jacaudi/stormglass/commit/c20a51049d97d0ea2085d38b3042390969b91bc2))
+* **config:** fail loud on malformed storage tunables, unhide cmd/stormglass, drop line citations ([34b0142](https://github.com/jacaudi/stormglass/commit/34b0142cc1f4d3b28c5258eea2749c8ded077b4b))
+
+
+### Miscellaneous Chores
+
+* anchor the stormglass binary pattern in .gitignore ([385c899](https://github.com/jacaudi/stormglass/commit/385c8998d4da1efcee4f139aefeee60ee450e1cc))
+* ignore the stormglass binary built inside cmd/stormglass ([9a60880](https://github.com/jacaudi/stormglass/commit/9a60880901b8da73db1e3194b20429569e976cc8))
+
 ## [1.1.0](https://github.com/jacaudi/stormglass/compare/v1.0.4...v1.1.0) (2026-10-17)
 
 
