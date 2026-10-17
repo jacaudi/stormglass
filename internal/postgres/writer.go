@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"math"
 	"net"
 	"os"
@@ -178,7 +178,7 @@ func NewPostgresWriter(ctx context.Context, databaseURL string) (*PostgresWriter
 		return nil, fmt.Errorf("create schema: %w", err)
 	}
 
-	log.Printf("postgres: connected, schema ready")
+	slog.Info("postgres: connected, schema ready")
 
 	tn := postgresTunables(os.Getenv)
 
@@ -250,7 +250,7 @@ func steadyStateFlushCtx(ctx context.Context) context.Context {
 // are already surfaced by br.Exec()), so it is logged rather than returned.
 func closeBatchResults(br pgx.BatchResults) {
 	if err := br.Close(); err != nil {
-		log.Printf("postgres: batch close error: %v", err)
+		slog.Error("postgres: batch close error", "error", err)
 	}
 }
 
@@ -970,7 +970,7 @@ func (w *PostgresWriter) WriteMetrics(ctx context.Context, metrics []prometheus.
 	for _, metric := range metrics {
 		var dto io_prometheus_client.Metric
 		if err := metric.Write(&dto); err != nil {
-			log.Printf("postgres: failed to write metric: %v", err)
+			slog.ErrorContext(ctx, "postgres: failed to write metric", "error", err)
 			continue
 		}
 
@@ -1038,24 +1038,24 @@ func (w *PostgresWriter) flushWithRetry(ctx context.Context, flushFn func() erro
 			return
 		}
 
-		log.Printf("postgres: failed to write %d rows to %s (attempt %d/%d): %v",
-			batchSize, tableName, attempt, w.maxRetries, err)
+		slog.WarnContext(ctx, "postgres: failed to write rows",
+			"table", tableName, "rows", batchSize, "attempt", attempt, "max_attempts", w.maxRetries, "error", err)
 
 		if !isRetryable(err) {
-			log.Printf("postgres: non-retryable error for %s, dropping batch: %v",
-				tableName, err)
+			slog.ErrorContext(ctx, "postgres: non-retryable error, dropping batch",
+				"table", tableName, "rows", batchSize, "error", err)
 			return
 		}
 
 		if attempt == w.maxRetries {
-			log.Printf("postgres: max retries exceeded for %s, dropping %d rows", tableName, batchSize)
+			slog.ErrorContext(ctx, "postgres: max retries exceeded, dropping batch", "table", tableName, "rows", batchSize)
 			return
 		}
 
 		// Check if context is still valid before sleeping
 		select {
 		case <-ctx.Done():
-			log.Printf("postgres: context cancelled during retry for %s, dropping batch", tableName)
+			slog.WarnContext(ctx, "postgres: context cancelled during retry, dropping batch", "table", tableName, "rows", batchSize)
 			return
 		case <-time.After(backoff):
 			// Continue to next attempt
@@ -1196,7 +1196,7 @@ func (w *PostgresWriter) Close(ctx context.Context) error {
 		if w.pool != nil {
 			w.pool.Close()
 		}
-		log.Printf("postgres: closed")
+		slog.Info("postgres: closed")
 	})
 
 	return nil

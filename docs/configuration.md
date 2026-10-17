@@ -1,7 +1,7 @@
 # Configuration
 
 Every setting is an environment variable — Stormglass has no config file. This
-page is the authoritative reference for the **38 variables Stormglass itself
+page is the authoritative reference for the **40 variables Stormglass itself
 reads**; see [Scope](#scope) for what deliberately lives elsewhere.
 
 ## How values are read
@@ -45,9 +45,27 @@ error (exit 2).
 |---|---|---|
 | `HTTP_ADDR` | `:8080` | Bind address for the dashboard and JSON API. Accepts `:8080` or `0.0.0.0:8080` |
 | `TOKEN` | — | WeatherFlow API token. **Setting it switches the process to API-export mode.** Also required by the `backfill` subcommand |
-| `LOG_UDP` | `false` | Log every UDP broadcast received. The fastest way to tell whether the station reaches the container at all |
+| `LOG_UDP` | `false` | Log every UDP broadcast received. The fastest way to tell whether the station reaches the container at all. Logged at `info`, so a `LOG_LEVEL` of `warn` or `error` hides it |
 | `KEEP_EXPORT_FILES` | `false` | In API-export mode, retain the `.gz` files instead of deleting them after a successful database write |
 | `STORMGLASS_SERIAL` | — | Sets the OTel resource attribute `stormglass.serial` (process-level identity). The authoritative per-metric `serial` label always comes from the reports themselves |
+
+## Logging
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `LOG_LEVEL` | `info` | Minimum severity logged: `debug`, `info`, `warn` or `error`. Case-insensitive. `debug` also logs the body of an observation response that could not be parsed |
+| `LOG_FORMAT` | `text` | `text` for `key=value` lines or `json` for one JSON object per line |
+
+Logs are written to **stderr**, which a container runtime captures. With
+`ENABLE_OTEL`, the same records are also exported over OTLP, and `LOG_LEVEL`
+filters both. The `backfill` subcommand honours both variables in its log
+records; its usage errors and store-selection errors are plain text instead,
+and exit 2. `healthcheck` logs nothing and ignores both variables.
+
+An unrecognised value for either variable is a fatal startup error that names
+the variable and the value. Both are checked together, but before any other
+variable is read, so a bad logging value is reported on its own: fix it and
+restart to see the rest. Unset takes the default.
 
 ## Storage
 

@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"log/slog"
 	"net/http"
 	"time"
@@ -259,7 +258,10 @@ func (c *Client) GetObservations(ctx context.Context, station Station, startAt t
 
 	report, err := tempestudp.ParseReport(body)
 	if err != nil {
-		log.Printf("read %s", string(body))
+		// Debug, not Warn: the body is a diagnostic payload (serials and
+		// readings, up to a day of observations) and the error returned below
+		// already reaches the caller, which reports it.
+		slog.Debug("tempestapi: unparseable observation response", "body", string(body), "error", err)
 		return nil, err
 	}
 

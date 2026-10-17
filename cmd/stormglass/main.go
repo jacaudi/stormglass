@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"log/slog"
 	"net"
 	"net/http"
@@ -20,6 +19,7 @@ import (
 
 	"github.com/jacaudi/stormglass/internal/config"
 	"github.com/jacaudi/stormglass/internal/httpserver"
+	"github.com/jacaudi/stormglass/internal/logging"
 	"github.com/jacaudi/stormglass/internal/otel"
 	"github.com/jacaudi/stormglass/internal/postgres"
 	"github.com/jacaudi/stormglass/internal/prometheus"
@@ -41,62 +41,6 @@ import (
 // Dockerfile and buildx bake config); it stays the "dev" default for
 // non-release/local builds that don't set VERSION.
 var version = "dev"
-
-// teeHandler fans every slog.Record out to multiple handlers. It exists to
-// work around a real stdlib side effect: slog.SetDefault(l) calls
-// log.SetOutput(&handlerWriter{l.Handler(), ...}) whenever l.Handler() isn't
-// the unexported *defaultHandler type (see log/slog/logger.go's SetDefault
-// doc comment), which means installing the OTel log bridge as the sole slog
-// default would silently redirect ALL of main's existing log.Printf/log.Fatal
-// output away from stderr into the OTel pipeline only. Fanning out to a
-// plain stderr handler alongside the OTel one preserves that visibility.
-type teeHandler struct {
-	handlers []slog.Handler
-}
-
-// newTeeHandler returns a slog.Handler that forwards every record to each of
-// handlers.
-func newTeeHandler(handlers ...slog.Handler) *teeHandler {
-	return &teeHandler{handlers: handlers}
-}
-
-func (h *teeHandler) Enabled(ctx context.Context, level slog.Level) bool {
-	for _, sub := range h.handlers {
-		if sub.Enabled(ctx, level) {
-			return true
-		}
-	}
-	return false
-}
-
-func (h *teeHandler) Handle(ctx context.Context, r slog.Record) error {
-	var errs []error
-	for _, sub := range h.handlers {
-		if !sub.Enabled(ctx, r.Level) {
-			continue
-		}
-		if err := sub.Handle(ctx, r.Clone()); err != nil {
-			errs = append(errs, err)
-		}
-	}
-	return errors.Join(errs...)
-}
-
-func (h *teeHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
-	next := make([]slog.Handler, len(h.handlers))
-	for i, sub := range h.handlers {
-		next[i] = sub.WithAttrs(attrs)
-	}
-	return &teeHandler{handlers: next}
-}
-
-func (h *teeHandler) WithGroup(name string) slog.Handler {
-	next := make([]slog.Handler, len(h.handlers))
-	for i, sub := range h.handlers {
-		next[i] = sub.WithGroup(name)
-	}
-	return &teeHandler{handlers: next}
-}
 
 // Old collector implementation removed - now using MetricsSink
 
@@ -230,7 +174,10 @@ func dispatchSubcommand() {
 		os.Exit(runHealthcheck())
 	case "backfill":
 		// runBackfill owns all of its cleanup via internal defers and
-		// wires its own signal context.
+		// wires its own signal context. Logging is configured first so
+		// its slog records honor LOG_LEVEL and LOG_FORMAT; a malformed
+		// value exits before anything is opened.
+		mustInitLogging()
 		os.Exit(runBackfill(context.Background(), os.Args[2:]))
 	default:
 		// Unreachable while this switch and isKnownSubcommand agree — but
@@ -261,25 +208,25 @@ func cleanupResources(srv *http.Server, metricsSink *sink.MetricsSink, sqliteRDB
 	defer cancel()
 	if srv != nil {
 		if err := srv.Shutdown(cleanupCtx); err != nil {
-			slog.Error("http server shutdown", "err", err)
+			slog.Error("http server shutdown", "error", err)
 		}
 	}
 	if err := metricsSink.Close(cleanupCtx); err != nil {
-		slog.Error("sink close", "err", err)
+		slog.Error("sink close", "error", err)
 	}
 	if sqliteRDB != nil {
 		if err := sqliteRDB.Close(); err != nil {
-			slog.Error("sqlite read db close", "err", err)
+			slog.Error("sqlite read db close", "error", err)
 		}
 	}
 	if sqliteDB != nil {
 		if err := sqliteDB.Close(); err != nil {
-			slog.Error("sqlite db close", "err", err)
+			slog.Error("sqlite db close", "error", err)
 		}
 	}
 	if otelShutdown != nil {
 		if err := otelShutdown(cleanupCtx); err != nil {
-			slog.Error("otel shutdown", "err", err)
+			slog.Error("otel shutdown", "error", err)
 		}
 	}
 }
@@ -290,7 +237,7 @@ func cleanupResources(srv *http.Server, metricsSink *sink.MetricsSink, sqliteRDB
 func resolveStoreChoice() storeChoice {
 	enablePostgres, err := config.ParseBoolEnv("ENABLE_POSTGRES")
 	if err != nil {
-		log.Fatal(err)
+		fatal("invalid configuration", "error", err)
 	}
 	return selectStore(enablePostgres, os.Getenv("SQLITE_PATH"))
 }
@@ -302,12 +249,12 @@ func resolveStoreChoice() storeChoice {
 func configurePrometheusWriters(metricsSink *sink.MetricsSink) {
 	enablePushgateway, err := config.ParseBoolEnv("ENABLE_PROMETHEUS_PUSHGATEWAY")
 	if err != nil {
-		log.Fatal(err)
+		fatal("invalid configuration", "error", err)
 	}
 	if enablePushgateway {
 		pushURL := os.Getenv("PROMETHEUS_PUSHGATEWAY_URL")
 		if pushURL == "" {
-			log.Fatal("PROMETHEUS_PUSHGATEWAY_URL is required when ENABLE_PROMETHEUS_PUSHGATEWAY is true")
+			fatal("PROMETHEUS_PUSHGATEWAY_URL is required when ENABLE_PROMETHEUS_PUSHGATEWAY is true")
 		}
 		jobName := os.Getenv("JOB_NAME")
 		if jobName == "" {
@@ -320,7 +267,7 @@ func configurePrometheusWriters(metricsSink *sink.MetricsSink) {
 	// Configure Prometheus metrics server (scrape endpoint)
 	enableMetrics, err := config.ParseBoolEnv("ENABLE_PROMETHEUS_METRICS")
 	if err != nil {
-		log.Fatal(err)
+		fatal("invalid configuration", "error", err)
 	}
 	if enableMetrics {
 		port := os.Getenv("PROMETHEUS_METRICS_PORT")
@@ -329,7 +276,7 @@ func configurePrometheusWriters(metricsSink *sink.MetricsSink) {
 		}
 		metricsServer := prometheus.NewMetricsServer(port)
 		if err := metricsServer.Start(); err != nil {
-			log.Fatalf("failed to start metrics server: %v", err)
+			fatal("failed to start metrics server", "error", err)
 		}
 		metricsSink.AddWriter(metricsServer)
 	}
@@ -349,11 +296,11 @@ func configureSQLiteWriter(ctx context.Context, metricsSink *sink.MetricsSink, c
 	sqliteCfg := sqlite.LoadConfig(os.Getenv)
 	db, err := sqlite.Open(ctx, choice.sqlitePath, sqliteCfg)
 	if err != nil {
-		log.Fatalf("failed to open sqlite: %v", err)
+		fatal("failed to open sqlite", "path", choice.sqlitePath, "error", err)
 	}
 	rdb, err = sqlite.OpenReadOnly(ctx, choice.sqlitePath, sqliteCfg)
 	if err != nil {
-		log.Fatalf("failed to open sqlite read handle: %v", err)
+		fatal("failed to open sqlite read handle", "path", choice.sqlitePath, "error", err)
 	}
 	sw = sqlite.NewWriter(ctx, db, sqliteCfg, sqlite.WithReadDB(rdb))
 	metricsSink.AddWriter(sw)
@@ -368,14 +315,14 @@ func configurePostgresWriter(ctx context.Context, metricsSink *sink.MetricsSink,
 	}
 	dbConfig, err := config.GetDatabaseConfig()
 	if err != nil {
-		log.Fatalf("database configuration error: %v", err)
+		fatal("database configuration error", "error", err)
 	}
 	if dbConfig == "" {
-		log.Fatal("POSTGRES_URL or POSTGRES_HOST is required when ENABLE_POSTGRES is true")
+		fatal("POSTGRES_URL or POSTGRES_HOST is required when ENABLE_POSTGRES is true")
 	}
 	pgWriter, err := postgres.NewPostgresWriter(ctx, dbConfig)
 	if err != nil {
-		log.Fatalf("failed to initialize postgres: %v", err)
+		fatal("failed to initialize postgres", "error", err)
 	}
 	metricsSink.AddWriter(pgWriter)
 }
@@ -384,19 +331,20 @@ func configurePostgresWriter(ctx context.Context, metricsSink *sink.MetricsSink,
 // is set: Setup registers the meter/tracer/logger providers as OTel
 // globals, the sink metrics writer is registered like any other writer, and
 // slog's default logger is redirected to the OTel log bridge (Task 6.4) so
-// internal/sink's slog calls flow to OTel too. Returns the shutdown func
-// Setup returned, or nil if OTel is disabled.
-func configureOTel(ctx context.Context, metricsSink *sink.MetricsSink) func(context.Context) error {
+// internal/sink's slog calls flow to OTel too. logCfg is what logging.Init
+// returned: the stderr half of that default keeps its level and format.
+// Returns the shutdown func Setup returned, or nil if OTel is disabled.
+func configureOTel(ctx context.Context, metricsSink *sink.MetricsSink, logCfg logging.Config) func(context.Context) error {
 	enableOTEL, err := config.ParseBoolEnv("ENABLE_OTEL")
 	if err != nil {
-		log.Fatal(err)
+		fatal("invalid configuration", "error", err)
 	}
 	if !enableOTEL {
 		return nil
 	}
 	endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
 	if endpoint == "" {
-		log.Fatal("OTEL_EXPORTER_OTLP_ENDPOINT is required when ENABLE_OTEL is true")
+		fatal("OTEL_EXPORTER_OTLP_ENDPOINT is required when ENABLE_OTEL is true")
 	}
 	otelCfg := otel.Config{
 		Endpoint:       endpoint,
@@ -405,23 +353,23 @@ func configureOTel(ctx context.Context, metricsSink *sink.MetricsSink) func(cont
 	}
 	shutdown, err := otel.Setup(ctx, otelCfg)
 	if err != nil {
-		log.Fatalf("failed to initialize otel: %v", err)
+		fatal("failed to initialize otel", "error", err)
 	}
 
 	otelWriter, err := otel.NewWriter(otelapi.GetMeterProvider())
 	if err != nil {
-		log.Fatalf("failed to create otel writer: %v", err)
+		fatal("failed to create otel writer", "error", err)
 	}
 	metricsSink.AddWriter(otelWriter)
 
 	// slog.SetDefault redirects stdlib log's own default output (see
-	// teeHandler's doc comment) — so the default handler fans out to
-	// BOTH the OTel bridge and a plain stderr handler, preserving the
-	// existing log.Printf/log.Fatal container-log visibility instead of
-	// silently replacing it with OTel-only export.
+	// logging.NewTee's doc comment) — so the default handler fans out to
+	// BOTH the OTel bridge and the stderr handler logging.Init installed,
+	// preserving container-log visibility instead of silently replacing
+	// it with OTel-only export. logCfg.Level gates both halves.
 	otelHandler := otel.NewSlogHandler(otelapi.GetLoggerProvider())
-	stderrHandler := slog.NewTextHandler(os.Stderr, nil)
-	slog.SetDefault(slog.New(newTeeHandler(otelHandler, stderrHandler)))
+	stderrHandler := logging.NewHandler(os.Stderr, logCfg)
+	slog.SetDefault(slog.New(logging.NewTee(logCfg.Level, otelHandler, stderrHandler)))
 
 	return shutdown
 }
@@ -436,10 +384,10 @@ func resolveModeAndValidate(token string, writerCount int) Mode {
 	}
 	keepFiles, err := config.ParseBoolEnv("KEEP_EXPORT_FILES")
 	if err != nil {
-		log.Fatal(err)
+		fatal("invalid configuration", "error", err)
 	}
 	if err := requireWriters(mode, writerCount, keepFiles); err != nil {
-		log.Fatal(err)
+		fatal("invalid writer configuration", "error", err)
 	}
 	return mode
 }
@@ -511,7 +459,7 @@ func unknownRadarSiteReason(site string, lat, lon *float64) string {
 // enabled card cannot be.
 //
 // It NEVER fails and never exits, and that is the whole point. startAPIServer
-// runs before listenAndPushWithSink; log.Fatal exits past the deferred
+// runs before listenAndPushWithSink; fatal exits past the deferred
 // cleanupResources; and the compose deployment sets restart: unless-stopped.
 // A fatal path for a flag that only decides whether a card renders would be a
 // crash loop that stops UDP ingest into SQLite and Litestream -- the
@@ -638,7 +586,8 @@ func decideUI(flags uiFlags, station config.StationConfig, hasStore bool) uiDeci
 // the previous logger undoes neither). main passes slog.Default(), which is
 // equivalent to the previous implicit package-level calls for as long as
 // nothing calls slog.SetDefault AFTER startAPIServer returns -- true today:
-// the sole production SetDefault is in configureOTel, which main runs first.
+// the production SetDefault calls are in logging.Init and configureOTel, which
+// main runs first.
 func startAPIServer(mode Mode, station config.StationConfig, sw *sqlite.Writer, logger *slog.Logger) *http.Server {
 	if mode != ModeUDP {
 		return nil
@@ -649,15 +598,15 @@ func startAPIServer(mode Mode, station config.StationConfig, sw *sqlite.Writer, 
 	// draws. It is the flag VALUE being wrong, not a precondition being unmet.
 	enableForecast, err := config.ParseBoolEnv("ENABLE_FORECAST")
 	if err != nil {
-		log.Fatal(err)
+		fatal("invalid configuration", "error", err)
 	}
 	enableAlmanac, err := config.ParseBoolEnv("ENABLE_ALMANAC")
 	if err != nil {
-		log.Fatal(err)
+		fatal("invalid configuration", "error", err)
 	}
 	enableRadar, err := config.ParseBoolEnv("ENABLE_RADAR")
 	if err != nil {
-		log.Fatal(err)
+		fatal("invalid configuration", "error", err)
 	}
 
 	decision := decideUI(
@@ -692,7 +641,7 @@ func startAPIServer(mode Mode, station config.StationConfig, sw *sqlite.Writer, 
 	srv.Addr = cmp.Or(os.Getenv("HTTP_ADDR"), ":8080")
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			logger.Error("http server", "err", err)
+			logger.Error("http server", "error", err)
 		}
 	}()
 	logger.Info("http server listening", "addr", srv.Addr)
@@ -701,6 +650,11 @@ func startAPIServer(mode Mode, station config.StationConfig, sw *sqlite.Writer, 
 
 func main() {
 	dispatchSubcommand()
+
+	// After the dispatch, which owns the subcommands: healthcheck needs no
+	// logger and must not depend on LOG_* being well-formed, and backfill
+	// installs its own (see dispatchSubcommand).
+	logCfg := mustInitLogging()
 
 	// Station identity is validated at the boundary, ahead of any resource
 	// attachment (go-standards §15.3, 12-Factor III). Validating after the
@@ -725,7 +679,7 @@ func main() {
 		slog.Default().Warn("timezone configuration", "notice", n)
 	}
 	if err != nil {
-		log.Fatal(err)
+		fatal("invalid station configuration", "error", err)
 	}
 
 	ctx, done := signalContext(context.Background(), signal.NotifyContext)
@@ -780,15 +734,15 @@ func main() {
 	configurePostgresWriter(ctx, metricsSink, choice)
 
 	// Configure OTel (both modes)
-	otelShutdown = configureOTel(ctx, metricsSink)
+	otelShutdown = configureOTel(ctx, metricsSink, logCfg)
 
 	// Require at least one writer (relaxed for gzip-only API-export mode; see requireWriters)
 	mode := resolveModeAndValidate(token, metricsSink.WriterCount())
 
 	// Start the UI/JSON-API HTTP server (UDP mode only)
 	// slog.Default() rather than a locally built logger: configureOTel has
-	// already run above, so when ENABLE_OTEL is set this is the teeHandler that
-	// fans records to both stderr and the OTel log bridge.
+	// already run above, so when ENABLE_OTEL is set this is the logging.NewTee
+	// tee that fans records to both stderr and the OTel log bridge.
 	srv = startAPIServer(mode, stationCfg, sw, slog.Default())
 
 	// Choose operational mode
@@ -802,13 +756,13 @@ func main() {
 func listenAndPushWithSink(ctx context.Context, metricsSink *sink.MetricsSink) {
 	logUDP, err := config.ParseBoolEnv("LOG_UDP")
 	if err != nil {
-		log.Fatal(err)
+		fatal("invalid configuration", "error", err)
 	}
-	log.Printf("starting UDP listener mode")
+	slog.Info("starting UDP listener mode")
 
 	if err := listen(ctx, func(b []byte, addr *net.UDPAddr) error {
 		if logUDP {
-			log.Printf("UDP in: %s", string(b))
+			slog.Info("received UDP packet", "from", addr.String(), "payload", string(b))
 		}
 
 		// TracedIngest wraps parse + send-to-all-writers in a
@@ -817,27 +771,30 @@ func listenAndPushWithSink(ctx context.Context, metricsSink *sink.MetricsSink) {
 		// (preserving the prior log-and-continue behavior below); any
 		// error is logged, never fatal.
 		if err := otel.TracedIngest(ctx, b, tempestudp.ParseReport, metricsSink.SendReport); err != nil {
-			log.Printf("error processing report from %s: %v", addr, err)
+			slog.Warn("error processing report", "from", addr.String(), "error", err)
 		}
 
 		return nil
 	}); err != nil {
-		log.Fatal(err)
+		fatal("UDP listener failed", "error", err)
 	}
 }
 
 // Old listenAndPush implementation removed - now using listenAndPushWithSink
 
+// udpListenPort is the port the Tempest hub broadcasts its observations to.
+const udpListenPort = 50222
+
 func listen(ctx context.Context, rx func([]byte, *net.UDPAddr) error) error {
 	sock, err := net.ListenUDP("udp", &net.UDPAddr{
 		IP:   nil,
-		Port: 50222,
+		Port: udpListenPort,
 	})
 	if err != nil {
 		return err
 	}
 	defer sock.Close() //nolint:errcheck // UDP listener teardown revisited under graceful shutdown in Task 0.8
-	log.Printf("listening on UDP :50222")
+	slog.Info("listening on UDP", "port", udpListenPort)
 
 	readErr := make(chan error, 1)
 
@@ -877,17 +834,17 @@ func listen(ctx context.Context, rx func([]byte, *net.UDPAddr) error) error {
 func fetchStationsAndStartTime(ctx context.Context, client *tempestapi.Client) ([]tempestapi.Station, time.Time) {
 	stations, err := client.ListStations(ctx)
 	if err != nil {
-		log.Fatalf("error listing stations: %v", err)
+		fatal("error listing stations", "error", err)
 	}
 
 	if len(stations) == 0 {
-		log.Fatalf("no stations found")
+		fatal("no stations found")
 	}
 
-	log.Printf("found stations:")
+	slog.Info("found stations", "count", len(stations))
 	var startAt time.Time
 	for _, station := range stations {
-		log.Printf("  - %s (station #%d)", station.Name, station.StationID)
+		slog.Info("station", "name", station.Name, "station_id", station.StationID)
 		if startAt.IsZero() || startAt.Before(station.CreatedAt) {
 			startAt = station.CreatedAt
 		}
@@ -909,22 +866,18 @@ func fetchDailyBatch(ctx context.Context, client *tempestapi.Client, stations []
 		next = cur.AddDate(0, 0, 1)
 
 		for _, station := range stations {
-			// station.Name originates from the WeatherFlow API (see the
-			// slog.ErrorContext comment a few lines below for the same
-			// provenance) -- unchanged from the original inline loop this
-			// line was extracted from verbatim, which gosec's taint analysis
-			// did not flag; the same text flags G706 only once it crosses
-			// this function's parameter boundary. Not user input reachable
-			// from outside the operator's own WeatherFlow account.
-			log.Printf("fetching %s starting %s", station.Name, cur.Format(time.RFC3339)) //nolint:gosec // G706: log injection false positive, see comment above
+			// station.Name originates from the WeatherFlow API. It is passed as
+			// an attribute value, never interpolated into the message, so the
+			// handler's quoting/escaping neutralizes embedded control characters.
+			slog.Info("fetching observations", "station", station.Name, "start", cur.Format(time.RFC3339))
 			stationMetrics, err := client.GetObservations(ctx, station, cur, next)
 			if err != nil {
 				// station and err are derived from the WeatherFlow API response and
 				// are passed as slog attribute values (not interpolated into the
 				// format string) so the handler's quoting/escaping neutralizes any
-				// embedded control characters. Exit behavior matches log.Fatalf
+				// embedded control characters. Exit behavior matches fatal
 				// (log, then os.Exit(1); neither runs deferred functions).
-				slog.ErrorContext(ctx, "error fetching observations", "station", station, "start_unix", cur.Unix(), "end_unix", next.Unix(), "err", err)
+				slog.ErrorContext(ctx, "error fetching observations", "station", station, "start_unix", cur.Unix(), "end_unix", next.Unix(), "error", err)
 				os.Exit(1)
 			}
 			metrics = append(metrics, stationMetrics...)
@@ -940,7 +893,7 @@ func exportWithSink(ctx context.Context, token string, metricsSink *sink.Metrics
 
 	keepFiles, err := config.ParseBoolEnv("KEEP_EXPORT_FILES")
 	if err != nil {
-		log.Fatal(err)
+		fatal("invalid configuration", "error", err)
 	}
 	fileNum := 1
 
@@ -960,20 +913,20 @@ func exportWithSink(ctx context.Context, token string, metricsSink *sink.Metrics
 		if err := otel.TraceExportBatch(ctx, func(ctx context.Context) error {
 			return metricsSink.SendMetrics(ctx, metrics)
 		}); err != nil {
-			log.Printf("error sending metrics: %v", err)
+			slog.ErrorContext(ctx, "error sending metrics", "error", err)
 		}
 
 		// Optionally write to .gz files
 		if keepFiles {
 			filename := fmt.Sprintf("stormglass_%03d.txt.gz", fileNum)
 			if err := writeMetricsToFile(filename, metrics); err != nil {
-				log.Fatalf("error writing file: %v", err)
+				fatal("error writing file", "file", filename, "error", err)
 			}
 			fileNum++
 		}
 	}
 
-	log.Printf("export complete")
+	slog.InfoContext(ctx, "export complete")
 }
 
 func writeMetricsToFile(filename string, metrics []promclient.Metric) error {
@@ -987,7 +940,7 @@ func writeMetricsToFile(filename string, metrics []promclient.Metric) error {
 		return fmt.Errorf("gather metrics: %w", err)
 	}
 
-	log.Printf("writing %s", filename)
+	slog.Info("writing export file", "file", filename)
 	f, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644) //nolint:gosec // G302/G304: 0o644 perms and export filename are intentional, not user-controlled in a way that risks traversal
 	if err != nil {
 		return fmt.Errorf("open file: %w", err)

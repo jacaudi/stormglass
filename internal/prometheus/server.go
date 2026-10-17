@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"strings"
@@ -47,7 +47,7 @@ func NewMetricsServer(port string) *MetricsServer {
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		if _, err := w.Write([]byte("OK")); err != nil {
-			log.Printf("metrics: health response write error: %v", err)
+			slog.Warn("metrics: health response write error", "error", err)
 		}
 	})
 
@@ -79,9 +79,9 @@ func (s *MetricsServer) Start() error {
 	}
 
 	s.shutdownWg.Go(func() {
-		log.Printf("metrics: starting HTTP server on port %s", s.port)
+		slog.Info("metrics: starting HTTP server", "port", s.port)
 		if err := s.server.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Printf("metrics: server error: %v", err)
+			slog.Error("metrics: server error", "error", err)
 		}
 	})
 	return nil
@@ -112,12 +112,12 @@ func (s *MetricsServer) Close(ctx context.Context) error {
 	defer cancel()
 
 	if err := s.server.Shutdown(shutdownCtx); err != nil {
-		log.Printf("metrics: shutdown error: %v", err)
+		slog.Error("metrics: shutdown error", "error", err)
 		return err
 	}
 
 	s.shutdownWg.Wait()
-	log.Printf("metrics: server closed")
+	slog.Info("metrics: server closed")
 	return nil
 }
 

@@ -508,6 +508,45 @@ func TestGetObservations_InvalidJSON(t *testing.T) {
 	}
 }
 
+// A response that decodes as JSON but that ParseReport rejects is returned as
+// an error. Its body is a diagnostic payload (station serials and readings, up
+// to a full day of observations), so it must appear in the log only when the
+// operator asks for Debug, not on every default-level run.
+func TestGetObservations_UnparseableBodyIsLoggedOnlyAtDebug(t *testing.T) {
+	const body = `{"type":"bogus","marker":"SENTINEL-RESPONSE-BODY"}`
+
+	tests := []struct {
+		name     string
+		level    slog.Level
+		wantBody bool
+	}{
+		{"info does not log the body", slog.LevelInfo, false},
+		{"debug logs the body", slog.LevelDebug, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			prev := slog.Default()
+			slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: tt.level})))
+			t.Cleanup(func() { slog.SetDefault(prev) })
+
+			client := NewClient("test-token")
+			resp := mockResponse(http.StatusOK, body)
+			defer func() { _ = resp.Body.Close() }()
+			client.http.Transport = &mockRoundTripper{response: resp}
+
+			station := Station{DeviceID: 67890, SerialNumber: "ST-00012345"}
+			if _, err := client.GetObservations(context.Background(), station, time.Now(), time.Now()); err == nil {
+				t.Fatal("expected a parse error for an unknown report type, got nil")
+			}
+
+			if got := strings.Contains(buf.String(), "SENTINEL-RESPONSE-BODY"); got != tt.wantBody {
+				t.Errorf("body logged = %v, want %v\nlog output:\n%s", got, tt.wantBody, buf.String())
+			}
+		})
+	}
+}
+
 func TestGetObservations_ContextCancellation(t *testing.T) {
 	client := NewClient("test-token")
 	client.http.Transport = &mockRoundTripper{

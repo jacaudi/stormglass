@@ -114,7 +114,7 @@ type Store interface {
 //
 // A failed gap logs and continues — partial progress must be preserved — and
 // the per-gap errors are joined into the returned error, which the shell
-// turns into a non-zero exit. Run never calls log.Fatal.
+// turns into a non-zero exit. Run never exits the process itself.
 func Run(
 	ctx context.Context,
 	cfg Config,

@@ -2,7 +2,7 @@ package prometheus
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -69,7 +69,7 @@ func NewPrometheusWriter(pushURL, jobName string) *PrometheusWriter {
 	w.wg.Add(1)
 	go w.pushWorker()
 
-	log.Printf("prometheus: configured push to %q with job %q", pushURL, jobName)
+	slog.Info("prometheus: configured push", "url", pushURL, "job", jobName)
 
 	return w
 }
@@ -90,7 +90,7 @@ func (w *PrometheusWriter) WriteMetrics(ctx context.Context, metrics []prometheu
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
-			log.Printf("prometheus: outbox full, dropping metric")
+			slog.Warn("prometheus: outbox full, dropping metric")
 		}
 	}
 
@@ -125,7 +125,7 @@ func (w *PrometheusWriter) Close(ctx context.Context) error {
 		close(w.done)
 		w.wg.Wait() // Wait for pushWorker to finish
 	})
-	log.Printf("prometheus: closed")
+	slog.Info("prometheus: closed")
 	return nil
 }
 
@@ -135,7 +135,7 @@ func (w *PrometheusWriter) pushWorker() {
 		select {
 		case <-w.more:
 			if err := w.pusher.Add(); err != nil {
-				log.Printf("prometheus: push error: %v", err)
+				slog.Error("prometheus: push error", "error", err)
 			}
 		case <-w.done:
 			_ = w.pusher.Add() // final flush of whatever the collector can drain
