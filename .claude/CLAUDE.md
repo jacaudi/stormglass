@@ -130,7 +130,7 @@ Prometheus push writer (`internal/prometheus/writer.go`), not the general path.
 ## Configuration
 
 **`docs/configuration.md` is authoritative** for the complete environment
-variable surface (38 variables), the operational-mode matrix, and the
+variable surface (40 variables), the operational-mode matrix, and the
 fatal-versus-degraded startup rules. It is derived from the code's real read
 sites. Do not restate it here — two hand-maintained copies of one surface is
 what produced issue #217.

@@ -1,7 +1,7 @@
 # Configuration
 
 Every setting is an environment variable — Stormglass has no config file. This
-page is the authoritative reference for the **38 variables Stormglass itself
+page is the authoritative reference for the **40 variables Stormglass itself
 reads**; see [Scope](#scope) for what deliberately lives elsewhere.
 
 ## How values are read
@@ -14,7 +14,7 @@ rather than silently disabling the card.
 
 **Malformed is fatal; missing is not.** A value that cannot be parsed — an
 unparseable or out-of-range coordinate, a non-finite number, an unknown
-`STATION_TIMEZONE`, half of a coordinate pair — aborts startup, and **every**
+`STATION_TIMEZONE`, an unrecognised `LOG_LEVEL` or `LOG_FORMAT`, half of a coordinate pair — aborts startup, and **every**
 offending variable is named at once rather than just the first. (The one
 exception is `TZ`: a value the runtime cannot resolve is not fatal — see
 [Timezone](#timezone).) An *absent* value never prevents startup: an optional
@@ -45,9 +45,25 @@ error (exit 2).
 |---|---|---|
 | `HTTP_ADDR` | `:8080` | Bind address for the dashboard and JSON API. Accepts `:8080` or `0.0.0.0:8080` |
 | `TOKEN` | — | WeatherFlow API token. **Setting it switches the process to API-export mode.** Also required by the `backfill` subcommand |
-| `LOG_UDP` | `false` | Log every UDP broadcast received. The fastest way to tell whether the station reaches the container at all |
+| `LOG_UDP` | `false` | Log every UDP broadcast received. The fastest way to tell whether the station reaches the container at all. Logged at `info`, so a `LOG_LEVEL` of `warn` or `error` hides it |
 | `KEEP_EXPORT_FILES` | `false` | In API-export mode, retain the `.gz` files instead of deleting them after a successful database write |
 | `STORMGLASS_SERIAL` | — | Sets the OTel resource attribute `stormglass.serial` (process-level identity). The authoritative per-metric `serial` label always comes from the reports themselves |
+
+## Logging
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `LOG_LEVEL` | `info` | Minimum severity logged: `debug`, `info`, `warn` or `error`. Case-insensitive. `debug` also logs the body of an observation response that could not be parsed |
+| `LOG_FORMAT` | `text` | `text` for `key=value` lines or `json` for one JSON object per line |
+
+Logs are written to **stderr**, which a container runtime captures. With
+`ENABLE_OTEL`, the same records are also exported over OTLP, and `LOG_LEVEL`
+filters both. The `backfill` subcommand honours both variables; `healthcheck`
+logs nothing and ignores them.
+
+An unrecognised value for either variable is a fatal startup error that names
+the variable and the value, alongside any other bad values. Unset takes the
+default.
 
 ## Storage
 
