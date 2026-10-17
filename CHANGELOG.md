@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.1.1](https://github.com/jacaudi/stormglass/compare/v1.1.0...v1.1.1) (2026-10-17)
+
+**Upgrading from v1.1.0:** an unparseable, zero or negative storage tunable (`SQLITE_*` / `POSTGRES_*` batch size, flush interval, busy timeout or max retries) now stops startup instead of silently falling back to its default. See [Upgrading from v1.1.0](https://github.com/jacaudi/stormglass/blob/main/docs/configuration.md#upgrading-from-v110).
+
+
+### Bug Fixes
+
+* **config:** fail loud on malformed storage tunables ([c20a510](https://github.com/jacaudi/stormglass/commit/c20a51049d97d0ea2085d38b3042390969b91bc2))
+
+
+### Miscellaneous Chores
+
+* anchor the stormglass binary pattern in .gitignore ([385c899](https://github.com/jacaudi/stormglass/commit/385c8998d4da1efcee4f139aefeee60ee450e1cc))
+* **deps:** Update dependency ruff to v0.17.1 ([#298](https://github.com/jacaudi/stormglass/issues/298)) ([decb9d5](https://github.com/jacaudi/stormglass/commit/decb9d54b60388b635f9ef0e71c87ab9930b2052))
+* **deps:** Update module golang.org/x/vuln to v1.9.0 ([#299](https://github.com/jacaudi/stormglass/issues/299)) ([5ebefb3](https://github.com/jacaudi/stormglass/commit/5ebefb31663983b56a24328f62f1b0e2c664145b))
+* ignore the stormglass binary built inside cmd/stormglass ([9a60880](https://github.com/jacaudi/stormglass/commit/9a60880901b8da73db1e3194b20429569e976cc8))
+
 ## [1.1.0](https://github.com/jacaudi/stormglass/compare/v1.0.4...v1.1.0) (2026-10-17)
 
 
