@@ -2,11 +2,12 @@
 
 ## [1.1.1](https://github.com/jacaudi/stormglass/compare/v1.1.0...v1.1.1) (2026-10-17)
 
+**Upgrading from v1.1.0:** an unparseable, zero or negative storage tunable (`SQLITE_*` / `POSTGRES_*` batch size, flush interval, busy timeout or max retries) now stops startup instead of silently falling back to its default. See [Upgrading from v1.1.0](https://github.com/jacaudi/stormglass/blob/main/docs/configuration.md#upgrading-from-v110).
+
 
 ### Bug Fixes
 
 * **config:** fail loud on malformed storage tunables ([c20a510](https://github.com/jacaudi/stormglass/commit/c20a51049d97d0ea2085d38b3042390969b91bc2))
-* **config:** fail loud on malformed storage tunables, unhide cmd/stormglass, drop line citations ([34b0142](https://github.com/jacaudi/stormglass/commit/34b0142cc1f4d3b28c5258eea2749c8ded077b4b))
 
 
 ### Miscellaneous Chores
