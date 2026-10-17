@@ -151,7 +151,9 @@ Points an agent gets wrong most often:
   out-of-range values — including an unknown `STATION_TIMEZONE` — abort
   startup. The gates run in order and each stops the process: `LOG_*` first
   (both named together), then `STATION_*` (every offender named together), then
-  each boolean on its own — see `docs/configuration.md`. (The one exception is
+  the rest where startup reads them — each boolean on its own, and each
+  in-use store's three tunables together (`SQLITE_*`, then `POSTGRES_*`) — see
+  `docs/configuration.md`, "How values are read". (The one exception is
   `TZ`: a value the Go runtime cannot resolve logs a `WARN` and degrades to UTC
   rather than aborting.) An unmet optional-card precondition logs an `ERROR`,
   leaves the route unregistered, and lets ingestion continue — a card flag must
