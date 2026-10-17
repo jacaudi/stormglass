@@ -563,7 +563,9 @@ func TestMalformedSQLiteTunablesAreFatalAndNameEveryOffender(t *testing.T) {
 	if !ok || exitErr.ExitCode() != 1 {
 		t.Fatalf("want exit code 1, got err=%v\n%s", err, out)
 	}
-	for _, want := range []string{"SQLITE_BATCH_SIZE", "abc", "SQLITE_BUSY_TIMEOUT", "-1"} {
+	// Quoted -1, as slog's text handler escapes it: a bare "-1" matches the
+	// record's own time=2026-10-... timestamp.
+	for _, want := range []string{"SQLITE_BATCH_SIZE", "abc", "SQLITE_BUSY_TIMEOUT", `\"-1\"`} {
 		if !strings.Contains(string(out), want) {
 			t.Errorf("output does not name %s:\n%s", want, out)
 		}
