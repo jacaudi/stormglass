@@ -133,6 +133,17 @@ default. The `backfill` subcommand does not read them.
 
 See [Storage](storage.md) for the schema and the Litestream replication path.
 
+### Upgrading from v1.1.0
+
+In v1.1.0 an unparseable, zero or negative value for any of the six storage
+tunables — `SQLITE_BATCH_SIZE`, `SQLITE_FLUSH_INTERVAL`, `SQLITE_BUSY_TIMEOUT`,
+`POSTGRES_BATCH_SIZE`, `POSTGRES_FLUSH_INTERVAL`, `POSTGRES_MAX_RETRIES` — was
+silently replaced by its default. Whenever that store is in use, such a value
+now **stops startup** with an error naming the variable and the value. The
+likeliest traps: `POSTGRES_MAX_RETRIES=0`; a duration with no unit, such as
+`SQLITE_FLUSH_INTERVAL=10` (write `10s`); and a duration string for
+`SQLITE_BUSY_TIMEOUT`, which is milliseconds (`5000`, not `5s`).
+
 ## Metrics
 
 > **`ENABLE_PROMETHEUS_*` is deprecated** and slated for removal in the next
