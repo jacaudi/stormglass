@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -52,6 +55,35 @@ func TestMalformedLogConfigIsFatalAndNamesEveryOffender(t *testing.T) {
 	}
 }
 
+// healthcheck ignores LOG_* (docs/configuration.md, Logging): it is exec'd by
+// the container HEALTHCHECK, so a logging typo must not mark a running,
+// healthy server unhealthy. Against a healthy /healthz it exits 0 and writes
+// nothing, malformed values notwithstanding.
+func TestHealthcheckIgnoresLogConfig(t *testing.T) {
+	bin := buildTestBinary(t)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	u, err := url.Parse(srv.URL)
+	if err != nil {
+		t.Fatalf("parse httptest URL: %v", err)
+	}
+
+	cmd := exec.CommandContext(t.Context(), bin, "healthcheck")
+	cmd.Env = []string{"HTTP_ADDR=:" + u.Port(), "LOG_LEVEL=loud", "LOG_FORMAT=xml"}
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("healthcheck against a healthy server: err=%v, want exit 0\n%s", err, out)
+	}
+	if len(out) != 0 {
+		t.Errorf("healthcheck output = %q, want none: it must not read LOG_*", out)
+	}
+}
+
 // End to end: LOG_FORMAT=json reaches the real process, and a startup failure
 // (every fatal call site) is reported through the same handler as an ERROR
 // record, on stderr, with exit code 1.
@@ -61,7 +93,10 @@ func TestFatalStartupErrorHonorsLogFormat(t *testing.T) {
 	cmd := exec.CommandContext(t.Context(), bin)
 	// ENABLE_POSTGRES is parsed before any resource is opened, so this fails
 	// fast with a malformed boolean and touches no database or socket.
-	cmd.Env = append(os.Environ(), "LOG_FORMAT=json", "ENABLE_POSTGRES=maybe")
+	// Hermeticity, not decoration: the environment is exactly these two, because
+	// config.LoadStation runs first and an ambient malformed STATION_* would be
+	// the fatal error reported instead.
+	cmd.Env = []string{"LOG_FORMAT=json", "ENABLE_POSTGRES=maybe"}
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	err := cmd.Run()
