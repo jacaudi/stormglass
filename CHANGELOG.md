@@ -1,5 +1,73 @@
 # Changelog
 
+## [1.1.0](https://github.com/jacaudi/stormglass/compare/v1.0.4...v1.1.0) (2026-10-17)
+
+
+### Features
+
+* **config:** decode LOG_LEVEL and LOG_FORMAT ([7a0e0fe](https://github.com/jacaudi/stormglass/commit/7a0e0fed6a8d36addb61c8271f81b03f29aab603))
+* **logging:** honor LOG_LEVEL and LOG_FORMAT in the default logger ([1864eee](https://github.com/jacaudi/stormglass/commit/1864eee77d316acbe5fa7db610c671a401297080))
+
+
+### Bug Fixes
+
+* **deps:** patch Go stdlib and x/net vulnerabilities ([#291](https://github.com/jacaudi/stormglass/issues/291)) ([5e2863e](https://github.com/jacaudi/stormglass/commit/5e2863e7274ebcfe9e836a045fd42b3ef06c7016))
+* **otel:** replace deprecated otel/log/global with the otel package ([0a42e69](https://github.com/jacaudi/stormglass/commit/0a42e69e68cbb14a410dbee1e281f434b46e03b0))
+* **renovate:** drop the ** from the docker-images matchPackageNames ([b8a7b0c](https://github.com/jacaudi/stormglass/commit/b8a7b0cd3af9a950f4fc0e7829347cfcc440b51f))
+* **web:** bump brace-expansion past GHSA-qhr7-859c-m2p7 ([#294](https://github.com/jacaudi/stormglass/issues/294)) ([6206810](https://github.com/jacaudi/stormglass/commit/6206810a2a27ff5acd68690e1d34bb507f5ed716))
+
+
+### Miscellaneous Chores
+
+* **deps:** move web to TypeScript 6 and hold 7 until typescript-eslint supports it ([#293](https://github.com/jacaudi/stormglass/issues/293)) ([aed77a7](https://github.com/jacaudi/stormglass/commit/aed77a7657a7082d5b72ba2174904be3c75c63b4))
+* **deps:** Update dependency @types/node to v24.13.6 ([12d3660](https://github.com/jacaudi/stormglass/commit/12d3660847faa0dd08c941ef5134ce81d74bdcf7))
+* **deps:** Update dependency @types/node to v24.19.2 ([#275](https://github.com/jacaudi/stormglass/issues/275)) ([b3ee355](https://github.com/jacaudi/stormglass/commit/b3ee3559ead94282ddbd7d64b7e4833ddd1c5e98))
+* **deps:** Update dependency @vitejs/plugin-react to v6.1.2 ([#284](https://github.com/jacaudi/stormglass/issues/284)) ([daab986](https://github.com/jacaudi/stormglass/commit/daab98642fb961154a3e050cddb848b158092139))
+* **deps:** Update dependency arm-pyart to v2.3.0 ([#267](https://github.com/jacaudi/stormglass/issues/267)) ([14f4050](https://github.com/jacaudi/stormglass/commit/14f405069d89770bf3c4444281e8d87bddd9ad1e))
+* **deps:** Update dependency boto3 to v1.43.114 ([#270](https://github.com/jacaudi/stormglass/issues/270)) ([b166dcd](https://github.com/jacaudi/stormglass/commit/b166dcda045d7831bc436bad560cf7b391a58904))
+* **deps:** Update dependency boto3 to v1.43.99 ([95ebe0c](https://github.com/jacaudi/stormglass/commit/95ebe0ce79fae9c69e1b3f25897d634483402cdb))
+* **deps:** Update dependency eslint to v10.11.0 ([7908698](https://github.com/jacaudi/stormglass/commit/79086984b474d52773d23b7fb0703572cc294198))
+* **deps:** Update dependency eslint to v10.13.0 ([#282](https://github.com/jacaudi/stormglass/issues/282)) ([7e29572](https://github.com/jacaudi/stormglass/commit/7e295724de299a0f22dcc22147893798172d0d2d))
+* **deps:** Update dependency eslint-plugin-react-refresh to v0.5.7 ([d915459](https://github.com/jacaudi/stormglass/commit/d915459c7f02d9e5cde08bf2cd43a8f61b034ebe))
+* **deps:** Update dependency fastapi to v0.143.3 ([#278](https://github.com/jacaudi/stormglass/issues/278)) ([3ccda2a](https://github.com/jacaudi/stormglass/commit/3ccda2a509b9404e3150a0be561d486c9858a815))
+* **deps:** Update dependency globals to v17.12.0 ([a068dd8](https://github.com/jacaudi/stormglass/commit/a068dd8a106a0aede6161396923e640b4c912fcd))
+* **deps:** Update dependency globals to v17.13.0 ([#279](https://github.com/jacaudi/stormglass/issues/279)) ([02baae1](https://github.com/jacaudi/stormglass/commit/02baae1f026a5a3879cb4e2f0b77d9ceff90659a))
+* **deps:** Update dependency jsdom to v30.1.3 ([#266](https://github.com/jacaudi/stormglass/issues/266)) ([e5a50a4](https://github.com/jacaudi/stormglass/commit/e5a50a47ef999b375c85646853cce54d4800105b))
+* **deps:** Update dependency maplibre-gl to v6.10.0 ([4e507aa](https://github.com/jacaudi/stormglass/commit/4e507aad2885a708599cce67a3d441b1f17f4ca0))
+* **deps:** Update dependency maplibre-gl to v6.14.0 ([#272](https://github.com/jacaudi/stormglass/issues/272)) ([8e1e713](https://github.com/jacaudi/stormglass/commit/8e1e7131d484e9edbfa7b72042e737bf3816e20d))
+* **deps:** Update dependency matplotlib to v3.11.2 ([e39dea0](https://github.com/jacaudi/stormglass/commit/e39dea0e35e8341f331fa1cef468ab2df0c31782))
+* **deps:** Update dependency playwright to v1.63.0 ([2deb0f1](https://github.com/jacaudi/stormglass/commit/2deb0f106cc0112c4750182ce8e4db8c9f418a36))
+* **deps:** Update dependency playwright to v1.64.1 ([#285](https://github.com/jacaudi/stormglass/issues/285)) ([42d1562](https://github.com/jacaudi/stormglass/commit/42d15622c6e96c2c1d79106464f6d4eb58cef5eb))
+* **deps:** Update dependency react-dom to v19.3.0 ([c9f7a8b](https://github.com/jacaudi/stormglass/commit/c9f7a8bc438d29d4ef70f14a5c27d4c7374105a1))
+* **deps:** Update dependency react-dom to v19.3.1 ([#289](https://github.com/jacaudi/stormglass/issues/289)) ([386c44f](https://github.com/jacaudi/stormglass/commit/386c44fe5cb547cafd60e72b9b864771d34b83a7))
+* **deps:** Update dependency typescript-eslint to v8.70.1 ([3585f3e](https://github.com/jacaudi/stormglass/commit/3585f3ef3b062ab18836fce27e6f5d4efac2d5aa))
+* **deps:** Update dependency typescript-eslint to v8.71.2 ([#276](https://github.com/jacaudi/stormglass/issues/276)) ([c9df1ee](https://github.com/jacaudi/stormglass/commit/c9df1eef4108eecedf2ae2b35901b543cb7c352d))
+* **deps:** Update dependency uvicorn to v0.53.0 ([cd54aca](https://github.com/jacaudi/stormglass/commit/cd54aca1472e95003b917e9b4e9525c308bf01f6))
+* **deps:** Update dependency uvicorn to v0.54.0 ([#274](https://github.com/jacaudi/stormglass/issues/274)) ([26bb945](https://github.com/jacaudi/stormglass/commit/26bb9451d50c8d59438d98ca79b417718dbbc325))
+* **deps:** Update dependency vite to v8.3.0 ([44feaba](https://github.com/jacaudi/stormglass/commit/44feaba78776192734bbb875415394272f5e4c50))
+* **deps:** Update dependency vite to v8.3.4 ([#273](https://github.com/jacaudi/stormglass/issues/273)) ([abf4a17](https://github.com/jacaudi/stormglass/commit/abf4a1793050dae87492e9379ac7c87ade30bab4))
+* **deps:** Update dependency vitest to v4.1.12 ([#290](https://github.com/jacaudi/stormglass/issues/290)) ([abcfaa3](https://github.com/jacaudi/stormglass/commit/abcfaa37de4f7b7a3830e53086eeab83874e993f))
+* **deps:** Update dependency vitest to v5 ([5f3f089](https://github.com/jacaudi/stormglass/commit/5f3f089e574411c06ce28c37df6b16ade7649eb9))
+* **deps:** Update dependency vitest to v5 ([67b02d8](https://github.com/jacaudi/stormglass/commit/67b02d8bf1506617ec2d64197344f84251c9e1d4))
+* **deps:** Update docker-images ([b765b62](https://github.com/jacaudi/stormglass/commit/b765b62dfc298722d4bb99ec3590a8bb2d1f60e7))
+* **deps:** Update docker-images ([#271](https://github.com/jacaudi/stormglass/issues/271)) ([bedc8a5](https://github.com/jacaudi/stormglass/commit/bedc8a5de7fa5f950be620301b753f00967ae895))
+* **deps:** Update GitHub Actions ([38e87c9](https://github.com/jacaudi/stormglass/commit/38e87c9813d945a58015a729c8586b7d5702a584))
+* **deps:** Update GitHub Actions ([#286](https://github.com/jacaudi/stormglass/issues/286)) ([559a185](https://github.com/jacaudi/stormglass/commit/559a185edaf7ec3ae316ae2ce690af37b3740754))
+* **deps:** Update go-toolchain ([df51da9](https://github.com/jacaudi/stormglass/commit/df51da9217e3a3762b507f466ea7edc220f349a5))
+* **deps:** Update go-toolchain ([e243ccc](https://github.com/jacaudi/stormglass/commit/e243ccc3b4eb7fc3a4953ddc683dafaac7f74079))
+* **deps:** Update module github.com/jackc/pgx/v5 to v5.11.0 ([fcdefb9](https://github.com/jacaudi/stormglass/commit/fcdefb9b9ae5072defd36ef96b601e3aaee6829a))
+* **deps:** Update module github.com/prometheus/client_golang to v1.25.0 ([#287](https://github.com/jacaudi/stormglass/issues/287)) ([69c16d8](https://github.com/jacaudi/stormglass/commit/69c16d873c2da59804a86572f637f0b69026ef73))
+* **deps:** Update module github.com/prometheus/client_model to v0.6.3 ([84834b3](https://github.com/jacaudi/stormglass/commit/84834b36e9d6310cda09f5389a5b442c8fcc44f6))
+* **deps:** Update module github.com/prometheus/common to v0.72.1 ([#247](https://github.com/jacaudi/stormglass/issues/247)) ([7903f4b](https://github.com/jacaudi/stormglass/commit/7903f4bbc58a2c0d1ee8c139662dad4124ebc3e5))
+* **deps:** Update module modernc.org/sqlite to v1.59.0 ([d59a175](https://github.com/jacaudi/stormglass/commit/d59a17570baad4c037a9a311c96bc790956a7d17))
+* **deps:** Update module modernc.org/sqlite to v1.60.1 ([#277](https://github.com/jacaudi/stormglass/issues/277)) ([0fe2290](https://github.com/jacaudi/stormglass/commit/0fe2290fe39ee0019463bfab764d73c0ad1c8238))
+* **deps:** Update opentelemetry-go monorepo ([9c7cd33](https://github.com/jacaudi/stormglass/commit/9c7cd33404a0dfd06063dc3e27fabad113b71037))
+* **deps:** Update opentelemetry-go monorepo ([fb3542d](https://github.com/jacaudi/stormglass/commit/fb3542d8a988e58d276a6215edaaba419e6dd1a7))
+* **deps:** Update opentelemetry-go-contrib monorepo ([#283](https://github.com/jacaudi/stormglass/issues/283)) ([9a63e74](https://github.com/jacaudi/stormglass/commit/9a63e74c10a9225d471292081153262993a1cefb))
+* **deps:** Update otel/opentelemetry-collector-contrib Docker tag to v0.163.1 ([#292](https://github.com/jacaudi/stormglass/issues/292)) ([f194718](https://github.com/jacaudi/stormglass/commit/f19471853ac5303bf048047a28bafc87bff4be49))
+* **deps:** Update react monorepo to v19.3.0 ([f3fbd01](https://github.com/jacaudi/stormglass/commit/f3fbd0168bef981b821cd1d7a835cc5910f87385))
+* **httpserver:** suppress gosec G703 on static file serve, pin with traversal test ([3aebdbb](https://github.com/jacaudi/stormglass/commit/3aebdbbdc6b2702310caf8c4aab8ae7cdfbebab9))
+
 ## [1.0.4](https://github.com/jacaudi/stormglass/compare/v1.0.3...v1.0.4) (2026-08-30)
 
 
