@@ -82,9 +82,9 @@ Every other invocation is a matter of which environment variables are set. See
 ### Operational Modes
 
 The application switches modes on the presence of `TOKEN`:
-- **No TOKEN**: `listenAndPushWithSink()` (`main.go:756`) — UDP listener feeding
-  every configured writer.
-- **With TOKEN**: `exportWithSink()` (`main.go:890`) — historical export, then exit.
+- **No TOKEN**: `listenAndPushWithSink()` — UDP listener feeding every
+  configured writer.
+- **With TOKEN**: `exportWithSink()` — historical export, then exit.
 
 ### Package Structure
 
@@ -106,7 +106,7 @@ The application switches modes on the presence of `TOKEN`:
 
 ### Data Flow (UDP Mode)
 
-1. UDP packets received on :50222 → `listen()` (`main.go:788`)
+1. UDP packets received on :50222 → `listen()`
 2. Raw bytes → `tempestudp.ParseReport()` → Report struct
 3. Report → `Report.Metrics()` → `[]prometheus.Metric`
 4. Handed to `sink.MetricsSink`, which fans out to **every registered writer**:

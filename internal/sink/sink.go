@@ -21,19 +21,21 @@ import (
 
 // defaultWriteTimeout bounds a single writer's acceptance of one report in
 // SendReport. SendReport is called synchronously from the single UDP read
-// goroutine (main.go:456) with the top-level application ctx, which is not
-// canceled during normal operation — so an unbounded per-writer send (e.g. a
-// full Postgres batch channel while the database is degraded) would stall
-// ingest for every sink, not just the degraded one. Writers already select on
-// ctx.Done() in their enqueue paths, so bounding the ctx here is sufficient
-// to release them; no writer changes are needed (#47).
+// goroutine (cmd/stormglass's listen, via listenAndPushWithSink's rx callback)
+// with the top-level application ctx, which is not canceled during normal
+// operation — so an unbounded per-writer send (e.g. a full Postgres batch
+// channel while the database is degraded) would stall ingest for every sink,
+// not just the degraded one. Writers already select on ctx.Done() in their
+// enqueue paths, so bounding the ctx here is sufficient to release them; no
+// writer changes are needed (#47).
 //
 // SendMetrics is deliberately left unbounded: its only caller is the API
-// export/backfill path (main.go:562), where blocking is correct backpressure
-// — wait for the database rather than silently truncate a batch that can
-// hold up to 200,000 metrics. A timeout there would expire mid-batch and
-// drop the remaining rows while the export advances, a silent partial data
-// loss with no analogous shared-read-loop hazard to justify the cost.
+// export path (cmd/stormglass's exportWithSink), where blocking is correct
+// backpressure — wait for the database rather than silently truncate a batch
+// that can hold up to 200,000 metrics. A timeout there would expire
+// mid-batch and drop the remaining rows while the export advances, a silent
+// partial data loss with no analogous shared-read-loop hazard to justify the
+// cost.
 //
 // 5s matches eventBlockTimeout in internal/sqlite/writer.go:29, which bounds
 // the analogous case (a discrete event blocking on a full channel). Kept

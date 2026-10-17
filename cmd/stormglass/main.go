@@ -672,7 +672,7 @@ func main() {
 	// legal, and stationCfg is fully formed even on the error path.
 	//
 	// Here rather than in startAPIServer because that returns nil unless
-	// mode == ModeUDP (main.go:644-646), and these notices apply to both
+	// mode == ModeUDP (its opening guard), and these notices apply to both
 	// modes. That places them before configureOTel installs the slog bridge,
 	// so they reach the pre-bridge stderr default rather than the OTel log
 	// pipeline -- the same accepted limitation

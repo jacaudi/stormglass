@@ -131,11 +131,11 @@ func usageErr(fs *flag.FlagSet, format string, a ...any) error {
 //
 // Backfill repairs ONE store per run. selectStore returns BOTH when
 // ENABLE_POSTGRES=true and SQLITE_PATH is set — a documented fan-out the
-// daemon honors by writing every observation to both (main.go:302-336). In
-// that configuration backfill cannot infer the target, and guessing is the
-// worst option available: repairing Postgres while leaving the
-// Litestream-replicated SQLite database still holed, then exiting 0, tells
-// the operator the history is fixed when it is not.
+// daemon honors by writing every observation to both (configureSQLiteWriter
+// and configurePostgresWriter). In that configuration backfill cannot infer
+// the target, and guessing is the worst option available: repairing Postgres
+// while leaving the Litestream-replicated SQLite database still holed, then
+// exiting 0, tells the operator the history is fixed when it is not.
 func resolveStore(choice storeChoice, flagValue string) (string, error) {
 	var configured []string
 	if choice.sqlite {
@@ -285,7 +285,7 @@ func openBackfillStore(ctx context.Context, target string, choice storeChoice, s
 // handles, wire dependencies, return an exit code.
 //
 // It performs ALL cleanup via internal defers. Copying the healthcheck shape
-// (os.Exit at the dispatch site, main.go:189-191) would skip db.Close() and
+// (os.Exit at the dispatch site, dispatchSubcommand) would skip db.Close() and
 // the pgx pool drain.
 //
 // Exit codes: 0 success (including permanent holes), 1 a gap failed or a
@@ -327,9 +327,10 @@ func runBackfill(ctx context.Context, args []string) int {
 
 	// Backfill repairs ONE store per run, and must never guess which. The
 	// daemon fans out to both when ENABLE_POSTGRES and SQLITE_PATH are both
-	// set (main.go:147-154, :302-336); silently repairing Postgres while
-	// leaving the SQLite database — the one Litestream replicates to S3 —
-	// still holed, then reporting success, is the worst available outcome.
+	// set (selectStore, configureSQLiteWriter, configurePostgresWriter);
+	// silently repairing Postgres while leaving the SQLite database — the one
+	// Litestream replicates to S3 — still holed, then reporting success, is
+	// the worst available outcome.
 	target, err := resolveStore(choice, storeFlag)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
