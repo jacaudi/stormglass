@@ -99,10 +99,10 @@ func (e *capturingExporter) captured() []sdklog.Record {
 // stdlib behavior: slog.SetDefault(l) calls log.SetOutput(&handlerWriter{l.Handler(),...})
 // whenever l.Handler() isn't the unexported *defaultHandler type (see
 // log/slog/logger.go's SetDefault) — so wiring ENABLE_OTEL's log bridge as the
-// sole slog default would silently redirect ALL of main's existing
-// log.Printf/log.Fatal output away from stderr and into the OTel pipeline
-// only. newTeeHandler fans every record out to both the OTel bridge and a
-// plain stderr handler, so container log visibility is preserved.
+// sole slog default would silently redirect every slog record, and anything a
+// dependency still writes through stdlib log, away from stderr and into the
+// OTel pipeline only. newTeeHandler fans every record out to both the OTel
+// bridge and a plain stderr handler, so container log visibility is preserved.
 func TestTeeHandler_FansOutToAllHandlers(t *testing.T) {
 	exporter := &capturingExporter{}
 	lp := sdklog.NewLoggerProvider(
@@ -114,7 +114,7 @@ func TestTeeHandler_FansOutToAllHandlers(t *testing.T) {
 	stderrHandler := slog.NewTextHandler(&stderrBuf, nil)
 	otelHandler := otel.NewSlogHandler(lp)
 
-	logger := slog.New(newTeeHandler(otelHandler, stderrHandler))
+	logger := slog.New(newTeeHandler(slog.LevelDebug, otelHandler, stderrHandler))
 	logger.InfoContext(t.Context(), "tee test message", "key", "val")
 
 	if !strings.Contains(stderrBuf.String(), "tee test message") {

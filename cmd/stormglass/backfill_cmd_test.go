@@ -318,13 +318,7 @@ func TestKnownSubcommands(t *testing.T) {
 // through and silently started a UDP listener, which never exits — so a
 // failure here shows up as a timeout, not just a bad exit code.
 func TestUnknownSubcommandExitsTwoWithoutStartingDaemon(t *testing.T) {
-	bin := filepath.Join(t.TempDir(), "twx")
-
-	build := exec.CommandContext(t.Context(), "go", "build", "-o", bin, ".")
-	build.Env = append(os.Environ(), "CGO_ENABLED=0")
-	if out, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("build: %v\n%s", err, out)
-	}
+	bin := buildTestBinary(t)
 
 	cmd := exec.CommandContext(t.Context(), bin, "backfil")
 	out, err := cmd.CombinedOutput()
@@ -349,13 +343,7 @@ func TestUnknownSubcommandExitsTwoWithoutStartingDaemon(t *testing.T) {
 // is the same silent-daemon failure Task 10 exists to eliminate, reachable by
 // a one-line edit. Only a re-exec catches it.
 func TestBackfillSubcommandReachesRunBackfill(t *testing.T) {
-	bin := filepath.Join(t.TempDir(), "twx")
-
-	build := exec.CommandContext(t.Context(), "go", "build", "-o", bin, ".")
-	build.Env = append(os.Environ(), "CGO_ENABLED=0")
-	if out, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("build: %v\n%s", err, out)
-	}
+	bin := buildTestBinary(t)
 
 	// --help exits 0 and prints the backfill flag set. The daemon prints
 	// nothing resembling this, so it discriminates cleanly.
