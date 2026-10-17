@@ -14,7 +14,7 @@ rather than silently disabling the card.
 
 **Malformed is fatal; missing is not.** A value that cannot be parsed — an
 unparseable or out-of-range coordinate, a non-finite number, an unknown
-`STATION_TIMEZONE`, an unrecognised `LOG_LEVEL` or `LOG_FORMAT`, half of a coordinate pair — aborts startup, and **every**
+`STATION_TIMEZONE`, half of a coordinate pair — aborts startup, and **every**
 offending variable is named at once rather than just the first. (The one
 exception is `TZ`: a value the runtime cannot resolve is not fatal — see
 [Timezone](#timezone).) An *absent* value never prevents startup: an optional
@@ -62,8 +62,9 @@ filters both. The `backfill` subcommand honours both variables; `healthcheck`
 logs nothing and ignores them.
 
 An unrecognised value for either variable is a fatal startup error that names
-the variable and the value, alongside any other bad values. Unset takes the
-default.
+the variable and the value. Both are checked together, but before any other
+variable is read, so a bad logging value is reported on its own: fix it and
+restart to see the rest. Unset takes the default.
 
 ## Storage
 
