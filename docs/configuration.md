@@ -138,9 +138,10 @@ See [Storage](storage.md) for the schema and the Litestream replication path.
 In v1.1.0 an unparseable, zero or negative value for any of the six storage
 tunables — `SQLITE_BATCH_SIZE`, `SQLITE_FLUSH_INTERVAL`, `SQLITE_BUSY_TIMEOUT`,
 `POSTGRES_BATCH_SIZE`, `POSTGRES_FLUSH_INTERVAL`, `POSTGRES_MAX_RETRIES` — was
-silently replaced by its default. Whenever that store is in use, such a value
-now **stops startup** with an error naming the variable and the value. The
-likeliest traps: `POSTGRES_MAX_RETRIES=0`; a duration with no unit, such as
+silently replaced by its default. Such a value now **stops the daemon at
+startup**, for whichever store it writes, with an error naming the variable and
+the value. The `backfill` subcommand reads only the `SQLITE_*` tunables, and
+only when it repairs SQLite; there it refuses with exit 2. The likeliest traps: `POSTGRES_MAX_RETRIES=0`; a duration with no unit, such as
 `SQLITE_FLUSH_INTERVAL=10` (write `10s`); and a duration string for
 `SQLITE_BUSY_TIMEOUT`, which is milliseconds (`5000`, not `5s`).
 

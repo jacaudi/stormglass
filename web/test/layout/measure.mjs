@@ -775,7 +775,7 @@ CHECKS.push({
 
 // B-1's regression gate: the rain card must centre in BOTH states. m.rain is a
 // second server instance serving observations-current.rain.json, so
-// .rain-animation is present as a conditional third child.
+// .rain-animation is present as a conditional last child.
 CHECKS.push({
   id: 'rain-card-centres-while-raining',
   section: '§6.4 / §15 B-1',
