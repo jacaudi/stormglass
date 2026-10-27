@@ -5,7 +5,7 @@ vars:
   # Pinned: an unpinned ruff release can turn the fleet red overnight with
   # nothing to bisect against.
   # renovate: datasource=pypi depName=ruff
-  RUFF: ruff@0.17.1
+  RUFF: ruff@0.17.3
 
 tasks:
   ci:
