@@ -1,7 +1,7 @@
 fastapi==0.143.3
 uvicorn[standard]==0.54.0
 arm-pyart==2.3.0
-boto3==1.43.114
+boto3==1.43.123
 geojsoncontour==0.5.1
 matplotlib==3.11.2
 pytest==9.1.1
