@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # --- UI stage: build the React app with Vite -------------------------------
-FROM node:24-alpine@sha256:44fce696f38ba8c987c4db89954051000bbd05ffd8d8659ba15ed4a8602e937f AS ui
+FROM node:26-alpine@sha256:8996bb5821d62a8fd9bb27c1cb07462f3fdce6e47d640c6a881ead0b064ce216 AS ui
 
 WORKDIR /app/web
 
