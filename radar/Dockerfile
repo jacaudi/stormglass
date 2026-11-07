@@ -31,7 +31,7 @@ ENV PATH="/venv/bin:$PATH"
 # the only thing pinning boto3 under aiobotocore's botocore ceiling (#232). pip
 # has no way to exclude a transitive dependency. Pinned by digest like every
 # other base here.
-COPY --from=ghcr.io/astral-sh/uv:0.13.1@sha256:4a1f3666816dafadd20ceb71eac9a7d56d7ef30279f7d64048519ab901ada336 /uv /usr/local/bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.13.7@sha256:96f40d3904aad8d0bd010539001d36c8e2188b981e1334471a90c4a1d93bb490 /uv /usr/local/bin/uv
 
 WORKDIR /app
 COPY requirements.txt excludes.txt ./
